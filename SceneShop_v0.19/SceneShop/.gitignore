@@ -13,6 +13,7 @@ node_modules/
 # Runtime/generated data
 .frames/
 *.log
+logs/
 data/runtime.json
 data/secrets.json
 data/ai/
