@@ -66,7 +66,7 @@ ACTION="${1:-start}"
 case "$ACTION" in
   start)
     echo "Starting / Reloading SceneShop via PM2..."
-    $PM2_CMD start ecosystem.config.cjs
+    $PM2_CMD start ecosystem.config.cjs --update-env
     $PM2_CMD save
     $PM2_CMD status
     echo ""
@@ -76,12 +76,12 @@ case "$ACTION" in
     ;;
   restart)
     echo "Restarting SceneShop..."
-    $PM2_CMD restart sceneshop
+    $PM2_CMD restart sceneshop --update-env
     $PM2_CMD status
     ;;
   reload)
     echo "Reloading SceneShop (zero-downtime)..."
-    $PM2_CMD reload sceneshop
+    $PM2_CMD reload sceneshop --update-env
     $PM2_CMD status
     ;;
   stop)

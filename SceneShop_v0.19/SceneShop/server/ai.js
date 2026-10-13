@@ -28,7 +28,7 @@ const { ai: aiPipeline } = require("./repositories");
 const DATA = path.join(__dirname, "..", "data");
 const JOBS_DIR = path.join(DATA, "ai");
 const BASE = () => (process.env.GEMINI_BASE || "https://generativelanguage.googleapis.com").replace(/\/$/, "");
-const PREFERRED = ["gemini-3-pro", "gemini-3-flash", "gemini-2.5-pro", "gemini-2.5-flash"];
+const PREFERRED = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-latest", "gemini-2.5-flash", "gemini-3-flash", "gemini-1.5-pro", "gemini-2.5-pro", "gemini-3-pro"];
 const MIME = { mp4: "video/mp4", m4v: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
 
 // ------------------------------------------------------------------ chave e modelo
