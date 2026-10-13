@@ -60,18 +60,7 @@ let modelCache = null;
 async function pickModel() {
   if (process.env.GEMINI_MODEL) return process.env.GEMINI_MODEL;
   if (modelCache) return modelCache;
-  const { data } = await api("/v1beta/models?pageSize=200");
-  const names = (data.models || [])
-    .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
-    .map((m) => m.name.replace(/^models\//, ""));
-  // o primeiro da lista de preferência que existir (aceita sufixos como "-preview-06-05")
-  for (const p of PREFERRED) {
-    const hit = names.filter((n) => n === p || n.startsWith(p + "-")).sort((a, b) => (a === p ? -1 : b === p ? 1 : b.localeCompare(a)))[0];
-    if (hit) return (modelCache = hit);
-  }
-  const any = names.find((n) => /^gemini-/.test(n) && !/embedding|tts|image|audio|pro/.test(n));
-  if (!any) throw new Error("Nenhum modelo Gemini gratuito (Flash) disponível para esta chave.");
-  return (modelCache = any);
+  return (modelCache = PREFERRED[0] || "gemini-1.5-flash");
 }
 
 // ------------------------------------------------------------------ envio do vídeo (Files API)
@@ -273,8 +262,8 @@ async function analyze({ work, products, assets = [], mode = "DISCOVERY", catego
     audit.log(actor, "ia_marcacao", { workId: work.id, modelo: job.model, cenas: job.scenes.length, itens: n });
   } catch (e) {
     job.status = "erro";
-    job.error = e.message;
-    if (durableJobId && organizationId) await Promise.resolve(aiPipeline.failJob(organizationId, durableJobId, e.message)).catch(() => {});
+    job.error = (job.model ? `[${job.model}] ` : "") + e.message;
+    if (durableJobId && organizationId) await Promise.resolve(aiPipeline.failJob(organizationId, durableJobId, job.error)).catch(() => {});
   }
   saveJob(job);
   return job;
