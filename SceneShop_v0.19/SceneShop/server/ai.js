@@ -28,7 +28,7 @@ const { ai: aiPipeline } = require("./repositories");
 const DATA = path.join(__dirname, "..", "data");
 const JOBS_DIR = path.join(DATA, "ai");
 const BASE = () => (process.env.GEMINI_BASE || "https://generativelanguage.googleapis.com").replace(/\/$/, "");
-const PREFERRED = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash-lite", "gemini-2.5-flash", "gemini-1.5-pro"];
+const PREFERRED = ["gemini-1.5-flash", "gemini-2.0-flash", "gemini-1.5-flash-latest", "gemini-2.0-flash-lite", "gemini-2.5-flash"];
 const MIME = { mp4: "video/mp4", m4v: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
 
 // ------------------------------------------------------------------ chave e modelo
@@ -45,7 +45,11 @@ async function api(pathname, { method = "GET", body, headers = {}, raw } = {}) {
   let data; try { data = JSON.parse(text); } catch (e) { data = { raw: text }; }
   if (!res.ok) {
     const msg = (data.error && data.error.message) || text.slice(0, 200) || res.statusText;
-    const err = new Error(res.status === 400 && /API key/i.test(msg) ? "Chave do Gemini inválida." : `Gemini: ${msg}`);
+    const isPrepay = /prepayment|credit/i.test(msg) || res.status === 402;
+    const finalMsg = isPrepay
+      ? `Gemini: Créditos de pré-pagamento esgotados para o modelo solicitado. No plano gratuito, utilize o modelo Flash (ex: GEMINI_MODEL=gemini-1.5-flash) ou ative o faturamento (Set up billing) no Google AI Studio: ${msg}`
+      : res.status === 400 && /API key/i.test(msg) ? "Chave do Gemini inválida." : `Gemini: ${msg}`;
+    const err = new Error(finalMsg);
     err.status = res.status;
     throw err;
   }
@@ -65,8 +69,8 @@ async function pickModel() {
     const hit = names.filter((n) => n === p || n.startsWith(p + "-")).sort((a, b) => (a === p ? -1 : b === p ? 1 : b.localeCompare(a)))[0];
     if (hit) return (modelCache = hit);
   }
-  const any = names.find((n) => /^gemini-/.test(n) && !/embedding|tts|image|audio/.test(n));
-  if (!any) throw new Error("Nenhum modelo Gemini disponível para esta chave.");
+  const any = names.find((n) => /^gemini-/.test(n) && !/embedding|tts|image|audio|pro/.test(n));
+  if (!any) throw new Error("Nenhum modelo Gemini gratuito (Flash) disponível para esta chave.");
   return (modelCache = any);
 }
 

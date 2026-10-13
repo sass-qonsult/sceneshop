@@ -1,3 +1,8 @@
+const fs = require("fs");
+const path = require("path");
+
+const envFile = fs.existsSync(path.resolve(__dirname, ".env")) ? ".env" : "sceneshop.env";
+
 module.exports = {
   apps: [
     {
@@ -13,8 +18,9 @@ module.exports = {
         PORT: process.env.PORT || 3000,
         DATA_BACKEND: process.env.DATA_BACKEND || "postgres",
         DATABASE_URL: process.env.DATABASE_URL || "",
+        GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-1.5-flash",
       },
-      env_file: "sceneshop.env",
+      env_file: envFile,
       error_file: "logs/pm2-error.log",
       out_file: "logs/pm2-out.log",
       log_date_format: "YYYY-MM-DD HH:mm:ss Z",
