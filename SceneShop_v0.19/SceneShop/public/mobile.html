@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#0e0e16" />
+  <meta name="application-name" content="SceneShop" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>SceneShop — Mobile</title>
+  <link rel="stylesheet" href="/css/mobile.css" />
+  <link rel="stylesheet" href="/css/app-shell.css" />
+  <link rel="manifest" href="/mobile.webmanifest" />
+  <link rel="icon" sizes="192x192" href="/media/app/sceneshop-192.png" />
+  <link rel="apple-touch-icon" href="/media/app/sceneshop-192.png" />
+</head>
+<body data-surface="MOBILE">
+  <header class="top">
+    <div class="brand"><span class="logo"></span><span id="brandName">SceneShop</span></div>
+    <div class="status" id="status"><span class="dot"></span><span id="statusText">Conectando…</span></div>
+  </header>
+
+  <nav class="app-rail" aria-label="Aplicativos SceneShop">
+    <a data-surface-link="WEB" href="/app">Web</a>
+    <a data-surface-link="DESKTOP" href="/desktop">Desktop</a>
+    <a data-surface-link="MOBILE" href="/mobile">Mobile</a>
+    <button type="button" class="install-app" data-install-app hidden>Instalar aplicativo</button>
+    <button type="button" class="install-app" data-share-app hidden>Compartilhar</button>
+    <button type="button" class="install-app" id="enableNotifications" hidden>Ativar notificações</button>
+    <span class="surface-pill" data-surface-label>Mobile</span>
+  </nav>
+
+  <section class="now">
+    <div class="work" id="workTitle">&nbsp;</div>
+    <div class="trackbar" id="trackbar"></div>
+    <div class="progress"><div id="progress"></div></div>
+  </section>
+
+  <nav class="scenes" id="scenes" aria-label="Cenas"></nav>
+
+  <div class="pinned" id="pinned" hidden>
+    <span id="browseStatus">Você está explorando outra cena</span>
+    <button id="backLive">Go Live</button>
+    <button id="reSync" hidden>Re-sync</button>
+  </div>
+
+  <section class="missed" id="missed" hidden>
+    <div class="missed-head"><div><b>Enquanto você explorava</b><span>O vídeo continuou; estas oportunidades passaram na Commerce Timeline.</span></div><button id="clearMissed" type="button">Limpar</button></div>
+    <div class="missed-scenes" id="missedScenes"></div>
+  </section>
+
+  <div class="tabs">
+    <button class="is-on" data-tab="scene" id="tabScene">Nesta cena</button>
+    <button data-tab="saved" id="tabSaved">Salvos <b id="savedCount">0</b></button>
+  </div>
+
+  <main id="list" class="list"></main>
+
+  <div id="join" class="join" hidden>
+    <h1>Conectar ao conteúdo</h1>
+    <p id="joinMsg">Conecte por código ou sincronize com um conteúdo que está tocando fora do SceneShop.</p>
+    <div class="sync-card">
+      <input id="syncSourceUrl" class="source-url" autocomplete="url" inputmode="url" placeholder="Link do YouTube / Instagram / TikTok (opcional)" />
+      <button type="button" id="syncNow" class="sync-now">Sincronizar com o que estou assistindo</button>
+      <div id="syncState" class="sync-state" aria-live="polite"></div>
+    </div>
+    <div class="join-separator"><span>ou</span></div>
+    <form id="joinForm">
+      <input id="joinCode" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="K7Q2ZP" />
+      <button>Conectar por código</button>
+    </form>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/sync-fingerprint.js"></script>
+  <script src="/js/companion-sync.js"></script>
+  <script src="/js/mobile-core.js"></script>
+  <script src="/js/app-core.js"></script>
+  <script src="/js/native-bridge-contract.js"></script>
+  <script src="/js/app-shell.js"></script>
+  <script src="/js/mobile.js"></script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+.git
+node_modules
+.env
+.env.*
+!.env.example
+data/runtime.json
+data/uploads
+data/ai
+.frames
+coverage
+playwright-report
+test-results
+*.log
+*.zip
+*.bundle
+sceneshop.env

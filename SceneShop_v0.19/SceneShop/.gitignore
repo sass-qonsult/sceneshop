@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Runtime/generated data
+.frames/
+*.log
+data/runtime.json
+data/secrets.json
+data/ai/
+data/uploads/
+runtime/
+
+# Test/build artifacts
+coverage/
+.nyc_output/
+playwright-report/
+test-results/
+.gradle/
+build/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Recovery drill evidence
+artifacts/recovery-gate/
+# Release/foundation gate evidence
+artifacts/foundation-gate/
+artifacts/release-gate/
+
+# Native application package outputs
+artifacts/app-packages/
+
+artifacts/native-signing/
+artifacts/native-build/
+artifacts/app-qa/
+# v0.18 Production Beta acceptance evidence
+artifacts/production-beta/
+
+# v0.19 RC evidence
+artifacts/rc-gate/
+
+# v0.19 portable external evidence staging / transient freeze packaging
+artifacts/external-evidence/
+artifacts/rcprep*/
+artifacts/runner-export/
+
+# capturas geradas pelos testes de navegador
+/*.png
+
+# configuração local (pode conter chaves)
+sceneshop.env

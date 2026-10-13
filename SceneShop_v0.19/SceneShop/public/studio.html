@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SceneShop Estúdio</title>
+  <link rel="stylesheet" href="/css/studio.css" />
+</head>
+<body>
+  <header class="bar">
+    <div class="brand"><span class="logo"></span>SceneShop <span class="sub">Estúdio</span></div>
+    <nav class="tabs" role="tablist">
+      <button data-tab="obras">Obras</button>
+      <button data-tab="produtos">Produtos</button>
+      <button data-tab="editor" class="is-on">Editor de trilha</button>
+      <button data-tab="aiops">IA & Publicação</button>
+      <button data-tab="ganhos">Ganhos</button>
+      <button data-tab="ofertas">Ofertas oficiais</button>
+      <button data-tab="piloto">Piloto</button>
+      <button data-tab="equipe">Equipe & Segurança</button>
+      <button data-tab="moderacao">Moderação</button>
+    </nav>
+    <div class="who" id="who"></div>
+  </header>
+
+  <!-- ====================================================== LOGIN -->
+  <div class="login" id="login" hidden>
+    <form class="login-card" id="loginForm">
+      <div class="brand"><span class="logo"></span>SceneShop <span class="sub">Estúdio</span></div>
+      <p class="help">Entre para criar trilhas, acompanhar comissões ou moderar.</p>
+      <label>Usuário <input id="loginUser" autocomplete="username" required /></label>
+      <label>Senha <input id="loginPass" type="password" autocomplete="current-password" required minlength="4" /></label>
+      <div class="msg bad" id="loginMsg" role="alert"></div>
+      <div id="mfaLoginBox" hidden>
+        <label>Código do autenticador <input id="mfaLoginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" /></label>
+        <button type="button" class="primary" id="mfaLoginSubmit">Confirmar MFA</button>
+      </div>
+      <button class="primary" data-mode="login">Entrar</button>
+      <button class="ghost" data-mode="signup" title="Cria uma conta de autor da comunidade (senha com 8+ caracteres)">Criar conta de autor</button>
+      <div id="demoHint" hidden>
+        <p class="help">Contas de demonstração (senha <code>demo1234</code>):</p>
+        <div class="demo-accounts" id="demoAccounts"></div>
+      </div>
+    </form>
+  </div>
+
+  <!-- ====================================================== EDITOR -->
+  <section id="tab-editor" class="tab">
+    <div class="editor">
+      <div class="left">
+        <div class="stage" id="stage">
+          <video id="video" preload="auto" playsinline muted></video>
+          <div class="boxes" id="boxes"></div>
+          <div class="draw-hint" id="drawHint" hidden>Arraste sobre a imagem para marcar onde o produto aparece · Esc cancela</div>
+        </div>
+        <div class="transport">
+          <button id="back" title="Voltar 0,5 s">−0,5 s</button>
+          <button id="playBtn" class="primary">Tocar</button>
+          <button id="fwd" title="Avançar 0,5 s">+0,5 s</button>
+          <span id="clock" class="clock">0:00.0</span>
+          <span class="spacer"></span>
+          <button id="detectBtn" class="ghost" title="Analisa o vídeo e sugere os cortes de cena">Detectar cortes</button>
+          <button id="oneSceneBtn" class="ghost" title="Junta tudo numa única cena do começo ao fim, mantendo os produtos">Uma cena só</button>
+          <button id="splitBtn" class="accent">Nova cena a partir daqui</button>
+        </div>
+        <div class="timeline" id="timeline"><div class="cursor" id="cursor"></div></div>
+        <p class="help">Uma trilha nova começa com <b>uma cena só</b>, do início ao fim do vídeo: basta adicionar os produtos e marcar onde cada um aparece. Para dividir, use <b>Detectar cortes</b> ou <b>Nova cena a partir daqui</b>; <b>Uma cena só</b> junta tudo de novo.</p>
+      </div>
+
+      <div class="right">
+        <div class="card">
+          <div class="row">
+            <label>Obra <select id="work"></select></label>
+            <label>Trilha <select id="trackSel"></select></label>
+          </div>
+          <div class="row">
+            <label class="grow">Título da trilha <input id="trackTitle" maxlength="60" placeholder="Ex.: Figurino completo" /></label>
+            <label title="Desloca a trilha inteira, como o ajuste de uma legenda fora de sincronia">Sincronia (s) <input id="offset" type="number" step="0.1" value="0" /></label>
+          </div>
+          <div class="seal-line" id="sealLine"></div>
+        </div>
+
+        <div class="card ai-card" id="aiCard" hidden>
+          <div class="head-row"><h3>Marcação com IA <span class="ai-badge">Gemini</span></h3></div>
+          <div id="aiConnect" hidden><p class="help">A IA está desativada neste ambiente. Um administrador deve configurar <code>GEMINI_API_KEY</code> no ambiente seguro/secret manager do SceneShop.</p></div>
+          <div id="aiKeyBox" hidden></div>
+          <div id="aiRun" hidden>
+            <p class="help">O Gemini assiste ao vídeo, encontra roupas, joias e objetos, marca onde aparecem e sugere o produto do seu catálogo. Você confirma cada sugestão.</p>
+            <div class="row">
+              <label>Cenas <select id="aiMode"><option value="cenas">Dividir pelos cortes</option><option value="unica">Uma cena só</option></select></label>
+              <button class="primary" id="aiGo">Analisar com Gemini</button>
+            </div>
+            <div class="ai-status" id="aiStatus"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Cenas</h3>
+          <ol class="scenes" id="sceneList"></ol>
+        </div>
+
+        <div class="card" id="sceneCard">
+          <div class="row">
+            <label class="grow">Nome da cena <input id="sceneTitle" maxlength="60" /></label>
+          </div>
+          <div class="row">
+            <label>Início (s) <input id="sceneStart" type="number" step="0.1" /></label>
+            <button class="ghost small" id="startNow">usar tempo atual</button>
+            <label>Fim (s) <input id="sceneEnd" type="number" step="0.1" /></label>
+            <button class="ghost small" id="endNow">usar tempo atual</button>
+          </div>
+          <div class="row"><button class="ghost small danger" id="delScene">Excluir cena</button></div>
+
+          <h3>Produtos da cena</h3>
+          <ul class="prods" id="prodList"></ul>
+
+          <div class="search">
+            <input id="prodSearch" placeholder="Buscar produto no catálogo…" autocomplete="off" />
+            <ul class="results" id="results" hidden></ul>
+          </div>
+          <details class="newprod">
+            <summary>Cadastrar produto novo</summary>
+            <form id="newProd" class="grid">
+              <input name="name" placeholder="Nome (ex.: Jaqueta jeans oversized)" required />
+              <input name="brand" placeholder="Marca" />
+              <input name="category" placeholder="Categoria" />
+              <input name="referencePrice" placeholder="Preço de referência (R$)" inputmode="decimal" required />
+              <button class="primary">Cadastrar e adicionar</button>
+            </form>
+          </details>
+        </div>
+
+        <div class="savebar">
+          <div id="msg" class="msg" role="status"></div>
+          <a id="vttLink" class="ghost small" target="_blank" hidden>Ver .vtt</a>
+          <a id="playLink" class="ghost small" target="_blank" hidden>Abrir no player</a>
+          <button id="saveBtn" class="primary">Publicar trilha</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== IA / PUBLICAÇÃO -->
+  <section id="tab-aiops" class="tab" hidden>
+    <div class="wrap aiops-wrap">
+      <div class="aiops-hero">
+        <div>
+          <span class="eyebrow">Pipeline governado</span>
+          <h2>IA & Commerce Track</h2>
+          <p>Configure a análise, acompanhe identificações primárias, trate divergências e aprove placements antes da publicação comercial.</p>
+        </div>
+        <div class="aiops-hero-actions">
+          <label>Obra <select id="aiOpsWork"></select></label>
+          <button id="aiOpsRefresh" class="ghost">Atualizar</button>
+        </div>
+      </div>
+
+      <div class="aiops-kpis" id="aiOpsKpis"></div>
+
+      <div class="aiops-grid">
+        <div class="card aiops-panel">
+          <div class="head-row"><div><h3>Nova análise</h3><p class="help">A identificação primária é congelada antes de qualquer redundância externa.</p></div><span class="ai-badge">Governed AI</span></div>
+          <div class="aiops-form-grid">
+            <label>Modo
+              <select id="aiOpsMode">
+                <option value="TARGETED">Targeted · inventário primeiro</option>
+                <option value="DISCOVERY">Discovery · descoberta aberta</option>
+                <option value="HYBRID">Hybrid · inventário + descoberta</option>
+              </select>
+            </label>
+            <label>Profundidade
+              <select id="aiOpsDepth"><option>FAST</option><option selected>STANDARD</option><option>DEEP</option></select>
+            </label>
+          </div>
+          <div>
+            <div class="section-label">Categorias de descoberta</div>
+            <div id="aiOpsCategories" class="choice-cloud">
+              <label><input type="checkbox" value="APPAREL" checked /> Moda</label>
+              <label><input type="checkbox" value="WATCHES" /> Relógios</label>
+              <label><input type="checkbox" value="JEWELRY" /> Joias</label>
+              <label><input type="checkbox" value="VEHICLES" /> Veículos</label>
+              <label><input type="checkbox" value="ELECTRONICS" /> Eletrônicos</label>
+              <label><input type="checkbox" value="FURNITURE" /> Móveis</label>
+              <label><input type="checkbox" value="HOME_DECOR" /> Decoração</label>
+              <label><input type="checkbox" value="FOOD_BEVERAGE" /> Alimentos & bebidas</label>
+            </div>
+          </div>
+          <div>
+            <div class="section-label">Inventário alvo</div>
+            <div id="aiOpsAssets" class="asset-picker"></div>
+          </div>
+          <div class="row">
+            <label>Confiança mínima <input id="aiOpsConfidence" type="number" min="0" max="1" step="0.05" value="0.60" /></label>
+            <label><input id="aiOpsBackground" type="checkbox" /> Incluir itens de fundo</label>
+            <button id="aiOpsRun" class="primary">Iniciar análise</button>
+          </div>
+          <div id="aiOpsRunMsg" class="msg"></div>
+        </div>
+
+        <div class="card aiops-panel">
+          <div class="head-row"><div><h3>Jobs recentes</h3><p class="help">Configuração, execução e status do motor primário.</p></div></div>
+          <div id="aiOpsJobs" class="stack-list"></div>
+        </div>
+      </div>
+
+      <div class="card aiops-panel">
+        <div class="head-row">
+          <div><h3>Fila de revisão</h3><p class="help">Reconhecer não é publicar. Conflitos e ausência de confirmação ficam explícitos para o operador.</p></div>
+          <div class="legend-inline"><span class="state-dot primary-state"></span> primário <span class="state-dot redundant-state"></span> redundância <span class="state-dot review-state"></span> operador</div>
+        </div>
+        <div id="aiOpsReview" class="review-board"></div>
+      </div>
+
+      <div class="aiops-grid">
+        <div class="card aiops-panel">
+          <div class="head-row"><div><h3>Placements aprovados</h3><p class="help">Janelas físicas e comerciais aprovadas para a obra.</p></div><button id="aiOpsToEditor" class="ghost small">Abrir no editor</button></div>
+          <div id="aiOpsPlacements" class="stack-list"></div>
+        </div>
+        <div class="card aiops-panel">
+          <div class="head-row"><div><h3>Commerce Timeline publicada</h3><p class="help">Prévia da camada que Partner-Native, Companion e Embedded irão consumir.</p></div></div>
+          <div class="timeline-policy">
+            <label>Visibilidade <select id="aiOpsVisibility"><option>PAST_ONLY</option><option selected>PAST_AND_CURRENT</option><option>FULL</option></select></label>
+            <label><input id="aiOpsThumbs" type="checkbox" checked /> Thumbnails</label>
+            <label><input id="aiOpsMissed" type="checkbox" checked /> “Enquanto você explorava”</label>
+            <label><input id="aiOpsSeek" type="checkbox" /> Permitir seek no player integrado</label>
+            <button id="aiOpsSavePolicy" class="ghost small">Salvar política</button>
+          </div>
+          <div id="aiOpsPolicyMsg" class="msg"></div>
+          <div id="aiOpsTimeline" class="commerce-strip"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== EQUIPE / SEGURANÇA -->
+  <section id="tab-equipe" class="tab" hidden>
+    <div class="wrap">
+      <div class="card">
+        <div class="head-row"><div><h3>Equipe da organização</h3><p class="help" id="teamOrgName"></p></div><button class="small" id="teamRefresh">Atualizar</button></div>
+        <div class="table-wrap"><table class="ledger"><thead><tr><th>Usuário</th><th>Função</th><th>Status</th></tr></thead><tbody id="teamMembers"></tbody></table></div>
+      </div>
+      <div class="card" id="inviteCard">
+        <h3>Convidar membro</h3>
+        <p class="help">O convite gera um token de uso único. O SceneShop guarda apenas o hash do token.</p>
+        <div class="row"><label class="grow">Usuário <input id="inviteUser" placeholder="usuario" /></label><label>Função <select id="inviteRole"><option>EDITOR</option><option>COMMERCIAL</option><option>ANALYST</option><option>VIEWER</option><option>ADMIN</option></select></label><button class="primary" id="inviteBtn">Gerar convite</button></div>
+        <div class="msg" id="inviteResult"></div>
+        <div class="table-wrap"><table class="ledger"><thead><tr><th>Usuário</th><th>Função</th><th>Status</th><th>Expira</th></tr></thead><tbody id="teamInvites"></tbody></table></div>
+      </div>
+      <div class="card">
+        <h3>Aceitar convite</h3><div class="row"><input id="acceptInviteToken" class="grow" placeholder="Cole o token recebido" /><button class="primary" id="acceptInviteBtn">Aceitar</button></div><div class="msg" id="acceptInviteMsg"></div>
+      </div>
+      <div class="card">
+        <h3>Autenticação multifator</h3>
+        <p class="help" id="mfaStatus">Carregando…</p>
+        <div class="row"><button class="primary" id="mfaSetupBtn">Configurar TOTP</button><input id="mfaEnableCode" inputmode="numeric" maxlength="6" placeholder="Código 6 dígitos" /><button id="mfaEnableBtn">Ativar</button><button class="danger" id="mfaDisableBtn">Desativar</button></div>
+        <div class="msg" id="mfaSetupResult"></div>
+      </div>
+      <div class="card" id="orgSecurityCard">
+        <h3>Política de segurança</h3>
+        <label><input type="checkbox" id="requireMfaWrites" /> Exigir MFA para ações de escrita desta organização</label>
+        <p class="help">Para alterar esta política, sua sessão atual precisa ter sido autenticada com MFA.</p>
+        <button class="primary" id="saveOrgSecurity">Salvar política</button><div class="msg" id="orgSecurityMsg"></div>
+      </div>
+      <div class="card">
+        <h3>Sessões ativas</h3><div id="activeSessions"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== GANHOS -->
+  <!-- ====================================================== OBRAS (piloto) -->
+  <section id="tab-obras" class="tab" hidden>
+    <div class="wrap">
+      <div class="card">
+        <h3>Enviar uma obra</h3>
+        <p class="help">Use MP4 (H.264 + áudio AAC): é o formato que qualquer navegador e TV tocam. O vídeo fica no seu computador, na pasta <code>data/uploads</code>.</p>
+        <form id="workForm" class="upload-row">
+          <label class="grow">Título da obra <input id="workTitle" maxlength="80" placeholder="Ex.: Campanha Verão 2027 — filme 30s" required /></label>
+          <label class="grow">Arquivo de vídeo <input id="workFile" type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.m4v,.webm,.mov" required /></label>
+          <button class="primary" id="workSend">Enviar</button>
+        </form>
+        <div class="probe" id="workProbe" hidden></div>
+        <div class="progress" id="workProg" hidden><div></div><span></span></div>
+      </div>
+      <div class="card">
+        <h3>Minhas obras</h3>
+        <div id="myWorks" class="works"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== PRODUTOS (piloto) -->
+  <section id="tab-produtos" class="tab" hidden>
+    <div class="wrap">
+      <div class="card">
+        <h3>Cadastrar produtos com as suas fotos</h3>
+        <p class="help">Selecione várias fotos de uma vez (JPG, PNG ou WebP). Escolha se cada foto vira um produto ou se todas são do mesmo produto; depois complete nome, preço e descrição.</p>
+        <div class="upload-row">
+          <label class="grow">Fotos <input id="photoFiles" type="file" accept="image/jpeg,image/png,image/webp" multiple /></label>
+          <label>Como agrupar <select id="photoMode"><option value="each">Uma foto = um produto</option><option value="one">Todas no mesmo produto</option></select></label>
+          <button class="primary" id="photoSend">Enviar fotos</button>
+        </div>
+        <div class="progress" id="photoProg" hidden><div></div><span></span></div>
+      </div>
+      <div id="drafts"></div>
+      <div class="card">
+        <div class="head-row"><h3>Meus produtos</h3><a class="ghost small" href="/marketplace" target="_blank">Abrir o Marketplace Piloto</a></div>
+        <div id="myProducts" class="plist"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== PILOTO (painel) -->
+  <section id="tab-piloto" class="tab" hidden>
+    <div class="wrap">
+      <div class="card">
+        <div class="head-row">
+          <label>Obra <select id="pilotWork"></select></label>
+          <div class="actions">
+            <a class="ghost small" id="pilotWatch" target="_blank">Assistir como espectador</a>
+            <a class="ghost small" href="/marketplace" target="_blank">Marketplace</a>
+            <button class="small" id="pilotRefresh">Atualizar</button>
+          </div>
+        </div>
+      </div>
+      <div class="tiles" id="pilotTiles"></div>
+      <div class="card"><h3>Funil</h3><div id="pilotFunnel" class="funnel"></div></div>
+      <div class="card"><h3>Por cena</h3><div class="table-wrap"><table class="ledger"><thead><tr><th>Cena</th><th>Tempo</th><th class="num">Produtos</th><th class="num">Aberturas do painel</th><th class="num">Cliques em comprar</th></tr></thead><tbody id="pilotScenes"></tbody></table></div></div>
+      <div class="card"><h3>Por produto</h3><div class="table-wrap"><table class="ledger"><thead><tr><th>Produto</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Receita</th><th class="num">Comissão</th></tr></thead><tbody id="pilotProducts"></tbody></table></div></div>
+      <div class="card"><h3>Pedidos recentes no Marketplace Piloto</h3><div class="table-wrap"><table class="ledger"><thead><tr><th>Pedido</th><th>Quando</th><th>Itens</th><th class="num">Total</th><th>Situação</th></tr></thead><tbody id="pilotOrders"></tbody></table></div></div>
+    </div>
+  </section>
+
+  <section id="tab-ganhos" class="tab" hidden>
+    <div class="wrap">
+      <div class="kyc card" id="kyc"></div>
+      <div class="banner" id="payoutHold" hidden></div>
+      <div class="tiles" id="tiles"></div>
+      <p class="help" id="rules"></p>
+      <div class="card">
+        <div class="head-row"><h3>Comissões</h3><button id="withdrawBtn" class="primary">Sacar liberado</button></div>
+        <div class="table-wrap"><table class="ledger"><thead><tr>
+          <th>Data</th><th>Produto</th><th>Loja</th><th>Trilha</th><th class="num">Venda</th><th class="num">Comissão</th><th class="num">Sua parte</th><th>Situação</th>
+        </tr></thead><tbody id="ledgerBody"></tbody></table></div>
+      </div>
+      <div class="card">
+        <h3>Minhas trilhas</h3>
+        <div id="myTracks"></div>
+      </div>
+      <div class="card demo">
+        <h3>Controles da demonstração</h3>
+        <p class="help">Simulam o que, na vida real, vem dos relatórios das lojas e do passar do tempo.</p>
+        <button id="simSale">Simular venda por uma trilha minha</button>
+        <button id="simSelf">Simular autocompra (3 compras do mesmo aparelho)</button>
+        <button id="advance">Avançar o relógio 30 dias</button>
+        <button id="resetDemo" class="danger">Restaurar dados da demo</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== OFERTAS OFICIAIS (produtora) -->
+  <section id="tab-ofertas" class="tab" hidden>
+    <div class="wrap">
+      <div class="card">
+        <h3>Loja com acordo e preço garantido</h3>
+        <p class="help">Para cada produto das suas trilhas oficiais, indique a loja com acordo (da marca ou grande varejista), o preço que ela garante ao espectador e a comissão que ela paga.
+          Ao clicar em "Comprar", o espectador vai para essa loja com um <b>código de oferta assinado</b>: produto, preço e comissão não podem ser alterados, e a loja só recebe o repasse se cobrar o preço garantido.
+          Mudanças valem para novos cliques; quem já recebeu o código mantém o preço até o código vencer (48 h).</p>
+      </div>
+      <div class="card">
+        <div class="table-wrap"><table class="ledger offers-table"><thead><tr>
+          <th>Produto</th><th class="num">Preço de referência</th><th>Loja com acordo</th><th class="num">Preço garantido (R$)</th><th class="num">Comissão (%)</th><th class="num">Validade (dias)</th><th></th>
+        </tr></thead><tbody id="offersBody"></tbody></table></div>
+      </div>
+      <div class="card">
+        <div class="head-row"><div><h3>Prévia do roteamento comercial</h3><p class="help">Simula qual oferta o consumidor receberia agora, sem criar atribuição nem alterar a campanha.</p></div></div>
+        <div class="row"><label class="grow">Produto <select id="commercePreviewProduct"></select></label><label>Campanha <select id="commercePreviewCampaign"><option value="">— automática / nenhuma —</option></select></label><label>Território <input id="commercePreviewTerritory" value="BR" maxlength="16" /></label><button id="commercePreviewBtn" class="primary">Resolver</button></div>
+        <div id="commercePreviewResult" class="msg"></div>
+        <div id="commercePreviewOffers"></div>
+      </div>
+      <div class="card">
+        <div class="head-row"><div><h3>Financeiro & conciliação</h3><p class="help">Visão operacional do fluxo gerenciado. Pagamentos externos continuam fora da custódia SceneShop.</p></div><button id="financeRefresh" class="ghost small">Atualizar</button></div>
+        <div class="tiles" id="financeBalances"></div>
+        <div class="row">
+          <label>Conexão <select id="financeConnection"></select></label>
+          <label>Gross <input id="settleGross" type="number" min="0" step="0.01" /></label>
+          <label>Fees <input id="settleFees" type="number" min="0" step="0.01" value="0" /></label>
+          <button id="settlementBtn" class="small">Registrar settlement</button>
+          <label>Payout <input id="payoutAmount" type="number" min="0" step="0.01" /></label>
+          <button id="payoutBtn" class="small">Solicitar payout</button>
+        </div>
+        <div id="financeMsg" class="msg"></div>
+        <div id="financeOps"></div>
+      </div>
+      <div class="card">
+        <h3>Acordos com lojas</h3>
+        <p class="help">Cada loja (da marca ou grande varejista) tem um acordo comercial com a produção que define como ela honra o preço: conferindo o código assinado, com cupons de uso único ou com um link de campanha. Todas confirmam as vendas por aviso de pedido ou relatório diário, assinados.</p>
+        <div id="sellersList"></div>
+        <p class="help">Novas lojas passam pelo onboarding de empresa (CNPJ, KYC e contrato) e recebem as credenciais de integração.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== MODERAÇÃO -->
+  <section id="tab-moderacao" class="tab" hidden>
+    <div class="wrap">
+      <div class="card">
+        <div class="head-row"><h3>Alertas de prevenção à lavagem de dinheiro</h3><span class="help" id="amlCount"></span></div>
+        <p class="help">Gerados automaticamente. Alerta grave bloqueia o saque do autor até a decisão, sem revelar o motivo a ele. "Registrar comunicação" documenta que o caso foi levado ao COAF pelo compliance.</p>
+        <div id="amlList"></div>
+      </div>
+      <div class="card">
+        <h3>Cadastros aguardando verificação (KYC)</h3>
+        <div id="kycQueue"></div>
+      </div>
+      <div class="card">
+        <h3>Trilhas e denúncias</h3>
+        <p class="help">Denúncias são ponderadas pela reputação de quem denuncia; peso 3 coloca a trilha em revisão e congela a comissão. <b>Aprovar</b> devolve ao ar. <b>Condenar</b> remove a trilha e estorna o que estava retido. Cada decisão ajusta a reputação dos denunciantes.</p>
+        <div id="modList"></div>
+      </div>
+      <div class="card">
+        <div class="head-row"><h3>Auditoria</h3><span id="auditIntegrity"></span></div>
+        <p class="help">Cada registro guarda o hash do anterior: qualquer alteração em registros antigos quebra a cadeia.</p>
+        <div class="table-wrap"><table class="ledger"><thead><tr><th>#</th><th>Quando</th><th>Quem</th><th>Ação</th><th>Detalhes</th><th>Hash</th></tr></thead><tbody id="auditBody"></tbody></table></div>
+      </div>
+    </div>
+  </section>
+
+  <div class="ai-modal" id="aiModal" hidden>
+    <div class="ai-sheet" role="dialog" aria-labelledby="aiTitle">
+      <header><div><h2 id="aiTitle">Sugestões do Gemini</h2><p class="help" id="aiSub"></p></div><button class="ghost small" id="aiClose">Fechar</button></header>
+      <div class="ai-body" id="aiBody"></div>
+      <footer>
+        <label class="chk"><input type="checkbox" id="aiUseScenes" checked /> Usar as cenas sugeridas (substitui as cenas atuais)</label>
+        <span class="spacer"></span>
+        <button class="primary" id="aiApply">Aplicar selecionados</button>
+      </footer>
+    </div>
+  </div>
+  <div class="toast" id="toast" hidden></div>
+  <script src="/js/studio.js"></script>
+</body>
+</html>

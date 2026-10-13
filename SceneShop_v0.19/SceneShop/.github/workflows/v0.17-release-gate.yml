@@ -1,0 +1,31 @@
+name: SceneShop v0.17 release gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main, develop, "feature/v0.17-release-governance", "release/v0.17" ]
+
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Execute alpha.2 composite live gate
+        run: npm run gate:alpha2
+      - name: Verify same-commit release evidence
+        run: npm run release:verify
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sceneshop-v0.17-release-evidence
+          path: |
+            artifacts/foundation-gate/
+            artifacts/recovery-gate/
+            artifacts/release-gate/
+          if-no-files-found: warn

@@ -1,0 +1,18 @@
+WEBVTT
+
+NOTE Trilha invisível SceneShop: cada bloco = uma cena e seus produtos
+
+00:00:00.000 --> 00:00:12.000
+{"scene": "s1", "products": ["jaqueta-couro", "oculos-aviador", "tenis-branco"]}
+
+00:00:12.000 --> 00:00:24.000
+{"scene": "s2", "products": ["cafeteira-espresso", "caneca-ceramica", "notebook-14"]}
+
+00:00:24.000 --> 00:00:36.000
+{"scene": "s3", "products": ["sofa-3-lugares", "luminaria-piso", "caixa-som-bt"]}
+
+00:00:36.000 --> 00:00:48.000
+{"scene": "s4", "products": ["smartwatch", "fone-sem-fio", "garrafa-termica"]}
+
+00:00:48.000 --> 00:01:00.000
+{"scene": "s5", "products": ["vestido-vermelho", "relogio-classico", "perfume"]}

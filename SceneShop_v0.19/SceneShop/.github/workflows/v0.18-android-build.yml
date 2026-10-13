@@ -1,0 +1,32 @@
+name: SceneShop v0.18 Android build
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [ main, develop, "feature/v0.18-production-beta-lifecycle", "release/v0.18" ]
+jobs:
+  android-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version-file: .nvmrc, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: gradle/actions/setup-gradle@v4
+        with: { gradle-version: '8.9' }
+      - run: npm ci
+      - run: npm run test:native-apps
+      - name: Build Android debug APK
+        run: gradle -p apps/mobile/android :app:assembleDebug --no-daemon
+      - name: Record Android build evidence
+        run: |
+          APK=$(find apps/mobile/android/app/build/outputs/apk/debug -name '*.apk' -type f | head -1)
+          node tools/native-build-evidence.js --platform=android --artifact="$APK" --out=artifacts/native-build/android.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sceneshop-android-debug
+          path: |
+            apps/mobile/android/app/build/outputs/apk/debug/*.apk
+            artifacts/native-build/android.json
+          if-no-files-found: error
