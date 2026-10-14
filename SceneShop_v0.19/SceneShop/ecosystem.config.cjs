@@ -18,7 +18,7 @@ module.exports = {
         PORT: process.env.PORT || 3000,
         DATA_BACKEND: process.env.DATA_BACKEND || "postgres",
         DATABASE_URL: process.env.DATABASE_URL || "",
-        GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-1.5-flash",
+        GEMINI_MODEL: process.env.GEMINI_MODEL || "gemini-3.1-pro-preview",
       },
       env_file: envFile,
       error_file: "logs/pm2-error.log",
