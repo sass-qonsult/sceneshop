@@ -28,7 +28,18 @@ const { ai: aiPipeline } = require("./repositories");
 const DATA = path.join(__dirname, "..", "data");
 const JOBS_DIR = path.join(DATA, "ai");
 const BASE = () => (process.env.GEMINI_BASE || "https://generativelanguage.googleapis.com").replace(/\/$/, "");
-const PREFERRED = ["gemini-3-pro", "gemini-3-flash", "gemini-2.5-pro", "gemini-2.5-flash"];
+const PREFERRED = [
+  "gemini-3.1-pro",
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.5-flash",
+  "gemini-3-flash",
+  "gemini-3-pro",
+  "gemini-2.5-pro",
+  "gemini-2.5-flash",
+  "gemini-flash-latest",
+  "gemini-pro-latest",
+];
 const MIME = { mp4: "video/mp4", m4v: "video/mp4", webm: "video/webm", mov: "video/quicktime" };
 
 // ------------------------------------------------------------------ chave e modelo
@@ -53,16 +64,16 @@ async function api(pathname, { method = "GET", body, headers = {}, raw } = {}) {
 }
 
 let modelCache = null;
-async function pickModel() {
-  if (process.env.GEMINI_MODEL) return process.env.GEMINI_MODEL;
-  if (modelCache) return modelCache;
+async function pickModel(forceDiscover = false) {
+  if (process.env.GEMINI_MODEL && !forceDiscover) return process.env.GEMINI_MODEL;
+  if (modelCache && !forceDiscover) return modelCache;
   const { data } = await api("/v1beta/models?pageSize=200");
   const names = (data.models || [])
     .filter((m) => (m.supportedGenerationMethods || []).includes("generateContent"))
     .map((m) => m.name.replace(/^models\//, ""));
   // o primeiro da lista de preferência que existir (aceita sufixos como "-preview-06-05")
   for (const p of PREFERRED) {
-    const hit = names.filter((n) => n === p || n.startsWith(p + "-")).sort((a, b) => (a === p ? -1 : b === p ? 1 : b.localeCompare(a)))[0];
+    const hit = names.filter((n) => n === p || n.startsWith(p + "-") || n.startsWith(p)).sort((a, b) => (a === p ? -1 : b === p ? 1 : b.localeCompare(a)))[0];
     if (hit) return (modelCache = hit);
   }
   const any = names.find((n) => /^gemini-/.test(n) && !/embedding|tts|image|audio/.test(n));
@@ -228,13 +239,33 @@ async function analyze({ work, products, assets = [], mode = "DISCOVERY", catego
     job.model = await pickModel();
     const video = await uploadVideo(file, step);
     step("o Gemini está assistindo ao vídeo e identificando os itens");
-    const { data } = await api(`/v1beta/models/${encodeURIComponent(job.model)}:generateContent`, {
-      method: "POST",
-      body: {
-        contents: [{ role: "user", parts: [{ file_data: { file_uri: video.uri, mime_type: video.mimeType } }, { text: buildPrompt({ work, products, assets, mode, categories, oneScene }) }] }],
-        generationConfig: { responseMimeType: "application/json", responseSchema: SCHEMA, temperature: 0.2 },
-      },
-    });
+    let genData;
+    try {
+      const resp = await api(`/v1beta/models/${encodeURIComponent(job.model)}:generateContent`, {
+        method: "POST",
+        body: {
+          contents: [{ role: "user", parts: [{ file_data: { file_uri: video.uri, mime_type: video.mimeType } }, { text: buildPrompt({ work, products, assets, mode, categories, oneScene }) }] }],
+          generationConfig: { responseMimeType: "application/json", responseSchema: SCHEMA, temperature: 0.2 },
+        },
+      });
+      genData = resp.data;
+    } catch (err) {
+      if (/not found|not supported/i.test(err.message)) {
+        console.warn(`[ai] Modelo ${job.model} não encontrado. Selecionando automaticamente o melhor modelo disponível...`);
+        job.model = await pickModel(true);
+        const resp = await api(`/v1beta/models/${encodeURIComponent(job.model)}:generateContent`, {
+          method: "POST",
+          body: {
+            contents: [{ role: "user", parts: [{ file_data: { file_uri: video.uri, mime_type: video.mimeType } }, { text: buildPrompt({ work, products, assets, mode, categories, oneScene }) }] }],
+            generationConfig: { responseMimeType: "application/json", responseSchema: SCHEMA, temperature: 0.2 },
+          },
+        });
+        genData = resp.data;
+      } else {
+        throw err;
+      }
+    }
+    const data = genData;
     const text = (((data.candidates || [])[0] || {}).content || { parts: [] }).parts.map((p) => p.text || "").join("");
     let raw;
     try { raw = JSON.parse(text); } catch (e) { throw new Error("O Gemini respondeu em um formato inesperado. Tente de novo."); }
