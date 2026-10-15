@@ -18,8 +18,9 @@ import org.json.JSONObject
 class MainActivity : Activity() {
   private lateinit var webView: WebView
   private lateinit var nativeBridge: SceneShopNativeBridge
-  private val base = BuildConfig.SCENESHOP_APP_URL.ifBlank { "https://app.sceneshop.io" }.trimEnd('/')
-  private val allowedHost: String by lazy { Uri.parse(base).host ?: "app.sceneshop.io" }
+  private val base = BuildConfig.SCENESHOP_APP_URL.ifBlank { "https://sceneshop.qonsult.cc" }.trimEnd('/')
+  private val allowedHost: String by lazy { Uri.parse(base).host ?: "sceneshop.qonsult.cc" }
+  private val trustedHosts: Set<String> by lazy { setOfNotNull(allowedHost, "sceneshop.qonsult.cc", "app.sceneshop.io") }
   private val pendingEvents = mutableListOf<Pair<String, JSONObject>>()
   private var pageReady = false
   private var notificationRequestId: String? = null
@@ -42,10 +43,10 @@ class MainActivity : Activity() {
     webView.settings.allowFileAccess = false
     webView.settings.allowContentAccess = false
     webView.webChromeClient = object : WebChromeClient() {
-      // Microfone para "Sincronizar com o que estou assistindo": só para a página do próprio SceneShop.
+      // Microfone para "Sincronizar com o que estou assistindo": so para a pagina do proprio SceneShop.
       override fun onPermissionRequest(request: PermissionRequest) {
         val origin = request.origin
-        val trusted = origin.host == allowedHost && (origin.scheme == "https" || allowedHost in setOf("127.0.0.1", "localhost"))
+        val trusted = origin.host in trustedHosts && (origin.scheme == "https" || allowedHost in setOf("127.0.0.1", "localhost"))
         if (!trusted || !request.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) { request.deny(); return }
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
           request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
@@ -62,7 +63,7 @@ class MainActivity : Activity() {
     webView.webViewClient = object : WebViewClient() {
       override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
         val uri = request?.url ?: return true
-        if (uri.scheme == "https" && uri.host == allowedHost) return false
+        if (uri.scheme == "https" && uri.host in trustedHosts) return false
         if (uri.scheme == "http" && allowedHost in setOf("127.0.0.1", "localhost") && uri.host == allowedHost) return false
         if (uri.scheme == "https") startActivity(Intent(Intent.ACTION_VIEW, uri))
         return true
@@ -84,7 +85,7 @@ class MainActivity : Activity() {
     val url = Uri.parse("$base/mobile").buildUpon()
     if (deepLink == null) return url.build().toString()
     val segments = deepLink.pathSegments
-    if (deepLink.scheme == "https" && deepLink.host == allowedHost && segments.size >= 2 && segments[0] == "s") {
+    if (deepLink.scheme == "https" && deepLink.host in trustedHosts && segments.size >= 2 && segments[0] == "s") {
       url.appendQueryParameter("code", segments[1].uppercase())
     } else if (deepLink.scheme == "sceneshop" && deepLink.host == "session" && segments.isNotEmpty()) {
       url.appendQueryParameter("code", segments[0].uppercase())
