@@ -5,6 +5,7 @@ const tracks=require('./tracks');
 const audit=require('./audit');
 const {parseExternalUrl}=require('./distribution/platforms');
 const sdkTokens=require('./distribution/tokens');
+const acr=require('./acr');
 
 const actor=req=>req.user?req.user.username:'integration';
 const reply=(res,r,ok=200)=>{const {code,...body}=r||{};res.status(r&&(r.error||r.errors)?(code||400):ok).json(body);};
@@ -44,7 +45,34 @@ function routes({requireRole,orgAccess,antifraud,io}){
   // --------------------------- Companion recognition / sync.
   async function recognizeBody(body){let workId=body.workId||null,binding=null;if(body.externalUrl){const parsed=parseExternalUrl(body.externalUrl);if(parsed&&parsed.externalContentId){binding=await Promise.resolve(distribution.findBindingByExternal(parsed.platform,parsed.externalContentId));if(binding)workId=binding.workId;}}const ranked=await Promise.resolve(distribution.recognize(body.samples||[],{workId}));const best=ranked[0];if(!best||best.matched<2||best.confidence<0.22)return null;const work=await Promise.resolve(content.getWorkAuthoritative(best.workId));if(!work)return null;const bindings=await Promise.resolve(distribution.listBindingsForWork(work.id));return{work:{id:work.id,title:work.title,duration:work.duration,syncId:work.syncId},position:best.position,confidence:best.confidence,matched:best.matched,total:best.total,binding:binding||null,bindings:bindings.map(b=>({id:b.id,mode:b.mode,platform:b.platform,externalContentId:b.externalContentId,canonicalUrl:b.canonicalUrl,officialOwnerUrl:b.officialOwnerUrl,label:b.label}))};}
   r.post('/api/sync/recognize',antifraud.rateLimit('verify'),async(req,res,next)=>{try{const out=await recognizeBody(req.body||{});out?res.json(out):res.status(404).json({error:'SYNC_NOT_RECOGNIZED'});}catch(e){next(e);}});
-  r.post('/api/sync/start',antifraud.rateLimit('verify'),async(req,res,next)=>{try{const out=await recognizeBody(req.body||{});if(!out)return res.status(404).json({error:'SYNC_NOT_RECOGNIZED'});const preferred=out.binding || out.bindings.find(b=>b.mode==='COMPANION') || null;const track=await tracks.pickAuthoritative(out.work.id,null);const s=await Promise.resolve(sessions.create(out.work.id,out.position,track&&track.id,{mode:'COMPANION',bindingId:preferred&&preferred.id,syncConfidence:out.confidence,lastSyncAt:Date.now()}));const current=await Promise.resolve(sessions.get(s.code));await playback.createSession(current);await playback.recordSync(current,{source:'AUDIO_FINGERPRINT',recognizedSyncId:out.work.syncId,position:out.position,confidence:out.confidence});res.status(201).json({...out,session:sessions.publicView(current)});}catch(e){next(e);}});
+  async function startCompanion(out,source,metadata){const preferred=out.binding || out.bindings.find(b=>b.mode==='COMPANION') || null;const track=await tracks.pickAuthoritative(out.work.id,null);const s=await Promise.resolve(sessions.create(out.work.id,out.position,track&&track.id,{mode:'COMPANION',bindingId:preferred&&preferred.id,syncConfidence:out.confidence,lastSyncAt:Date.now()}));const current=await Promise.resolve(sessions.get(s.code));await playback.createSession(current);await playback.recordSync(current,{source,recognizedSyncId:out.work.syncId,position:out.position,confidence:out.confidence,...(metadata?{metadata}:{})});return{...out,session:sessions.publicView(current)};}
+  r.post('/api/sync/start',antifraud.rateLimit('verify'),async(req,res,next)=>{try{const out=await recognizeBody(req.body||{});if(!out)return res.status(404).json({error:'SYNC_NOT_RECOGNIZED'});res.status(201).json(await startCompanion(out,'AUDIO_FINGERPRINT'));}catch(e){next(e);}});
+
+  // --------------------------- Reconhecimento pela ACRCloud: o celular manda ~10 s de áudio (WAV), que não é guardado.
+  const acrAudio=express.raw({type:()=>true,limit:'3mb'});
+  async function recognizeAcr(req){
+    const buf=Buffer.isBuffer(req.body)?req.body:Buffer.alloc(0);
+    if(buf.length<4000)return{error:'SYNC_SAMPLE_TOO_SHORT',code:400};
+    const mime=String(req.headers['content-type']||'audio/wav').split(';')[0];
+    const result=await acr.identify(buf,mime);
+    for(const m of result.matches){
+      const work=await Promise.resolve(content.getWorkAuthoritative(m.workId));
+      if(!work)continue;
+      const bindings=await Promise.resolve(distribution.listBindingsForWork(work.id));
+      const max=Number(work.duration)>0?Number(work.duration):Number.MAX_SAFE_INTEGER;
+      // play_offset_ms marca o fim da amostra; somamos o tempo da consulta para chegar ao "agora".
+      const position=Math.min(max,Math.max(0,(m.offsetSeconds||0)+(result.latencySeconds||0)));
+      return{out:{work:{id:work.id,title:work.title,duration:work.duration,syncId:work.syncId},position,confidence:Math.max(0,Math.min(1,m.score/100)),provider:'acrcloud',acrid:m.acrid,binding:null,bindings:bindings.map(b=>({id:b.id,mode:b.mode,platform:b.platform,externalContentId:b.externalContentId,canonicalUrl:b.canonicalUrl,officialOwnerUrl:b.officialOwnerUrl,label:b.label}))}};
+    }
+    return{error:'SYNC_NOT_RECOGNIZED',code:404};
+  }
+  const acrRoute=(start)=>async(req,res,next)=>{try{
+    if(!acr.identifyConfigured())return res.status(503).json({error:'ACR_NOT_CONFIGURED'});
+    const r0=await recognizeAcr(req);if(r0.error)return res.status(r0.code).json({error:r0.error});
+    res.status(start?201:200).json(start?await startCompanion(r0.out,'ACRCLOUD',{provider:'acrcloud',acrid:r0.out.acrid||null}):r0.out);
+  }catch(e){if(e.acrCode||/ACRCloud/.test(e.message)){console.error('[acr]',e.message);return res.status(502).json({error:'ACR_UNAVAILABLE'});}next(e);}};
+  r.post('/api/sync/acr/recognize',antifraud.rateLimit('verify'),acrAudio,acrRoute(false));
+  r.post('/api/sync/acr/start',antifraud.rateLimit('verify'),acrAudio,acrRoute(true));
 
   return r;
 }

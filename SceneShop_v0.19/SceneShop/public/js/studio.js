@@ -181,7 +181,7 @@
   $("acceptInviteBtn").onclick=async()=>{const r=await api('/api/organization-invites/accept',{method:'POST',body:{token:$("acceptInviteToken").value.trim()},noOrganization:true});$("acceptInviteMsg").textContent=r.ok?'Convite aceito.':(r.data.error||(r.data.errors||[]).join(' '));if(r.ok){await loadOrganizations();renderWhoControls();loadTeamSecurity();}};
   $("mfaSetupBtn").onclick=async()=>{const r=await api('/api/me/mfa/setup',{method:'POST',body:{}});$("mfaSetupResult").textContent=r.ok?`Segredo: ${r.data.secret} · adicione no autenticador e confirme com o código.`:(r.data.error||'Falha ao iniciar MFA.');};
   $("mfaEnableBtn").onclick=async()=>{const r=await api('/api/me/mfa/enable',{method:'POST',body:{code:$("mfaEnableCode").value.trim()}});$("mfaSetupResult").textContent=r.ok?'MFA ativado. Faça logout/login para obter uma sessão forte.':(r.data.error||'Código inválido.');if(r.ok)loadTeamSecurity();};
-  $("mfaDisableBtn").onclick=async()=>{const code=prompt('Código atual do autenticador:');if(!code)return;const r=await api('/api/me/mfa/disable',{method:'POST',body:{code}});if(r.ok)logout('MFA desativado. Entre novamente.');else $("mfaSetupResult").textContent=r.data.error||'Falha ao desativar MFA.';};
+  $("mfaDisableBtn").onclick=async()=>{const code=prompt((window.t || String)('Código atual do autenticador:'));if(!code)return;const r=await api('/api/me/mfa/disable',{method:'POST',body:{code}});if(r.ok)logout('MFA desativado. Entre novamente.');else $("mfaSetupResult").textContent=r.data.error||'Falha ao desativar MFA.';};
   $("saveOrgSecurity").onclick=async()=>{const r=await api(`/api/organizations/${encodeURIComponent(organizationId)}/settings`,{method:'PATCH',body:{security:{requireMfaForWrites:$("requireMfaWrites").checked}}});$("orgSecurityMsg").textContent=r.ok?'Política salva.':(r.data.message||r.data.error||'Falha ao salvar.');if(r.ok){await loadOrganizations();loadTeamSecurity();}};
 
   // ================================================================ editor: trilha
@@ -214,7 +214,7 @@
   }
 
   function newTrack() {
-    st.track = { id: null, title: "", offset: 0, scenes: [{ id: "c1", title: "Cena 1", start: 0, end: st.duration, products: [] }] };
+    st.track = { id: null, title: "", offset: 0, scenes: [{ id: "c1", title: (window.t || String)("Cena {0#}", 1), start: 0, end: st.duration, products: [] }] };
     st.sel = 0;
     $("trackSel").value = "";
     renderAll();
@@ -263,7 +263,7 @@
     if (i < 0) return toast("Posicione o vídeo dentro de uma cena.", true);
     const s = scenes()[i];
     if (t - s.start < 0.5 || s.end - t < 0.5) return toast("Muito perto do corte existente.", true);
-    const novo = { id: nextSceneId(), title: `Cena ${scenes().length + 1}`, start: t, end: s.end, products: [] };
+    const novo = { id: nextSceneId(), title: (window.t || String)("Cena {0#}", scenes().length + 1), start: t, end: s.end, products: [] };
     s.end = t;
     scenes().splice(i + 1, 0, novo);
     st.sel = i + 1;
@@ -914,7 +914,7 @@
         if (d.v > 0.12 && d.v > avg * 2.5 && isPeak && (!cuts.length || d.t - cuts[cuts.length - 1] >= 1.5) && d.t > 1 && dur - d.t > 1) cuts.push(Math.round(d.t * 10) / 10);
       });
       const bounds = [0, ...cuts, Math.round(dur * 10) / 10];
-      st.track.scenes = bounds.slice(0, -1).map((b, i) => ({ id: `c${i + 1}`, title: `Cena ${i + 1}`, start: b, end: bounds[i + 1], products: [] }));
+      st.track.scenes = bounds.slice(0, -1).map((b, i) => ({ id: `c${i + 1}`, title: (window.t || String)("Cena {0#}", i + 1), start: b, end: bounds[i + 1], products: [] }));
       st.sel = 0;
       renderAll();
       toast(`${st.track.scenes.length} cena(s) encontradas. Confira os cortes e dê nome às cenas.`);
@@ -929,7 +929,7 @@
   $("oneSceneBtn").onclick = () => {
     const seen = new Set(), products = [];
     st.track.scenes.forEach((s) => s.products.forEach((p) => { if (!seen.has(p.id)) { seen.add(p.id); products.push(p); } }));
-    const title = st.track.scenes.length === 1 ? st.track.scenes[0].title : "Cena única";
+    const title = st.track.scenes.length === 1 ? st.track.scenes[0].title : (window.t || String)("Cena única");
     st.track.scenes = [{ id: "c1", title, start: 0, end: Math.round((st.duration || helperVideo().duration || 0) * 10) / 10, products }];
     st.sel = 0;
     renderAll();
@@ -1002,10 +1002,45 @@
         <div class="wi"><b>${esc(w.title)}</b><span class="help">${fmtDur(w.duration)} · ${w.tracks.length} trilha(s)${w.tracks[0] ? ` · ${w.tracks[0].scenes} cenas · ${w.tracks[0].products} produtos` : ""}</span>
           <div class="wa"><button class="small primary" data-inv="${w.id}">Inventariar</button>
             <a class="ghost small" href="/assistir/${encodeURIComponent(w.id)}" target="_blank">Assistir</a>
-            <button class="small" data-pil="${w.id}">Painel</button></div></div></div>`).join("")
+            <button class="small" data-pil="${w.id}">Painel</button>${acrOn() ? `
+            <button class="small" data-acr-reg="${w.id}">Reconhecimento por áudio</button>` : ""}</div>${acrOn() ? `
+          <span class="help acr-state" data-acr="${w.id}">Reconhecimento por áudio: consultando…</span>` : ""}</div></div>`).join("")
       : `<p class="help">Nenhuma obra ainda. Envie o primeiro vídeo acima.</p>`;
     $("myWorks").querySelectorAll("[data-inv]").forEach((b) => (b.onclick = async () => { await selectWork(b.dataset.inv); showTab("editor"); }));
     $("myWorks").querySelectorAll("[data-pil]").forEach((b) => (b.onclick = () => { st.pilotWork = b.dataset.pil; showTab("piloto"); }));
+    if (acrOn()) {
+      $("myWorks").querySelectorAll("[data-acr]").forEach((el) => acrStatus(el.dataset.acr));
+      $("myWorks").querySelectorAll("[data-acr-reg]").forEach((b) => (b.onclick = async () => {
+        if (!confirm((window.t || String)("Cadastrar o áudio desta obra na ACRCloud? Depois disso, o celular reconhece a obra só de ouvir o som."))) return;
+        const r = await api(`/api/acr/works/${encodeURIComponent(b.dataset.acrReg)}/register`, { method: "POST", body: {} });
+        if (!r.ok) return toast(r.data.error || "Falha ao cadastrar.", true);
+        toast("Enviando o áudio para a ACRCloud. Isso pode levar alguns minutos.");
+        acrStatus(b.dataset.acrReg);
+      }));
+    }
+  }
+
+  // ================================================================ reconhecimento por áudio (ACRCloud)
+  const acrOn = () => !!(st.config && st.config.audioRecognitionRegistry);
+  const ACR_LABEL = {
+    ready: "pronto: o celular reconhece esta obra pelo som",
+    processing: "a ACRCloud está processando o áudio…",
+    uploading: "enviando o áudio para a ACRCloud…",
+    not_registered: "ainda não cadastrado",
+    error: "falhou no cadastro",
+    not_configured: "não configurado",
+  };
+  const acrTimers = {};
+  async function acrStatus(workId) {
+    const el = document.querySelector(`[data-acr="${CSS.escape(workId)}"]`);
+    if (!el) return;
+    const r = await api(`/api/acr/works/${encodeURIComponent(workId)}`);
+    const state = r.ok ? r.data.state : "error";
+    const tr = window.t || String;
+    const detail = !r.ok ? (r.data.error || "sem resposta") : r.data.error || "";
+    el.textContent = `${tr("Reconhecimento por áudio")}: ${tr(ACR_LABEL[state] || state)}${detail ? ` (${tr(detail)})` : ""}`;
+    clearTimeout(acrTimers[workId]);
+    if (state === "uploading" || state === "processing") acrTimers[workId] = setTimeout(() => acrStatus(workId), 5000);
   }
 
   // ================================================================ piloto: produtos com fotos

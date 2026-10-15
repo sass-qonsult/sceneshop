@@ -19,7 +19,7 @@ await fetch(`${BASE}/api/dev/reset?all=1`, { method: "POST" });
 const browser = await chromium.launch();
 const errs = [];
 const page = async (vp, mobile, name = mobile ? "celular" : vp.width) => {
-  const p = await (await browser.newContext({ viewport: vp, acceptDownloads: false, ...(mobile ? { deviceScaleFactor: 2, isMobile: true, hasTouch: true } : {}) })).newPage();
+  const p = await (await browser.newContext({ locale: "pt-BR", viewport: vp, acceptDownloads: false, ...(mobile ? { deviceScaleFactor: 2, isMobile: true, hasTouch: true } : {}) })).newPage();
   p.on("pageerror", (e) => errs.push(name + ": " + e.stack.split("\n").slice(0, 3).join(" ")));
   return p;
 };

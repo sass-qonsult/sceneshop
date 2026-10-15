@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -22,18 +23,42 @@ class MainActivity : Activity() {
   private val pendingEvents = mutableListOf<Pair<String, JSONObject>>()
   private var pageReady = false
   private var notificationRequestId: String? = null
+  private var pendingMicRequest: PermissionRequest? = null
 
-  companion object { private const val NOTIFICATION_REQUEST_CODE = 1801 }
+  companion object {
+    private const val NOTIFICATION_REQUEST_CODE = 1801
+    private const val MIC_REQUEST_CODE = 1802
+  }
 
   @SuppressLint("SetJavaScriptEnabled")
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MIC_REQUEST_CODE)
+    }
     webView = WebView(this)
     webView.settings.javaScriptEnabled = true
     webView.settings.domStorageEnabled = true
     webView.settings.allowFileAccess = false
     webView.settings.allowContentAccess = false
-    webView.webChromeClient = WebChromeClient()
+    webView.webChromeClient = object : WebChromeClient() {
+      // Microfone para "Sincronizar com o que estou assistindo": só para a página do próprio SceneShop.
+      override fun onPermissionRequest(request: PermissionRequest) {
+        val origin = request.origin
+        val trusted = origin.host == allowedHost && (origin.scheme == "https" || allowedHost in setOf("127.0.0.1", "localhost"))
+        if (!trusted || !request.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) { request.deny(); return }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+          request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+        } else {
+          pendingMicRequest?.deny()
+          pendingMicRequest = request
+          requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MIC_REQUEST_CODE)
+        }
+      }
+      override fun onPermissionRequestCanceled(request: PermissionRequest) {
+        if (pendingMicRequest == request) pendingMicRequest = null
+      }
+    }
     webView.webViewClient = object : WebViewClient() {
       override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
         val uri = request?.url ?: return true
@@ -114,6 +139,12 @@ class MainActivity : Activity() {
 
   override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
     super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+    if (requestCode == MIC_REQUEST_CODE) {
+      val request = pendingMicRequest
+      pendingMicRequest = null
+      if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) request?.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) else request?.deny()
+      return
+    }
     if (requestCode != NOTIFICATION_REQUEST_CODE) return
     val granted = grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED
     val value = notificationPermissionState().put("granted", granted).put("registration", if (granted) "PERMISSION_GRANTED" else "PERMISSION_DENIED").put("tokenProvider", "UNCONFIGURED")

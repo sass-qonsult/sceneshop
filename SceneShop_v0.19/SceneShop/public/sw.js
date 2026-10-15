@@ -1,8 +1,8 @@
-const CACHE='sceneshop-app-v019-rc1';
+const CACHE='sceneshop-app-v019-rc1-r7';
 const CORE=[
   '/app','/desktop','/mobile','/app.html','/desktop.html','/mobile.html','/offline.html',
   '/css/mobile.css','/css/app-shell.css',
-  '/js/mobile.js','/js/sync-fingerprint.js','/js/companion-sync.js','/js/mobile-core.js','/js/app-core.js','/js/native-bridge-contract.js','/js/app-shell.js',
+  '/js/i18n-dict.js','/js/i18n.js','/js/mobile.js','/js/sync-fingerprint.js','/js/companion-sync.js','/js/mobile-core.js','/js/app-core.js','/js/native-bridge-contract.js','/js/app-shell.js',
   '/app.webmanifest','/desktop.webmanifest','/mobile.webmanifest',
   '/media/app/sceneshop-192.png','/media/app/sceneshop-512.png'
 ];

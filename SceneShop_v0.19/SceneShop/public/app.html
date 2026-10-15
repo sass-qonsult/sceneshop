@@ -13,6 +13,8 @@
   <link rel="manifest" href="/app.webmanifest" />
   <link rel="icon" sizes="192x192" href="/media/app/sceneshop-192.png" />
   <link rel="apple-touch-icon" href="/media/app/sceneshop-192.png" />
+  <script src="/js/i18n-dict.js"></script>
+  <script src="/js/i18n.js"></script>
 </head>
 <body data-surface="WEB">
   <header class="top">
@@ -26,6 +28,7 @@
     <a data-surface-link="MOBILE" href="/mobile">Mobile</a>
     <button type="button" class="install-app" data-install-app hidden>Instalar aplicativo</button>
     <button type="button" class="install-app" data-share-app hidden>Compartilhar</button>
+    <span data-lang-slot></span>
     <span class="surface-pill" data-surface-label>Web</span>
   </nav>
 
@@ -56,6 +59,7 @@
   <main id="list" class="list"></main>
 
   <div id="join" class="join" hidden>
+    <div class="join-lang" data-lang-slot style="position:absolute;top:16px;right:16px"></div>
     <h1>Conectar ao conteúdo</h1>
     <p id="joinMsg">Conecte por código ou sincronize com um conteúdo que está tocando fora do SceneShop.</p>
     <div class="sync-card">

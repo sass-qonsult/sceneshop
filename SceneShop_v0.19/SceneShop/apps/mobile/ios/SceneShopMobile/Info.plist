@@ -7,5 +7,6 @@
 <key>CFBundleVersion</key><string>3</string>
 <key>LSRequiresIPhoneOS</key><true/>
 <key>CFBundleURLTypes</key><array><dict><key>CFBundleURLSchemes</key><array><string>sceneshop</string></array></dict></array>
+<key>NSMicrophoneUsageDescription</key><string>O SceneShop ouve alguns segundos do que está passando para identificar o vídeo e mostrar os produtos da cena. O áudio não fica guardado.</string>
 <key>NSAppTransportSecurity</key><dict><key>NSAllowsArbitraryLoads</key><false/></dict>
 </dict></plist>

@@ -132,7 +132,6 @@ function httpMiddleware(req, res, next) {
     const durationMs = Number(process.hrtime.bigint() - start) / 1e6;
     metrics.inc('http_requests_total', { method: req.method, status: res.statusCode });
     metrics.observe('http_request_duration_ms', durationMs, { method: req.method, status: res.statusCode });
-    console.log(`[HTTP] ${req.method} ${req.originalUrl || req.url} ${res.statusCode} (${durationMs.toFixed(1)}ms)`);
   };
   res.once('finish', record);
   res.once('close', record);

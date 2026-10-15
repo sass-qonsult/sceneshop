@@ -1,0 +1,25 @@
+{
+  "version": "0.19.0-rc.1",
+  "gitCommit": "4b58d0803d36b1c05f29f9b3151de7a83884f16a",
+  "apple": {
+    "teamConfigured": true,
+    "apsEnvironment": "production",
+    "signingReady": true
+  },
+  "android": {
+    "fingerprintConfigured": true,
+    "signingSecrets": {
+      "keystore": true,
+      "storePassword": true,
+      "alias": true,
+      "keyPassword": true
+    },
+    "signingReady": true
+  },
+  "outputs": {
+    "aasa": "public/.well-known/apple-app-site-association",
+    "assetlinks": "public/.well-known/assetlinks.json",
+    "iosEntitlements": "ios/SceneShopMobile.production.entitlements"
+  },
+  "ready": true
+}

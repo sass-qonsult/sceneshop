@@ -474,9 +474,11 @@
     if (msg) $("joinMsg").textContent = msg;
     const source = window.SceneShopAppCore ? window.SceneShopAppCore.resolveSharedSource(location) : new URLSearchParams(location.search).get("source");
     if (source && $("syncSourceUrl")) $("syncSourceUrl").value = source;
+    const syncProvider = window.SceneShopCompanionSync && SceneShopCompanionSync.provider ? SceneShopCompanionSync.provider() : Promise.resolve("fingerprint");
+    syncProvider.then((p) => { if (p === "acrcloud" && $("syncState") && !$("syncState").textContent) $("syncState").textContent = `Toque e deixe o celular ouvir ${SceneShopCompanionSync.ACR_SECONDS} segundos do que está passando. O áudio só serve para identificar o conteúdo e não fica guardado.`; });
     if ($("syncNow")) $("syncNow").onclick = async () => {
       const btn=$("syncNow"),status=$("syncState"); btn.disabled=true;
-      status.textContent="Ouvindo e reconhecendo o conteúdo…";
+      status.textContent=(await syncProvider)==="acrcloud"?`Ouvindo por ${SceneShopCompanionSync.ACR_SECONDS} segundos…`:"Ouvindo e reconhecendo o conteúdo…";
       try {
         const out=await SceneShopCompanionSync.synchronize({externalUrl:$("syncSourceUrl").value.trim()||null,seconds:5});
         status.textContent=`${out.work.title} reconhecido · ${Math.round(out.confidence*100)}%`;

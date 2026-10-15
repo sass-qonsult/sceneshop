@@ -13,7 +13,6 @@ node_modules/
 # Runtime/generated data
 .frames/
 *.log
-logs/
 data/runtime.json
 data/secrets.json
 data/ai/
@@ -25,8 +24,6 @@ coverage/
 .nyc_output/
 playwright-report/
 test-results/
-.gradle/
-build/
 
 # OS/editor noise
 .DS_Store
@@ -62,3 +59,4 @@ artifacts/runner-export/
 
 # configuração local (pode conter chaves)
 sceneshop.env
+data/i18n-misses.txt

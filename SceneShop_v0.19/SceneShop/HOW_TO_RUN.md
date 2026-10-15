@@ -1,5 +1,7 @@
 # SceneShop v0.19 — How to Run (Step by Step)
 
+*Also available in Portuguese (`COMO_RODAR.md`) and Spanish (`COMO_EJECUTAR.md`).*
+
 This folder has everything needed to run SceneShop. The libraries (`node_modules`) are already included, so you do not need to install them.
 
 There are two ways to run it:
@@ -91,19 +93,19 @@ If the phone cannot open the page, see the Troubleshooting section below (firewa
 1. **Prepare the video.** Export it as **MP4 (H.264 video + AAC audio)**. iPhone `.mov` files (HEVC) often do not play in Chrome.
 2. **Prepare the product photos** as JPG, PNG or WebP, up to 15 MB each. Name each file after the product, for example `Aurora-Classic-Watch-1.jpg`. The file name becomes the suggested product name.
 3. **Sign in** as `produtora` / `demo1234`.
-4. **Upload the video.** Go to **Obras** (Works) → **Enviar uma obra** (Upload a work). Choose the video, give it a title and click **Enviar** (Send).
-5. **Register your products.** Go to **Produtos** (Products) and upload the photos:
-   - **Uma foto = um produto** (one photo = one product) when each photo is a different item;
-   - **Todas no mesmo produto** (all in the same product) when they are several angles of one item.
+4. **Upload the video.** Go to **Titles** → **Upload a title**. Choose the video, give it a title and click **Upload**.
+5. **Register your products.** Go to **Products** and upload the photos:
+   - **One photo = one product** when each photo is a different item;
+   - **All in the same product** when they are several angles of one item.
 
-   Then fill in the name, brand, category, list price and description. Under **Vender no Marketplace Piloto** (sell in the pilot marketplace), set the guaranteed in-scene price and the commission.
-6. **Tag the products.** Go to **Obras** → **Inventariar** (Inventory). The new track starts as one single scene.
+   Then fill in the name, brand, category, list price and description. Under **Sell on Pilot Marketplace**, set the guaranteed in-scene price and the commission.
+6. **Tag the products.** Go to **Titles** → **Tag products**. The new track starts as one single scene.
    - For each product, search it, click it and **draw a rectangle** over the object in the video frame.
-   - Click **Publicar** (Publish).
-   - To split the video into several scenes, use **Detectar cortes** (Detect cuts) or **Nova cena a partir daqui** (New scene from here).
-7. **Watch.** Click **Assistir** (Watch). Press **P** for products and **Q** for the phone QR code.
-8. **Buy.** On the phone, **Comprar** (Buy) opens the pilot marketplace: cart, checkout, simulated Pix payment and the order page.
-9. **See the results.** The **Piloto** tab shows:
+   - Click **Publish track**.
+   - To split the video into several scenes, use **Detect cuts** or **New scene from here**.
+7. **Watch.** Click **Watch**. Press **P** for products and **Q** for the phone QR code.
+8. **Buy.** On the phone, **Buy** opens the pilot marketplace: cart, checkout, simulated Pix payment and the order page.
+9. **See the results.** The **Pilot** tab shows:
    - viewers and conversion;
    - the funnel (watched → opened panel → sent to phone → clicked buy → bought);
    - performance by scene and by product;
@@ -115,15 +117,23 @@ Everything you upload stays on your computer, in `data/uploads`. The rest of the
 
 Gemini can watch the video and suggest scenes, items and matching products from your catalog. You review every suggestion before publishing.
 
-1. Create a free key at <https://aistudio.google.com/apikey>.
-2. In the `SceneShop` folder, copy **`sceneshop.env.example`** and rename the copy to **`sceneshop.env`**.
-   - On Windows, turn on **View → File name extensions** first, so the file does not end up named `sceneshop.env.txt`.
-3. Open `sceneshop.env` in Notepad and add this line, using your own key:
-   ```
-   GEMINI_API_KEY=your-key-here
-   ```
-4. Save the file, close the black window and start SceneShop again.
-5. In the Studio, open a track in the editor and click **Analisar com Gemini** (Analyze with Gemini). Then review the suggestions and apply the ones you want.
+**Windows (easiest):**
+
+1. Create a free key at <https://aistudio.google.com/apikey> (click **Create API key** and copy it; it starts with `AIza`).
+2. In the `SceneShop` folder, double-click **`Configurar IA Gemini.bat`** (Configure Gemini AI).
+3. Paste the key in the window (right-click pastes) and press Enter. The assistant:
+   - checks the key with Google;
+   - picks a model with free quota (`gemini-2.5-flash`);
+   - writes `sceneshop.env` for you.
+4. Close any open SceneShop black windows and start **`Iniciar SceneShop.bat`** again. The window should show **"Gemini AI: key configured"**.
+5. In the Studio, open a track in the editor and click **Analyze with Gemini**. Then review the suggestions and apply the ones you want.
+
+**Mac/Linux, or by hand:** create a text file named exactly `sceneshop.env` in the `SceneShop` folder (on Windows, turn on **View → File name extensions** so it does not end up as `sceneshop.env.txt`) with these two lines, no spaces around `=` and no quotes:
+```
+GEMINI_API_KEY=your-key-here
+GEMINI_MODEL=gemini-2.5-flash
+```
+Then restart SceneShop.
 
 For security, SceneShop never stores the key itself. It only reads it from `sceneshop.env` or from the environment. Keep this file private and do not share it.
 
@@ -131,14 +141,51 @@ For security, SceneShop never stores the key itself. It only reads it from `scen
 - `PORT=3001` uses another port if 3000 is busy.
 - `PUBLIC_URL=https://…` sets the public address used in QR codes when SceneShop is published on the internet.
 
+### A7b. Languages: Portuguese, English and Spanish
+
+Every screen (Studio, phone, TV player, marketplace, stores) is available in **Portuguese, English and Spanish**.
+
+- SceneShop opens in the language of the device or browser. Any other language opens in English.
+- To change it, use the **language menu** at the top of the screen (on the TV player, at the top left). The choice is remembered on that device.
+- A link can force a language by adding `?lang=pt`, `?lang=en` or `?lang=es`, for example `http://localhost:3000/mobile?lang=es`.
+- The Windows launcher and the two configuration assistants speak the language of Windows. Content you type yourself (titles, product and scene names) is shown as you wrote it.
+
 ### A8. Reset the demo
 
-In the Studio, go to **Ganhos** (Earnings) and click **Restaurar dados da demo** (Restore demo data). This resets the sample sales and keeps your pilot works, products and tracks.
+In the Studio, go to **Earnings** and click **Reset demo data**. This resets the sample sales and keeps your pilot works, products and tracks.
 
 To start completely from zero:
 1. Close SceneShop.
 2. Delete `data/runtime.json` and the contents of `data/uploads`.
 3. Start SceneShop again.
+
+### A9. Optional: recognize videos by sound (ACRCloud)
+
+With this on, the viewer opens SceneShop on the phone and taps **Sync with what I'm watching**. The phone listens for 10 seconds, ACRCloud recognizes which registered video is playing and at which second, and the phone jumps straight to that scene's products. The QR code and the letter code keep working as alternatives.
+
+**1. Set up ACRCloud** (once, at <https://console.acrcloud.com>):
+1. Create an account and confirm your email.
+2. Create a **bucket** of type **Audio & Video** (custom content). Note its **ID** (a number) and its region.
+3. Create a **recognition project** (Audio & Video Recognition) and attach that bucket to it. Copy the project's **Host**, **Access Key** and **Access Secret**.
+4. Go to **Account → Developer settings** and create an **access token** (used to register your videos in the bucket).
+
+ACRCloud is a paid service after the trial (it charges for recognition queries and stored content). Check their current prices before going live.
+
+**2. Connect SceneShop:**
+1. In the `SceneShop` folder, double-click **`Configurar ACRCloud.bat`** (Configure ACRCloud).
+2. Paste the five values when asked. The assistant tests the project and the token with ACRCloud and only then saves them in `sceneshop.env`.
+3. Close any SceneShop black windows and start **`Iniciar SceneShop.bat`** again. The window should show **"Audio recognition: ACRCloud configured"**.
+
+**3. Use it:**
+- Every new work uploaded in the Studio is sent to ACRCloud automatically. In **Titles**, each title shows **"Audio recognition: ready"** when the phone can recognize it.
+- Works uploaded before you configured ACRCloud need one click on **Audio recognition** on their card.
+- On the phone, open SceneShop (or the Android app) and tap **Sync with what I'm watching**.
+
+**Important:**
+- **The phone's microphone only works over `https`.** Phone browsers block the microphone on `http://` addresses other than the computer itself, so test sound recognition with SceneShop published on an `https` address (Part B), or with the Android app pointing to it. On the computer itself, `http://localhost:3000/mobile` works for a quick test.
+- **Privacy:** the 10-second clip is sent to your SceneShop server and to ACRCloud only to identify the video; SceneShop does not store it. The microphone turns on only when the viewer taps the button. Mention this in your privacy policy (LGPD).
+- If ACRCloud does not recognize the clip, the same 10 seconds are tried in SceneShop's own built-in sound matching (together with the video link, if the viewer pasted one). Without ACRCloud configured, the button uses only the built-in matching, which knows the videos indexed with `tools/build-sync-index.js`.
+- The QR code, the 6-letter code and the video link keep working at all times, so viewers can always pick the way that suits them.
 
 ---
 
@@ -168,6 +215,12 @@ Use this for a real installation. Production starts **empty**: no demo accounts,
    SESSION_SECRET=the-random-secret-from-step-3
    TRUST_PROXY=1
    GEMINI_API_KEY=your-key        # optional, for AI tagging
+   # optional, recognize videos by sound (see A9 for where each value comes from):
+   ACRCLOUD_HOST=identify-eu-west-1.acrcloud.com
+   ACRCLOUD_ACCESS_KEY=...
+   ACRCLOUD_ACCESS_SECRET=...
+   ACRCLOUD_BUCKET_ID=...
+   ACRCLOUD_CONSOLE_TOKEN=...
    ```
    Notes:
    - `PUBLIC_URL` must start with `https://`.
@@ -257,12 +310,15 @@ Then run `node server/index.js`. Create accounts and stores with the same `tools
 | Problem | Solution |
 |---|---|
 | The window opens and closes immediately | Open a Command Prompt in the folder and run `"Iniciar SceneShop.bat"` to read the error message. |
-| "Não consegui baixar o Node.js" (could not download Node.js) | Check the internet connection, or install Node.js 22 LTS from <https://nodejs.org> and start again. |
+| "Could not download Node.js" | Check the internet connection, or install Node.js 22 LTS from <https://nodejs.org> and start again. |
 | `EADDRINUSE` / port 3000 already in use | Another program, or another SceneShop window, is using the port. Close it, or add `PORT=3001` to `sceneshop.env`. |
 | The browser did not open | Open `http://localhost:3000/studio.html` manually. |
 | The phone cannot open the QR code link | Check the phone is on the same Wi-Fi (not mobile data or a guest network). Allow **Node.js** in Windows Firewall (Control Panel → Windows Defender Firewall → Allow an app). |
 | The video does not play | Re-export it as MP4 (H.264 + AAC). |
-| AI button says Gemini is not configured | Check that the file is named exactly `sceneshop.env` (not `.txt`), that the line is `GEMINI_API_KEY=...`, and that you restarted SceneShop. |
+| AI button says Gemini is not configured | Run `Configurar IA Gemini.bat` again, then close **all** SceneShop windows and restart. The start window must show "Gemini AI: key configured". |
+| Gemini error mentioning "quota" or 429 | Your key has no free quota for the chosen model. Make sure `sceneshop.env` has `GEMINI_MODEL=gemini-2.5-flash` (the assistant adds it). |
+| Phone says the microphone is not available | The page must be on `https` (or `localhost` on the computer itself). In the Android app, allow the microphone when asked. |
+| "Content not recognized" | Check that the work shows "Audio recognition: ready" in the Studio, hold the phone near the speaker and try again with less background noise. |
 | Docker: the app restarts with "SESSION_SECRET" or "PUBLIC_URL" errors | Fix those values in `sceneshop.env` (see B2) and run `docker compose up -d` again. |
 | Docker: "port is already allocated" | Stop the local demo (close the black window) or whatever else uses port 3000. |
 
@@ -274,6 +330,8 @@ Then run `node server/index.js`. Create accounts and stores with the same `tools
 |---|---|
 | `Iniciar SceneShop.bat` | Windows launcher |
 | `iniciar.sh` | Mac/Linux launcher |
+| `Configurar IA Gemini.bat` | Assistant that sets up the Gemini AI key |
+| `Configurar ACRCloud.bat` | Assistant that connects ACRCloud (recognize videos by sound) |
 | `sceneshop.env.example` | Settings template (AI key, port, public address) |
 | `server/`, `public/`, `node_modules/` | The application and its libraries |
 | `data/` | Demo/pilot data and your uploads (local mode) |
@@ -283,4 +341,4 @@ Then run `node server/index.js`. Create accounts and stores with the same `tools
 | `test/` | Automated tests (for developers) |
 | `README.md` | Full technical documentation (Portuguese) |
 
-**Version:** SceneShop v0.19.0-rc.1, preparation build rcprep.6 (commit `9a154b9`).
+**Version:** SceneShop v0.19.0-rc.1, preparation build rcprep.8. The exact commit is in `V0_19_RCPREP8_CANDIDATE_IDENTITY.json`.

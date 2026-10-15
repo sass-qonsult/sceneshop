@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Loja oficial (demonstração)</title>
+  <style>
+    :root { --brand: #333; --bg: #f6f4f1; --card: #fff; --text: #1b1917; --muted: #6f6a65; --ok: #177a4b; --gold: #b8860b; --bad: #b3261e; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font-family: "Inter", system-ui, sans-serif; }
+    header { background: var(--brand); color: #fff; padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+    header b { font-size: 18px; }
+    header .tag { margin-left: auto; font-size: 11px; opacity: .8; border: 1px solid rgba(255,255,255,.4); border-radius: 6px; padding: 3px 8px; }
+    main { max-width: 960px; margin: 28px auto; padding: 0 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+    @media (max-width: 720px) { main { grid-template-columns: 1fr; } }
+    .img { background: var(--card); border-radius: 16px; display: grid; place-items: center; aspect-ratio: 1; }
+    .img img { width: 80%; }
+    .brand { color: var(--muted); text-transform: uppercase; font-size: 12px; letter-spacing: .08em; }
+    h1 { margin: 6px 0 14px; font-size: 26px; }
+    .price { font-size: 34px; font-weight: 800; }
+    .was { color: var(--muted); text-decoration: line-through; margin-right: 8px; font-size: 16px; }
+    .seal { display: flex; gap: 10px; align-items: flex-start; background: #fff8e1; border: 1px solid #f0d58a; border-radius: 12px; padding: 12px 14px; margin: 16px 0; font-size: 14px; line-height: 1.45; }
+    .seal b { color: var(--gold); }
+    .seal.bad { background: #fdecea; border-color: #f3b8b3; }
+    .seal.bad b { color: var(--bad); }
+    button { font: inherit; cursor: pointer; border-radius: 12px; padding: 14px 18px; border: 0; }
+    .buy { width: 100%; background: var(--brand); color: #fff; font-weight: 800; font-size: 16px; }
+    .row { display: flex; gap: 10px; align-items: center; margin: 14px 0; }
+    select { font: inherit; padding: 8px; border-radius: 8px; }
+    .ghost { background: transparent; border: 1px solid #ccc; color: var(--text); padding: 8px 12px; font-size: 13px; }
+    .done { background: var(--card); border-radius: 14px; padding: 16px; margin-top: 16px; font-size: 14px; line-height: 1.6; }
+    .done h3 { margin: 0 0 6px; color: var(--ok); }
+    .done.bad h3 { color: var(--bad); }
+    .report-sum { margin-top: 10px; font-size: 13px; background: #eef7f1; border-radius: 10px; padding: 10px; }
+    .mono { font: 12px ui-monospace, monospace; color: var(--muted); word-break: break-all; }
+    details { margin-top: 14px; font-size: 13px; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header><b id="sellerName">Loja oficial</b><span id="sellerKind"></span><span class="tag">Loja fictícia de demonstração</span></header>
+  <main>
+    <div class="img"><img id="img" alt="" /></div>
+    <div>
+      <div class="brand" id="brand"></div>
+      <h1 id="name">Carregando…</h1>
+      <div><span class="was" id="was" hidden></span><span class="price" id="price"></span></div>
+      <div class="seal" id="seal" hidden></div>
+      <div class="row"><label>Quantidade <select id="qty"><option>1</option><option>2</option><option>3</option></select></label></div>
+      <button class="buy" id="buy">Comprar agora (simulação)</button>
+      <div id="result"></div>
+      <details>
+        <summary>Como o preço garantido funciona</summary>
+        <p>A produção tem um acordo com esta loja. O link veio do SceneShop com a oferta (código assinado, cupom de uso único ou campanha, conforme o acordo). A loja aplica o preço combinado e depois informa a venda ao SceneShop, que confere o valor cobrado e registra a comissão.</p>
+        <p class="mono" id="token" style="white-space:pre-wrap"></p>
+        <button class="ghost" id="overcharge">Simular loja cobrando acima do garantido</button>
+      </details>
+    </div>
+  </main>
+  <script src="/js/page-loja.js"></script>
+</body>
+</html>

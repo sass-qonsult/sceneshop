@@ -1,0 +1,3 @@
+1127db7816e753bac47480290aaa80ad717762999f69d6d4a618d96ef2db603f  SceneShop_Desktop_Host_0.19.0-rc.1.zip
+804be384a8b0433cd4353439ef818ecc6535aebd41f94d3f10a38527d5d15c30  SceneShop_Android_Source_0.19.0-rc.1.zip
+3b3e6b6092c25d0a4c89431336c40f9ab7868ebf8d7515a08087a0ccbcf4f23a  SceneShop_iOS_Source_0.19.0-rc.1.zip

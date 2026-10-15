@@ -1,0 +1,60 @@
+services:
+  postgres:
+    image: postgres:16.15-alpine
+    environment:
+      POSTGRES_DB: sceneshop
+      POSTGRES_USER: sceneshop
+      POSTGRES_PASSWORD: sceneshop_dev_only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sceneshop -d sceneshop"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - sceneshop_pg:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7.4.11-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    volumes:
+      - sceneshop_redis:/data
+
+  app:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DEMO: "0"
+      DATA_BACKEND: postgres
+      DATABASE_URL: postgres://sceneshop:sceneshop_dev_only@postgres:5432/sceneshop
+      REDIS_URL: redis://redis:6379
+      SESSION_BACKEND: redis
+      CACHE_BACKEND: redis
+      PUBLIC_URL: https://localhost.invalid
+      SESSION_SECRET: local-compose-only-change-me-0123456789abcdef
+      TRUST_PROXY: "0"
+      PORT: "3000"
+    # Opcional: sceneshop.env sobrepõe as variáveis acima (PUBLIC_URL, SESSION_SECRET, GEMINI_API_KEY...).
+    env_file:
+      - path: sceneshop.env
+        required: false
+    volumes:
+      - sceneshop_uploads:/app/data/uploads
+      - sceneshop_ai:/app/data/ai
+    ports:
+      - "3000:3000"
+
+volumes:
+  sceneshop_pg:
+  sceneshop_redis:
+  sceneshop_uploads:
+  sceneshop_ai:

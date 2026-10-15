@@ -11,7 +11,7 @@
     "test:pilot": "node test/pilot.e2e.mjs",
     "test:pilot:one": "ONE_SCENE=1 node test/pilot.e2e.mjs",
     "test:ai": "node test/ai.e2e.mjs",
-    "test": "node --test test/unit.test.js test/data-plane.test.js test/runtime-import.test.js test/repositories.test.js test/postgres-projection.test.js test/financial-transactions.test.js test/commercial-policy.test.js test/identity-authority.test.js test/author-kyc-authority.test.js test/distribution-foundation.test.js test/content-authority.test.js test/realtime-sessions.test.js test/release-preflight.test.js test/organizations.test.js test/tenant-isolation.test.js test/rbac-invites-mfa.test.js test/commerce-core.test.js test/payments-core.test.js test/distribution-sdk.test.js test/platform-adapters.test.js test/mobile-core.test.js test/ai-pipeline.test.js test/ai-redundancy.test.js test/privacy-security.test.js test/scale-reliability.test.js test/scale-reliability-alpha2.test.js test/v017-release-governance.test.js test/application-surfaces.test.js test/native-application-packaging.test.js test/production-beta-apps.test.js test/v018-production-beta-acceptance.test.js test/v019-release-candidate.test.js test/v019-analysis-regressions.test.js",
+    "test": "node --test test/unit.test.js test/data-plane.test.js test/runtime-import.test.js test/repositories.test.js test/postgres-projection.test.js test/financial-transactions.test.js test/commercial-policy.test.js test/identity-authority.test.js test/author-kyc-authority.test.js test/distribution-foundation.test.js test/content-authority.test.js test/realtime-sessions.test.js test/release-preflight.test.js test/organizations.test.js test/tenant-isolation.test.js test/rbac-invites-mfa.test.js test/commerce-core.test.js test/payments-core.test.js test/distribution-sdk.test.js test/platform-adapters.test.js test/mobile-core.test.js test/ai-pipeline.test.js test/ai-redundancy.test.js test/privacy-security.test.js test/scale-reliability.test.js test/scale-reliability-alpha2.test.js test/v017-release-governance.test.js test/application-surfaces.test.js test/native-application-packaging.test.js test/production-beta-apps.test.js test/v018-production-beta-acceptance.test.js test/v019-release-candidate.test.js test/v019-analysis-regressions.test.js test/acr.test.js test/i18n.test.js",
     "data:import": "node tools/import-runtime.js",
     "data:inspect": "node tools/import-runtime.js --dry-run",
     "test:data": "node --test test/data-plane.test.js test/runtime-import.test.js test/repositories.test.js test/postgres-projection.test.js test/financial-transactions.test.js test/commercial-policy.test.js test/identity-authority.test.js test/author-kyc-authority.test.js test/distribution-foundation.test.js test/content-authority.test.js test/realtime-sessions.test.js",
@@ -52,7 +52,7 @@
     "beta:verify:distribution": "node tools/v018-production-beta-manifest.js --require-distribution --out=artifacts/production-beta/v0.18-production-beta-manifest.json",
     "beta:promote:dry": "node tools/v018-promote.js",
     "beta:promote": "node tools/v018-promote.js --apply",
-    "test:rc19": "node --test test/v019-release-candidate.test.js test/v019-analysis-regressions.test.js",
+    "test:rc19": "node --test test/v019-release-candidate.test.js test/v019-analysis-regressions.test.js test/acr.test.js test/i18n.test.js",
     "rc:contract": "node tools/v019-release-contract.js",
     "rc:schema": "node tools/v019-schema-compatibility.js",
     "rc:schema:live": "node tools/v019-schema-compatibility.js --require-live --ephemeral --out=artifacts/rc-gate/schema-compatibility.json",
@@ -65,7 +65,9 @@
     "native:signature:verify": "node tools/native-signature-verify.js",
     "rc:evidence:export": "node tools/v019-evidence-export.js --out=artifacts/runner-export",
     "rc:finalize:dry": "node tools/v019-finalize.js --source=artifacts/external-evidence",
-    "rc:finalize": "node tools/v019-finalize.js --source=artifacts/external-evidence --apply"
+    "rc:finalize": "node tools/v019-finalize.js --source=artifacts/external-evidence --apply",
+    "test:i18n": "node test/i18n.e2e.mjs",
+    "test:acr": "node test/acr.e2e.mjs"
   },
   "engines": {
     "node": ">=20"

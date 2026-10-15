@@ -11,8 +11,8 @@ for (const envFileName of [".env", "sceneshop.env"]) {
   const envPath = path.resolve(__dirname, "..", envFileName);
   try {
     if (fs.existsSync(envPath)) {
-      const content = fs.readFileSync(envPath, "utf8");
-      for (const line of content.split(/\r?\n/)) {
+      const c = fs.readFileSync(envPath, "utf8");
+      for (const line of c.split(/\r?\n/)) {
         const trimmed = line.trim();
         if (!trimmed || trimmed.startsWith("#")) continue;
         const eqIdx = trimmed.indexOf("=");

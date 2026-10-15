@@ -81,6 +81,7 @@ module.exports = function pilotRoutes({ requireRole, reply, actor }) {
     };
     const created = await content.createWorkAuthoritative(w, author.partnerId ? [author.partnerId] : []);
     audit.log(actor(req), "obra_cadastrada", { workId: id, titulo: created.title, duracao: created.duration, syncId: created.syncId });
+    require("./acr").autoRegister(created, actor(req));
     res.status(201).json(created);
   }));
 

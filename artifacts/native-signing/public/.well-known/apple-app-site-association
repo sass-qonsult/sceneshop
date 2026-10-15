@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "ABCDEFGHIJ.io.sceneshop.mobile"
+        ],
+        "components": [
+          {
+            "/": "/s/*",
+            "comment": "SceneShop session links"
+          }
+        ]
+      }
+    ]
+  }
+}

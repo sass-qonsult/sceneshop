@@ -1,5 +1,8 @@
 # SceneShop
 
+> **Guias de uso / User guides / Guías de uso:** [Como rodar (PT)](COMO_RODAR.md) · [How to run (EN)](HOW_TO_RUN.md) · [Cómo ejecutarlo (ES)](COMO_EJECUTAR.md).
+> As telas funcionam em português, inglês e espanhol / Screens available in Portuguese, English and Spanish / Pantallas en portugués, inglés y español.
+
 Camada de compras invisível para filmes, novelas, publicidade e clipes: a IA inventaria cada cena,
 o espectador vê os produtos pelo controle ou pelo celular (QR code) e compra na loja indicada pela
 produção, com preço garantido por código assinado.
@@ -55,6 +58,16 @@ Node.js 20+, PostgreSQL 16 e Redis 7. Variáveis mínimas: `NODE_ENV=production`
 `DATA_BACKEND=postgres`, `DATABASE_URL`, `REDIS_URL`, `SESSION_BACKEND=redis`, `CACHE_BACKEND=redis`,
 `SESSION_SECRET`, `PUBLIC_URL` (https). As migrações rodam sozinhas na inicialização.
 Contas e lojas: os mesmos comandos `tools/create-account.js` e `tools/create-seller.js`.
+
+### Reconhecer os vídeos pelo som (ACRCloud)
+
+O celular ouve 10 segundos do que está passando e entra direto nos produtos da cena, sem QR code.
+Configure com **`Configurar ACRCloud.bat`** (Windows) ou com as variáveis `ACRCLOUD_*` do
+`sceneshop.env.example`: projeto de reconhecimento (host, access key, access secret), bucket
+"Audio & Video" (ID) e token da Console API. Cada obra enviada pelo estúdio é cadastrada sozinha;
+obras antigas usam o botão **Reconhecimento por áudio** na aba Obras. O microfone do celular só
+funciona com o SceneShop publicado em `https`. O áudio vai à ACRCloud só para identificar e não é guardado.
+Passo a passo completo em `HOW_TO_RUN.md`, seção A9.
 
 ### Verificar que está tudo certo
 

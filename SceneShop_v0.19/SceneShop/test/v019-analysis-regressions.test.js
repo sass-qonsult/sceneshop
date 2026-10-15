@@ -85,3 +85,13 @@ test("produção não inventa preço: lojas simuladas só na demonstração", ()
   const src = fs.readFileSync(path.join(ROOT, "server/adapters/index.js"), "utf8");
   assert.match(src, /adapters: DEMO \|\| process\.env\.SIMULATED_STORES === "1" \?/);
 });
+
+test("um evento de socket com erro não derruba o servidor (resync com dados inválidos do celular)", () => {
+  const src = fs.readFileSync(path.join(ROOT, "server/index.js"), "utf8");
+  const conn = src.slice(src.indexOf('io.on("connection"'));
+  assert.match(conn.slice(0, 800), /socket\.on = \(event, handler\)/, "todos os eventos passam pelo protetor de erros");
+  assert.match(src, /process\.on\("unhandledRejection"/);
+  const resync = conn.slice(conn.indexOf('"sync:resync"'), conn.indexOf('socket.on("disconnect"'));
+  assert.match(resync, /fingerprintId: null/, "id de fingerprint vindo do celular não vai para a coluna com chave estrangeira");
+  assert.match(resync, /Math\.min\(1, Number\(confidence\)\)/, "confiança limitada a 0..1 (CHECK do banco)");
+});

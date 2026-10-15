@@ -108,3 +108,71 @@ O rcprep.5 nunca tinha rodado contra PostgreSQL/Redis reais nem com navegador. U
 - Produção do zero (`test/production.smoke.mjs`): conta da produtora, obra, produto, oferta oficial, trilha, compra com código assinado, aviso assinado da loja, comissão atribuída e moderador: PASS.
 
 **Continua externo** (não pode ser produzido sem a infraestrutura/credenciais certas): evidência nas versões exatas do contrato (PostgreSQL 16.15, Redis 7.4.11), builds Android/iOS, assinatura de produção e as 12 linhas de QA em aparelhos reais. Use o External Runner Kit R0.4.
+
+## rcprep.7 — reconhecimento de vídeos pelo som (ACRCloud)
+
+**Novo**
+- `server/acr.js`: integração com a ACRCloud.
+  - Cadastro: cada obra enviada é registrada sozinha no bucket "Audio & Video" pela Console API, com `sceneshop_work_id` em `user_defined`. Extrai só o áudio quando há ffmpeg.
+  - Status por obra no estúdio, com botão para cadastrar ou recadastrar.
+  - Identificação: `POST /v1/identify` com assinatura HMAC-SHA1 e posição por `play_offset_ms`.
+- `/api/sync/acr/start` e `/api/sync/acr/recognize`:
+  - recebem 10 s de WAV de 8 kHz do celular, consultam a ACRCloud e abrem a sessão COMPANION na obra e no segundo reconhecidos;
+  - o áudio não é gravado em disco nem em banco.
+- O celular usa a ACRCloud quando o servidor anuncia `audioRecognition: "acrcloud"`. Sem configuração, continua com o motor próprio (`sync-fingerprint.js`).
+- **App Android:** permissões `RECORD_AUDIO` e `MODIFY_AUDIO_SETTINGS`. O microfone é concedido ao WebView só para o host do SceneShop.
+- **App iOS:** `NSMicrophoneUsageDescription`.
+- **Assistentes no Windows:**
+  - `Configurar ACRCloud.bat` testa o projeto e o token com a ACRCloud antes de gravar.
+  - `Configurar IA Gemini.bat` testa a chave e escolhe um modelo com cota gratuita.
+  - O lançador mostra o estado dos dois.
+
+**Correções de segurança encontradas no caminho**
+- **Derrubada do servidor pelo socket (já existia antes desta versão):** no modo PostgreSQL, um celular conectado derrubava o servidor inteiro com um `sync:resync` contendo `fingerprintId` inexistente ou `confidence` fora de 0..1. Os eventos de socket ficaram sem tratamento de erro, e a violação de FK ou de CHECK virava uma rejeição não tratada.
+  - Agora todo evento de socket responde com erro ao cliente que o enviou.
+  - O resync não aceita mais `fingerprintId` do cliente e limita `confidence`.
+  - Rejeições não tratadas são registradas sem derrubar o processo.
+- **Chave estrangeira na nova rota:** a sessão aberta pela ACRCloud gravava o acrid na coluna `fingerprint_id`, que é chave estrangeira. Agora o acrid vai em `metadata`.
+
+**Validação**
+- `npm test` 282/282 (inclui `test/acr.test.js` e o teste de regressão do socket).
+- `test:api` 125 verificações.
+- Navegador, no modo arquivo e no PostgreSQL: e2e 43, piloto 37, cena única 38, IA 20, ACR 8 (`test/acr.e2e.mjs` com o simulador `test/acrcloud-mock.mjs`, que confere a assinatura e o token).
+- Smoke de produção 24/24 com a ACRCloud ligada.
+- Os assistentes do Windows foram testados com o PowerShell 7 contra o simulador: chave errada, segredo errado, token errado, bucket errado, host errado e sem internet.
+
+**Não testado aqui:** a ACRCloud real, cujo acesso é bloqueado neste ambiente; o microfone de um celular real; e o build do app Android.
+
+## rcprep.8 — três idiomas (português, inglês e espanhol) e plano B do reconhecimento
+
+**Idiomas**
+- Tradutor e dicionário:
+  - `public/js/i18n.js` traduz as telas a partir do dicionário `public/js/i18n-dict.js`, com 1.262 entradas no formato "texto em português" → [inglês, espanhol].
+  - Cobre estúdio, celular, player de TV, marketplace, lojas, parceiro e as mensagens de erro do servidor.
+  - Acompanha o que as telas criam depois, com um MutationObserver.
+  - Regras com partes variáveis: `{0}` vale para qualquer texto e `{0#}` só para número, assim "Cena 3" vira "Scene 3" sem mexer em "Cena da praia".
+  - Conteúdo do usuário (obras, produtos, cenas) não é traduzido.
+- Escolha do idioma:
+  - Vem do aparelho, com inglês para outros idiomas.
+  - O seletor no cabeçalho de cada tela guarda a escolha, e `?lang=pt|en|es` força um idioma.
+  - Os nomes padrão de cena já nascem no idioma de quem cria.
+- Arquivos fora do navegador:
+  - O lançador do Windows e os dois assistentes falam o idioma do Windows. Os assistentes aceitam `-Lang` para forçar um idioma.
+  - O `iniciar.sh` segue o `LANG` do sistema.
+  - O quadro de endereços do servidor segue o `SCENESHOP_LANG`.
+- Guias: `HOW_TO_RUN.md` (EN, com os rótulos reais da tela em inglês), `COMO_RODAR.md` (PT) e `COMO_EJECUTAR.md` (ES).
+- Ferramenta de cobertura, só em desenvolvimento: com `SCENESHOP_I18N_SHADOW=en|es`, as telas calculam a tradução sem aplicá-la e gravam em `data/i18n-misses.txt` o que ficou sem tradução. Assim as suítes de navegador medem a cobertura sem mudar as telas. Em produção, a rota responde 404.
+
+**Reconhecimento pelo som:** se a ACRCloud não reconhecer, o mesmo trecho de áudio passa pelo reconhecimento próprio, junto com o link colado, se houver. QR code, código de letras, link e SDK continuam ativos.
+
+**Testes**
+- `test/i18n.test.js`: dicionário completo e coerente, idioma pelo aparelho, partes variáveis, conteúdo intacto, páginas, lançadores e guias.
+- `test/i18n.e2e.mjs`: 29 verificações nos três idiomas. Inclui o seletor, a escolha salva, o celular, o marketplace, o player, a queda para o inglês e nenhum texto de interface em português no modo inglês.
+- As suítes antigas fixam `locale: "pt-BR"`.
+
+**Validação**
+- `npm test` 286/286 e `test:api` com 125 verificações.
+- Navegador, nos modos arquivo e PostgreSQL: e2e 43, piloto 37, cena única 38, IA 20, idiomas 29, ACR 8.
+- Smoke de produção 24/24.
+- O `Iniciar SceneShop.bat` foi executado no Wine com o `node.exe` oficial do Windows: as mensagens saem em português, inglês e espanhol e o servidor sobe.
+- No Wine, o comando `where` responde "sucesso" mesmo sem achar o Node. Por isso o teste usou o Node no PATH. A cópia portátil não pôde ser testada lá.

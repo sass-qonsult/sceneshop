@@ -14,6 +14,7 @@ const QRCode = require("qrcode");
 const { Server } = require("socket.io");
 
 const config = require("./config");
+const fs = require("fs");
 const { assertProductionRuntime } = require("./runtime-config");
 const releaseContract = require("../docs/release/V0_19_RELEASE_CONTRACT_R0_1.json");
 const packageVersion = require("../package.json").version;
@@ -59,6 +60,18 @@ app.use(observability.httpMiddleware);
 app.use(express.json({ limit: "1mb", verify: (req, res, buf) => { req.rawBody = buf.toString("utf8"); } }));
 app.get("/.well-known/apple-app-site-association", (req, res) => res.type("application/json").sendFile(path.join(__dirname, "..", "public", ".well-known", "apple-app-site-association")));
 app.get("/.well-known/assetlinks.json", (req, res) => res.type("application/json").sendFile(path.join(__dirname, "..", "public", ".well-known", "assetlinks.json")));
+// Ferramenta de tradução (só desenvolvimento): SCENESHOP_I18N_SHADOW=en|es faz as telas calcularem a
+// tradução sem aplicá-la e registrarem em data/i18n-misses.txt o que ainda está sem tradução.
+if (/^(en|es)$/.test(process.env.SCENESHOP_I18N_SHADOW || "") && !config.IS_PRODUCTION) {
+  app.get("/js/i18n-dict.js", (req, res) => {
+    res.type("application/javascript").send(`globalThis.SceneShopI18nShadow=${JSON.stringify(process.env.SCENESHOP_I18N_SHADOW)};\n` + fs.readFileSync(path.join(__dirname, "..", "public", "js", "i18n-dict.js"), "utf8"));
+  });
+  app.post("/api/dev/i18n-misses", (req, res) => {
+    const list = Array.isArray(req.body) ? req.body.filter((x) => typeof x === "string").slice(0, 200) : [];
+    if (list.length) fs.appendFileSync(path.join(__dirname, "..", "data", "i18n-misses.txt"), list.map((x) => x.replace(/\n/g, " ") + "\n").join(""));
+    res.status(204).end();
+  });
+}
 app.use(express.static(path.join(__dirname, "..", "public")));
 // arquivos enviados no piloto (vídeos com suporte a "range": o player pode pular para qualquer ponto)
 app.use("/uploads", express.static(require("./uploads").ROOT, { maxAge: "1h" }));
@@ -66,6 +79,7 @@ app.use(auth.attach);
 app.use(orgAccess.attach);
 app.use(require("./pilot")({ requireRole, reply: (...a) => reply(...a), actor: (req) => actor(req) }));
 app.use(require("./ai").routes({ requireRole, actor: (req) => actor(req), content }));
+app.use(require("./acr").routes({ requireRole, content }));
 app.use(require("./commerce").routes({ requireRole, orgAccess }));
 app.use(require("./payments").routes({ requireRole, orgAccess }));
 app.use(require("./distribution").routes({ requireRole, orgAccess, antifraud, io }));
@@ -106,6 +120,8 @@ app.get("/api/config", (req, res) => res.json({
     { username: "moderador", role: "moderator", label: "Moderador / compliance" },
   ] : [],
   demoPassword: config.DEMO ? "demo1234" : null,
+  audioRecognition: require("./acr").identifyConfigured() ? "acrcloud" : "fingerprint",
+  audioRecognitionRegistry: require("./acr").registryConfigured(),
 }));
 
 app.post("/api/auth/login", antifraud.rateLimit("login"), wrap(async (req, res) => {
@@ -559,7 +575,19 @@ function sceneIdAt(track, t) {
   return s ? s.id : null;
 }
 
+process.on("unhandledRejection", (e) => console.error("[unhandledRejection]", e && e.stack ? e.stack : e));
+
 io.on("connection", (socket) => {
+  // Um erro num evento (ex.: banco recusando um dado enviado pelo celular) responde com erro
+  // àquele cliente; nunca derruba o servidor para todos.
+  const rawOn = socket.on.bind(socket);
+  socket.on = (event, handler) => rawOn(event, (...args) => {
+    const ack = typeof args[args.length - 1] === "function" ? args[args.length - 1] : null;
+    Promise.resolve().then(() => handler(...args)).catch((e) => {
+      console.error(`[socket:${event}]`, e && e.message ? e.message : e);
+      if (ack) { try { ack({ error: "Erro interno" }); } catch (_) {} }
+    });
+  });
   let sessionCode = null;
   let role = null;
   let deviceId = null;
@@ -651,8 +679,9 @@ io.on("connection", (socket) => {
     const safePosition = Math.min(max, Math.max(0, Number(position) || 0));
     const track = before.trackId ? await tracks.getAuthoritative(before.trackId) : null;
     const sceneId = track && sceneIdAt(track, safePosition);
-    const updated = await Promise.resolve(sessions.resync(sessionCode, { position: safePosition, confidence, sceneId }));
-    await playback.recordSync(updated, { source, recognizedSyncId, fingerprintId, metadata: { deviceId } });
+    const safeConfidence = Number.isFinite(Number(confidence)) ? Math.max(0, Math.min(1, Number(confidence))) : null;
+    const updated = await Promise.resolve(sessions.resync(sessionCode, { position: safePosition, confidence: safeConfidence, sceneId }));
+    await playback.recordSync(updated, { source: String(source || "AUDIO_FINGERPRINT").slice(0, 40), recognizedSyncId, fingerprintId: null, metadata: { deviceId, ...(fingerprintId ? { clientFingerprintId: String(fingerprintId).slice(0, 80) } : {}) } });
     io.to(sessionCode).emit("player:tick", { time: updated.playbackPosition, playing: updated.playing, resynced: true });
     ack && ack({ ok: true, ...sessions.publicView(updated) });
   });
@@ -741,15 +770,19 @@ if (require.main === module) {
   bootstrap()
     .then(({ data, cache, operations: operationsState }) => {
       server.listen(PORT, () => {
-        console.log(`\nSceneShop rodando${config.DEMO ? " (modo demonstração)" : ""}:`);
+        // Quadro da janela preta no idioma escolhido pelo lançador (SCENESHOP_LANG=pt|en|es).
+        const L = { pt: ["SceneShop rodando", " (modo demonstração)", "Player (TV/computador):", "Estúdio / ganhos:      ", "Rede local (celular):  ", "Contas de demonstração: ana, produtora, promo_x, moderador — senha demo1234"],
+          en: ["SceneShop running", " (demo mode)", "Player (TV/computer):  ", "Studio / earnings:     ", "Local network (phone): ", "Demo accounts: ana, produtora, promo_x, moderador — password demo1234"],
+          es: ["SceneShop en marcha", " (modo demostración)", "Reproductor (TV/PC):   ", "Estudio / ganancias:   ", "Red local (celular):   ", "Cuentas de demostración: ana, produtora, promo_x, moderador — contraseña demo1234"] }[["en", "es"].includes(process.env.SCENESHOP_LANG) ? process.env.SCENESHOP_LANG : "pt"];
+        console.log(`\n${L[0]}${config.DEMO ? L[1] : ""}:`);
         console.log(`  Data Plane:              ${data.backend}`);
         console.log(`  Realtime sessions:       ${sessions.backendKind()}`);
         console.log(`  Operations:              ${operationsState.backend}${operationsState.queue && operationsState.queue.degraded ? " (degraded)" : ""}`);
         console.log(`  Cache/coordination:      ${cache.backend}${cache.activeInstances ? ` (${cache.activeInstances} instance(s))` : ""}`);
-        console.log(`  Player (TV/computador):  http://localhost:${PORT}`);
-        console.log(`  Estúdio / ganhos:        http://localhost:${PORT}/studio.html`);
-        console.log(`  Rede local (celular):    ${publicBaseUrl({ headers: {} })}\n`);
-        if (config.DEMO) console.log(`  Contas de demonstração: ana, produtora, promo_x, moderador — senha demo1234\n`);
+        console.log(`  ${L[2]}  http://localhost:${PORT}`);
+        console.log(`  ${L[3]}  http://localhost:${PORT}/studio.html`);
+        console.log(`  ${L[4]}  ${publicBaseUrl({ headers: {} })}\n`);
+        if (config.DEMO) console.log(`  ${L[5]}\n`);
       });
       process.once("SIGTERM", () => shutdown("SIGTERM"));
       process.once("SIGINT", () => shutdown("SIGINT"));

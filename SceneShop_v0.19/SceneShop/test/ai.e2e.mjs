@@ -43,7 +43,7 @@ check(work.id && Object.keys(prods).length === 5, "Obra e 5 produtos cadastrados
 // ---------------------------------------------------------------- estúdio
 const browser = await chromium.launch();
 const errs = [];
-const page = await (await browser.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
+const page = await (await browser.newContext({ locale: "pt-BR", viewport: { width: 1440, height: 900 } })).newPage();
 page.on("pageerror", (e) => errs.push(e.message));
 await page.addInitScript((t) => localStorage.setItem("ss-studio-token", t), token);
 await page.addInitScript((w) => localStorage.setItem("ss-studio-work", w), work.id);
