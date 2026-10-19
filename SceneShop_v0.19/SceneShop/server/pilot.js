@@ -29,10 +29,7 @@ const slugify = (s, max = 40) => {
   const at = cut.lastIndexOf("-");
   return (at > 8 ? cut.slice(0, at) : full.slice(0, max)).replace(/-$/, "") || "item";
 };
-const parsePrice = (v) => {
-  const raw = String(v ?? "").trim();
-  return Number(raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw); // aceita 1.299,90 e 1299.90
-};
+const { parsePrice, validPrice } = require("./price");
 const EVENT_TYPES = ["view_start", "panel_open", "qr_open", "phone_join"];
 
 module.exports = function pilotRoutes({ requireRole, reply, actor }) {
@@ -81,6 +78,7 @@ module.exports = function pilotRoutes({ requireRole, reply, actor }) {
     };
     const created = await content.createWorkAuthoritative(w, author.partnerId ? [author.partnerId] : []);
     audit.log(actor(req), "obra_cadastrada", { workId: id, titulo: created.title, duracao: created.duration, syncId: created.syncId });
+    require("./audio-id").autoIndex(created);          // reconhecimento próprio (SceneShop ID)
     require("./acr").autoRegister(created, actor(req));
     res.status(201).json(created);
   }));
@@ -98,7 +96,7 @@ module.exports = function pilotRoutes({ requireRole, reply, actor }) {
     const name = String(body.name ?? current.name ?? "").trim();
     const price = body.referencePrice != null ? parsePrice(body.referencePrice) : current.referencePrice;
     if (name.length < 2) errors.push("Informe o nome do produto.");
-    if (!(price > 0 && price < 1e6)) errors.push("Informe um preço válido.");
+    if (!validPrice(price)) errors.push("Informe um preço válido (ex.: 1.250,00).");
     let images = Array.isArray(body.images) ? body.images.filter((u) => uploads.isUploadUrl(u) || String(u).startsWith("/media/")) : current.images || [];
     images = images.slice(0, 8);
     return {

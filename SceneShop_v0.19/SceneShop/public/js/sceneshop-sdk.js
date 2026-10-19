@@ -113,7 +113,7 @@
       this.buildMarkers();
       this.attachTrack();
       this.bindKeys();
-      this.video.addEventListener("timeupdate", () => this.onTime());
+      this.video.addEventListener("timeupdate", () => { this.onTime(); this.compatBadge(); });
       this.video.addEventListener("play", () => { this.syncPlayState(); if (!this._viewed) { this._viewed = true; this.emit("view_start"); } });
       this.video.addEventListener("pause", () => this.syncPlayState());
       this.video.addEventListener("seeked", () => this.sendTick()); // celular acompanha o pulo na hora
@@ -191,6 +191,14 @@
       this.flashHint();
     }
 
+    // Selo "SceneShop compatible" nos primeiros segundos (como Dolby Atmos / CC): avisa que a obra tem compras na cena.
+    compatBadge() {
+      const img = this.ui && this.ui.root && this.ui.root.querySelector(".ss-compat");
+      if (!img || this.opts.compatBadge === false) return;
+      const t = this.video.currentTime || 0;
+      img.classList.toggle("is-on", !this.video.paused && t >= 0.3 && t < 4.5);
+    }
+
     // ---------------------------------------------------------- interface
     buildUI() {
       const wrap = this.video.parentElement;
@@ -234,6 +242,7 @@
           </div>
         </div>
         <div class="ss-toast" hidden></div>
+        <img class="ss-compat" alt="SceneShop compatible" src="${this.opts.apiBase}/media/brand/sceneshop-compatible.png" draggable="false"/>
         <div class="ss-controls">
           <button class="ss-icon-btn ss-play" aria-label="Reproduzir">${ICON.play}</button>
           <div class="ss-scrub"><div class="ss-scrub-bar"><div class="ss-progress"></div></div><div class="ss-markers"></div></div>

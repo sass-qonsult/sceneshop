@@ -3,31 +3,6 @@
  * ATENÇÃO: percentuais e limites são VALORES DE EXEMPLO — os reais ainda serão definidos
  * (e os limites de AML precisam ser validados com o jurídico/compliance).
  */
-const fs = require("fs");
-const path = require("path");
-
-// Automatically load .env and sceneshop.env from root into process.env if present
-for (const envFileName of [".env", "sceneshop.env"]) {
-  const envPath = path.resolve(__dirname, "..", envFileName);
-  try {
-    if (fs.existsSync(envPath)) {
-      const c = fs.readFileSync(envPath, "utf8");
-      for (const line of c.split(/\r?\n/)) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith("#")) continue;
-        const eqIdx = trimmed.indexOf("=");
-        if (eqIdx > 0) {
-          const k = trimmed.slice(0, eqIdx).trim();
-          const v = trimmed.slice(eqIdx + 1).trim().replace(/^["']|["']$/g, "");
-          if (k && process.env[k] === undefined) {
-            process.env[k] = v;
-          }
-        }
-      }
-    }
-  } catch (_) {}
-}
-
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const envBool = (name, fallback) => {
   const v = process.env[name];

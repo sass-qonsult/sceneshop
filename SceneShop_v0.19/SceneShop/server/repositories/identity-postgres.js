@@ -374,6 +374,32 @@ class PostgresIdentityRepository {
     });
   }
 
+  /** Ferramenta de administração: troca senha/papel/flags e derruba as sessões abertas. */
+  async adminUpdateAccount(username, { pass, role, platformAdmin } = {}) {
+    const u = normalizeUsername(username);
+    const committed = await this.store.atomicDomain(async (draft) => {
+      const current = draft.accounts[u];
+      if (!current) return { snapshot: draft, result: null, write: async () => ({ skipSnapshot: true }) };
+      if (pass) current.pass = pass;
+      if (role) current.role = role;
+      if (platformAdmin != null) current.platformAdmin = !!platformAdmin;
+      current.tokenVersion = Number(current.tokenVersion || 0) + 1;
+      return {
+        snapshot: draft, topic: "identity.admin.updated", aggregateType: "account", aggregateId: u,
+        outboxPayload: { username: u, role: current.role, platformAdmin: !!current.platformAdmin },
+        result: current,
+        write: async (client) => {
+          await client.query(
+            `UPDATE sceneshop_accounts SET password_hash=$2,role=$3,token_version=$4,payload=$5::jsonb,updated_at=now() WHERE username=$1`,
+            [u, current.pass, current.role, current.tokenVersion, JSON.stringify(current)]);
+          await client.query(`UPDATE sceneshop_auth_sessions SET revoked_at=now(),revoked_reason='admin_update' WHERE username=$1 AND revoked_at IS NULL`, [u]);
+          return { updated: true };
+        },
+      };
+    });
+    return committed.result;
+  }
+
   async incrementTokenVersion(username, { reason = "logout_all", at = Date.now() } = {}) {
     const u = normalizeUsername(username);
     const committed = await this.store.atomicDomain(async (draft) => {

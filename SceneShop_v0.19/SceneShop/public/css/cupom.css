@@ -1,0 +1,10 @@
+html,body{margin:0;min-height:100%;background:#FAFAF7;color:#111216;font:16px/1.5 Inter,system-ui,Arial,sans-serif}
+body{display:grid;place-items:center;min-height:100vh;padding:16px;box-sizing:border-box}
+.card{max-width:420px;width:100%;background:#fff;border:1px solid #e3e6ee;border-radius:18px;padding:28px 24px;text-align:center;box-shadow:0 10px 30px rgba(17,18,22,.08)}
+.badge{width:220px;max-width:70%;margin-bottom:8px}
+.lead{margin:6px 0 16px}
+.code{display:block;width:100%;font:800 30px/1.2 ui-monospace,Menlo,monospace;letter-spacing:3px;color:#1E4D8F;background:#EEF3FB;border:2px dashed #1E4D8F;border-radius:12px;padding:14px;cursor:pointer}
+.code.copied::after{content:" ✓";color:#1f8a5b}
+.help{color:#4a5060;font-size:14px}
+.go{display:block;margin-top:16px;background:#1E4D8F;color:#fff;text-decoration:none;font-weight:700;padding:13px;border-radius:12px}
+.small{color:#7a8090;font-size:12px;margin-top:12px}

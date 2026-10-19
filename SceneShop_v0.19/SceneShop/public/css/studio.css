@@ -301,3 +301,29 @@ code { font: 12px ui-monospace, monospace; background: var(--surface-2); padding
 @media (max-width:620px){.aiops-hero{align-items:stretch;flex-direction:column}.aiops-kpis{grid-template-columns:1fr 1fr}.aiops-form-grid{grid-template-columns:1fr}.review-card{grid-template-columns:1fr}.review-time{flex-direction:row}.review-actions{grid-column:auto}.asset-picker{grid-template-columns:1fr}}
 .timeline-policy{display:flex;gap:9px;align-items:flex-end;flex-wrap:wrap;margin:8px 0 12px;padding:10px;border:1px solid var(--line);border-radius:11px;background:var(--surface-2)}
 .timeline-policy label{font-size:11px;color:var(--muted);display:flex;gap:6px;align-items:center}.timeline-policy label:first-child{flex-direction:column;align-items:flex-start}.timeline-policy select{min-width:160px}
+
+/* v0.19 rcprep.9 — lojas, ofertas e vendas */
+.seller-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px 14px; align-items: end; margin: 10px 0 14px; }
+.seller-form .full { grid-column: 1 / -1; }
+.seller-form .grow { grid-column: span 2; }
+.seller-form label { display: flex; flex-direction: column; gap: 4px; }
+.seller-form .row { display: flex; gap: 8px; align-items: center; }
+.offers-table input.url { width: 220px; text-align: left; }
+.offers-table input[data-money] { width: 120px; }
+.offers-table .rowmsg { display: block; font-size: 12px; margin-top: 4px; }
+.offers-table .rowmsg.bad { color: var(--bad, #e5484d); }
+.offers-table .rowmsg.ok { color: var(--ok, #30a46c); }
+details.advanced > summary { cursor: pointer; padding: 4px 0; }
+details.advanced .inner { margin-top: 12px; }
+.agreement .seller-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.agreement .mono, .secret-box code { word-break: break-all; }
+.secret-box { border: 1px dashed currentColor; padding: 10px 12px; border-radius: 8px; margin: 8px 0; }
+.mkt .offer-state { grid-column: 1 / -1; font-size: 13px; }
+input[data-money] { text-align: right; font-variant-numeric: tabular-nums; }
+.offers-table { min-width: 1180px; }
+.offers-table td:first-child { min-width: 220px; }
+.agreement a, .offer-state a, .help a { color: var(--accent-2); }
+.brand-box { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.conn { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
+.conn .bad, .help.bad { color: var(--bad); }
+.file-btn { display: inline-block; cursor: pointer; padding: 4px 9px; margin-left: 6px; }

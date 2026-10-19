@@ -10,12 +10,16 @@ const crypto = require("crypto");
 const store = require("./store");
 
 const S = () => store.state;
+// v2: chaves ordenadas. O PostgreSQL (jsonb) não preserva a ordem das chaves de `data`; sem ordenar,
+// a cadeia parecia "quebrada" depois de recarregar o estado. Registros antigos (sem `v`) seguem o cálculo original.
+const canonical = (v) => Array.isArray(v) ? v.map(canonical)
+  : v && typeof v === "object" ? Object.keys(v).sort().reduce((o, k) => { o[k] = canonical(v[k]); return o; }, {}) : v;
 const digest = (e) => crypto.createHash("sha256")
-  .update(JSON.stringify([e.seq, e.at, e.actor, e.action, e.data, e.prev])).digest("hex");
+  .update(JSON.stringify(e.v === 2 ? [e.seq, e.at, e.actor, e.action, canonical(e.data), e.prev] : [e.seq, e.at, e.actor, e.action, e.data, e.prev])).digest("hex");
 
 function prepareEntry(list, actor, action, data = {}, at = store.now()) {
   const prev = list.length ? list[list.length - 1].hash : "GENESIS";
-  const e = { seq: list.length + 1, at, actor: actor || "sistema", action, data, prev };
+  const e = { seq: list.length + 1, at, actor: actor || "sistema", action, data: JSON.parse(JSON.stringify(data ?? {})), prev, v: 2 };
   e.hash = digest(e);
   return e;
 }

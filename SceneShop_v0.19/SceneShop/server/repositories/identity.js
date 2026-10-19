@@ -137,6 +137,16 @@ class StateIdentityRepository {
   decideAuthorKycAuthoritative(authorId, status, opts) { return this.decideAuthorKyc(authorId, status, opts); }
   listPendingKycAuthoritative() { return this.listPendingKyc(); }
 
+  adminUpdateAccount(username, { pass, role, platformAdmin } = {}) {
+    const acc = this.findAccount(username);
+    if (!acc) return null;
+    if (pass) acc.pass = pass;
+    if (role) acc.role = role;
+    if (platformAdmin != null) acc.platformAdmin = !!platformAdmin;
+    acc.tokenVersion = Number(acc.tokenVersion || 0) + 1;
+    this.save();
+    return acc;
+  }
   incrementTokenVersion(username) {
     const acc = this.findAccount(username);
     if (!acc) return null;

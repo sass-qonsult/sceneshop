@@ -80,6 +80,9 @@ app.use(orgAccess.attach);
 app.use(require("./pilot")({ requireRole, reply: (...a) => reply(...a), actor: (req) => actor(req) }));
 app.use(require("./ai").routes({ requireRole, actor: (req) => actor(req), content }));
 app.use(require("./acr").routes({ requireRole, content }));
+app.use(require("./audio-id").routes({ requireRole, content }));
+// cópia da obra com o selo "SceneShop compatible" nos primeiros segundos
+app.use(require("./branding").routes({ requireRole, content, actor: (req) => (req.user ? req.user.username : "anônimo") }));
 app.use(require("./commerce").routes({ requireRole, orgAccess }));
 app.use(require("./payments").routes({ requireRole, orgAccess }));
 app.use(require("./distribution").routes({ requireRole, orgAccess, antifraud, io }));
@@ -90,6 +93,10 @@ const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => {
   res.status(500).json({ error: "Erro interno" });
 });
 const actor = (req) => (req.user ? req.user.username : "anônimo");
+function audioProvider() {
+  const want = String(process.env.SCENESHOP_AUDIO_ID || "sceneshop").toLowerCase();
+  return want === "acrcloud" && require("./acr").identifyConfigured() ? "acrcloud" : "sceneshop";
+}
 const reply = (res, r, okStatus = 200) => {
   const { code, ...body } = r;
   res.status(r.error || r.errors ? code || 400 : okStatus).json(body);
@@ -120,7 +127,9 @@ app.get("/api/config", (req, res) => res.json({
     { username: "moderador", role: "moderator", label: "Moderador / compliance" },
   ] : [],
   demoPassword: config.DEMO ? "demo1234" : null,
-  audioRecognition: require("./acr").identifyConfigured() ? "acrcloud" : "fingerprint",
+  // SceneShop ID (próprio) é o padrão; SCENESHOP_AUDIO_ID=acrcloud volta a usar a ACRCloud primeiro
+  audioRecognition: audioProvider(),
+  audioRecognitionFallback: require("./acr").identifyConfigured() && audioProvider() !== "acrcloud" ? "acrcloud" : null,
   audioRecognitionRegistry: require("./acr").registryConfigured(),
 }));
 
@@ -346,7 +355,9 @@ app.get("/r", antifraud.rateLimit("click"), wrap(async (req, res) => {
   // (código assinado, cupom de uso único ou link de campanha)
   const off = official.offerFor(p);
   if (off && off.seller.id === s) {
-    const link = official.buildRedirect({ productId: p, click, workId: w, partnerId });
+    // loja conectada: cupom SS-XXXXXX criado na loja + página que mostra o cupom antes de seguir
+    const link = await official.buildRedirectAsync({ productId: p, click, workId: w, partnerId });
+    if (link.interstitial) return res.set("X-SceneShop-Click", click.id).redirect(302, `/cupom/${encodeURIComponent(link.offerId)}`);
     return res.set("X-SceneShop-Click", click.id).redirect(302, link.url);
   }
 
@@ -355,6 +366,24 @@ app.get("/r", antifraud.rateLimit("click"), wrap(async (req, res) => {
   if (!o || !o.url) return res.status(404).send("Oferta indisponível para este produto.");
   res.set("X-SceneShop-Click", click.id).redirect(302, o.url);
 }));
+
+// Página intermediária: mostra o cupom SceneShop, copia e segue para a loja
+const escHtml = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+app.get("/cupom/:offerId", (req, res) => {
+  const d = official.landing(req.params.offerId);
+  if (!d) return res.status(404).send("Oferta não encontrada ou vencida.");
+  const brlv = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  res.set("Cache-Control", "no-store").type("html").send(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta http-equiv="refresh" content="6;url=${escHtml(d.url)}"><title>Seu cupom SceneShop</title><link rel="stylesheet" href="/css/cupom.css">
+<script src="/js/i18n-dict.js"></script><script src="/js/i18n.js"></script></head><body><main class="card">
+<img class="badge" src="/media/brand/sceneshop-lockup-color.svg" alt="SceneShop">
+<p class="lead">Seu cupom para <b>${escHtml(d.product)}</b> na <b>${escHtml(d.store)}</b></p>
+<button id="code" class="code" data-code="${escHtml(d.coupon)}" title="Copiar">${escHtml(d.coupon)}</button>
+<p class="help">${d.discountPct ? `${escHtml(String(d.discountPct).replace(".", ","))}% de desconto. ` : ""}Use este código no carrinho da loja. Ele vale para uma compra e só por 48 horas.</p>
+<a id="go" class="go" href="${escHtml(d.url)}" rel="noopener">Continuar para a loja</a>
+<p class="small">Você será levado à loja em alguns segundos. Preço garantido em cena: ${escHtml(brlv(d.price))}.</p>
+</main><script src="/js/cupom.js"></script></body></html>`);
+});
 
 // ================================================================== oferta oficial: chave pública, conferência e aviso de pedido
 app.get("/api/offers/public-key", (req, res) => res.type("text/plain").send(store.state.offerKeys.public));
@@ -384,10 +413,38 @@ app.post("/api/sellers/:id/report", antifraud.rateLimit("webhook"), wrap(async (
 }));
 
 app.get("/api/sellers", (req, res) => res.json(official.sellersView(false)));
-app.get("/api/me/sellers", requireRole("producer"), (req, res) => res.json(official.sellersView(true)));
+app.get("/api/me/sellers", requireRole(), orgAccess.requireCapability("COMMERCE_READ"), (req, res) => res.json(official.sellersView(true, req.organization.id)));
+// Lojas da organização: cadastro, edição, chave de integração, cliques enviados e vendas informadas
+app.post("/api/me/sellers", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), (req, res) =>
+  reply(res, official.createSeller(req.organization.id, req.body || {}, actor(req)), 201));
+app.put("/api/me/sellers/:id", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), (req, res) =>
+  reply(res, official.updateSeller(req.organization.id, req.params.id, req.body || {}, actor(req))));
+app.post("/api/me/sellers/:id/secret", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), (req, res) =>
+  reply(res, official.rotateSellerSecret(req.organization.id, req.params.id, actor(req))));
+app.post("/api/me/sellers/:id/test", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), wrap(async (req, res) => {
+  const sl = official.ownSeller(req.organization.id, req.params.id);
+  if (!sl) return res.status(404).json({ error: "Loja não encontrada nesta organização." });
+  const st = require("./store-connectors").credentialStatus(sl);
+  if (!st.ready) return res.status(400).json({ error: st.missing.length ? `Faltam no servidor: ${st.missing.join(", ")}` : "Escolha a plataforma e informe a conta da loja." });
+  try { await require("./store-connectors").connectorFor(sl).test(); res.json({ ok: true }); }
+  catch (e) { res.status(502).json({ error: `A loja respondeu: ${String(e.message).slice(0, 160)}` }); }
+}));
+app.post("/api/me/sellers/:id/sync", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), wrap(async (req, res) => {
+  const sl = official.ownSeller(req.organization.id, req.params.id);
+  if (!sl) return res.status(404).json({ error: "Loja não encontrada nesta organização." });
+  reply(res, await require("./store-sync").syncSeller(sl, { money, aml }));
+}));
+app.post("/api/me/sellers/:id/import-report", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), wrap(async (req, res) =>
+  reply(res, await require("./store-sync").importReport(req.organization.id, req.params.id, (req.body || {}).csv, actor(req), { money, aml }))));
+app.get("/api/me/stores-performance", requireRole(), orgAccess.requireCapability("ANALYTICS_READ"), (req, res) =>
+  res.json(require("./store-sync").performance(req.organization.id)));
+app.get("/api/me/sellers/:id/referrals", requireRole(), orgAccess.requireCapability("COMMERCE_READ"), (req, res) =>
+  reply(res, official.referrals(req.organization.id, req.params.id)));
+app.post("/api/me/sellers/:id/orders", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), wrap(async (req, res) =>
+  reply(res, await Promise.resolve(official.registerManualOrder(req.organization.id, req.params.id, req.body || {}, actor(req), { money, aml })))));
 app.get("/api/commercial-policy", requireRole("producer", "moderator"), (req, res) => {
   const current = commercialPolicy.current() || commercialPolicy.ensureDefault();
-  res.json({ current, history: req.user.role === "moderator" ? commercialPolicy.history() : undefined });
+  res.json({ current, history: (req.user.role === "moderator" || req.user.platformAdmin) ? commercialPolicy.history() : undefined });
 });
 
 // v0.9: moderator representa temporariamente o operador interno SceneShop.
@@ -401,12 +458,18 @@ app.put("/api/commercial-policy", requireRole("moderator"), (req, res) => {
 });
 
 
+// a loja precisa ser da organização ativa (lojas de demonstração sem dono valem para todos no modo demo)
+function sellerOfOrg(req, res, next) {
+  const sl = store.state.sellers[req.params.id];
+  if (!sl || (sl.organizationId ? sl.organizationId !== req.organization.id : !config.DEMO)) return res.status(404).json({ error: "Loja não encontrada nesta organização." });
+  next();
+}
 // Produtora carrega o lote de cupons recebido do varejista
-app.post("/api/sellers/:id/codes", requireRole("producer"), (req, res) =>
+app.post("/api/sellers/:id/codes", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), sellerOfOrg, (req, res) =>
   reply(res, official.addCodes(req.params.id, (req.body || {}).productId || null, (req.body || {}).codes, actor(req))));
 
 // Produtora registra o ID da campanha criada pelo varejista para um produto
-app.put("/api/sellers/:id/campaigns/:productId", requireRole("producer"), (req, res) =>
+app.put("/api/sellers/:id/campaigns/:productId", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), sellerOfOrg, (req, res) =>
   reply(res, official.setCampaign(req.params.id, req.params.productId, (req.body || {}).campaignId, actor(req))));
 
 // Produtora: produtos das suas trilhas oficiais e a oferta oficial de cada um
@@ -426,7 +489,7 @@ app.put("/api/official-offers/:productId", requireRole(), orgAccess.requireCapab
   if (!owns) return res.status(403).json({ errors: ["Esse produto não pertence a uma trilha oficial desta organização."] });
   const product = await Promise.resolve(content.getProductAuthoritative(req.params.productId));
   if (!product) return res.status(404).json({ errors: ["Produto não encontrado."] });
-  reply(res, official.setOffer(req.params.productId, req.body || {}, actor(req), { product }));
+  reply(res, official.setOffer(req.params.productId, req.body || {}, actor(req), { product, organizationId: req.organization.id }));
 }));
 
 // ================================================================== estúdio (autor / produtora)
@@ -449,7 +512,7 @@ app.get("/api/products/:id", wrap(async (req, res) => {
 app.get("/api/tracks/:id", requireRole(), wrap(async (req, res) => {
   const t = await tracks.getAuthoritative(req.params.id);
   if (!t) return res.status(404).json({ error: "trilha não encontrada" });
-  if (req.user.role !== "moderator") {
+  if (req.user.role !== "moderator" && !req.user.platformAdmin) {
     if (t.organizationId) {
       if (!req.organization || req.organization.id !== t.organizationId || !orgAccess.hasCapability(req.orgMembership,"CONTENT_READ")) return res.status(403).json({ error: "Trilha de outra organização ou sem permissão." });
     } else if (t.authorId !== req.user.authorId) return res.status(403).json({ error: "Trilha de outro autor." });
@@ -742,6 +805,15 @@ app.get("/api/health", wrap(async (req, res) => {
   });
 }));
 
+// Erros inesperados nas rotas da API voltam em JSON (o estúdio mostra a mensagem) e ficam no log
+// com o caminho, em vez da página HTML padrão do Express, que a interface não consegue ler.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  console.error(`[api] ${req.method} ${req.originalUrl}:`, err && err.stack ? err.stack : err);
+  if (!String(req.originalUrl || "").startsWith("/api/")) return next(err);
+  res.status(err && err.status && err.status < 600 ? err.status : 500).json({ error: "Erro interno do servidor. Tente novamente; se persistir, avise o suporte.", code: "INTERNAL_ERROR" });
+});
+
 function validateRuntimeConfig() { return assertProductionRuntime(config, process.env); }
 
 async function bootstrap() {
@@ -770,6 +842,8 @@ if (require.main === module) {
   bootstrap()
     .then(({ data, cache, operations: operationsState }) => {
       server.listen(PORT, () => {
+        require("./store-sync").start({ money, aml }); // lê os pedidos das lojas conectadas a cada 10 min
+        require("./audio-id").indexMissing(() => content.listWorksAuthoritative()); // obras ainda sem índice de som
         // Quadro da janela preta no idioma escolhido pelo lançador (SCENESHOP_LANG=pt|en|es).
         const L = { pt: ["SceneShop rodando", " (modo demonstração)", "Player (TV/computador):", "Estúdio / ganhos:      ", "Rede local (celular):  ", "Contas de demonstração: ana, produtora, promo_x, moderador — senha demo1234"],
           en: ["SceneShop running", " (demo mode)", "Player (TV/computer):  ", "Studio / earnings:     ", "Local network (phone): ", "Demo accounts: ana, produtora, promo_x, moderador — password demo1234"],

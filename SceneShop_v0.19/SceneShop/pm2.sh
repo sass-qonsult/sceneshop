@@ -5,6 +5,7 @@
 #   ./pm2.sh          # Start or reload SceneShop with PM2
 #   ./pm2.sh start    # Start or reload SceneShop
 #   ./pm2.sh restart  # Restart the application
+#   ./pm2.sh reload   # Reload zero-downtime
 #   ./pm2.sh stop     # Stop the application
 #   ./pm2.sh logs     # View live logs
 #   ./pm2.sh status   # Show process status
@@ -12,7 +13,16 @@
 # ==============================================================================
 
 set -e
-cd "$(dirname "$0")"
+
+# Target directory: if SceneShop_v0.19/SceneShop exists and has ecosystem.config.cjs, use it; otherwise use current directory
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+if [ -d "$SCRIPT_DIR/SceneShop_v0.19/SceneShop" ] && [ -f "$SCRIPT_DIR/SceneShop_v0.19/SceneShop/ecosystem.config.cjs" ]; then
+  TARGET_DIR="$SCRIPT_DIR/SceneShop_v0.19/SceneShop"
+else
+  TARGET_DIR="$SCRIPT_DIR"
+fi
+
+cd "$TARGET_DIR"
 
 # 1. Verify Node.js >= 20
 if ! command -v node >/dev/null 2>&1; then

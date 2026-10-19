@@ -52,7 +52,7 @@
     "beta:verify:distribution": "node tools/v018-production-beta-manifest.js --require-distribution --out=artifacts/production-beta/v0.18-production-beta-manifest.json",
     "beta:promote:dry": "node tools/v018-promote.js",
     "beta:promote": "node tools/v018-promote.js --apply",
-    "test:rc19": "node --test test/v019-release-candidate.test.js test/v019-analysis-regressions.test.js test/acr.test.js test/i18n.test.js",
+    "test:rc19": "node --test test/rcprep9.test.js test/store-sync.test.js test/audio-id.test.js test/v019-release-candidate.test.js test/v019-analysis-regressions.test.js test/acr.test.js test/i18n.test.js",
     "rc:contract": "node tools/v019-release-contract.js",
     "rc:schema": "node tools/v019-schema-compatibility.js",
     "rc:schema:live": "node tools/v019-schema-compatibility.js --require-live --ephemeral --out=artifacts/rc-gate/schema-compatibility.json",
@@ -67,7 +67,8 @@
     "rc:finalize:dry": "node tools/v019-finalize.js --source=artifacts/external-evidence",
     "rc:finalize": "node tools/v019-finalize.js --source=artifacts/external-evidence --apply",
     "test:i18n": "node test/i18n.e2e.mjs",
-    "test:acr": "node test/acr.e2e.mjs"
+    "test:acr": "node test/acr.e2e.mjs",
+    "test:audio-id": "node test/audio-id.e2e.mjs"
   },
   "engines": {
     "node": ">=20"

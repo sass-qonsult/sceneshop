@@ -49,7 +49,7 @@ function routes({requireRole,orgAccess,antifraud,io}){
   r.post('/api/sync/start',antifraud.rateLimit('verify'),async(req,res,next)=>{try{const out=await recognizeBody(req.body||{});if(!out)return res.status(404).json({error:'SYNC_NOT_RECOGNIZED'});res.status(201).json(await startCompanion(out,'AUDIO_FINGERPRINT'));}catch(e){next(e);}});
 
   // --------------------------- Reconhecimento pela ACRCloud: o celular manda ~10 s de áudio (WAV), que não é guardado.
-  const acrAudio=express.raw({type:()=>true,limit:'3mb'});
+  const acrAudio=express.raw({type:()=>true,limit:'6mb'}); // até ~20 s de WAV
   async function recognizeAcr(req){
     const buf=Buffer.isBuffer(req.body)?req.body:Buffer.alloc(0);
     if(buf.length<4000)return{error:'SYNC_SAMPLE_TOO_SHORT',code:400};
@@ -71,6 +71,38 @@ function routes({requireRole,orgAccess,antifraud,io}){
     const r0=await recognizeAcr(req);if(r0.error)return res.status(r0.code).json({error:r0.error});
     res.status(start?201:200).json(start?await startCompanion(r0.out,'ACRCLOUD',{provider:'acrcloud',acrid:r0.out.acrid||null}):r0.out);
   }catch(e){if(e.acrCode||/ACRCloud/.test(e.message)){console.error('[acr]',e.message);return res.status(502).json({error:'ACR_UNAVAILABLE'});}next(e);}};
+  // --------------------------- Reconhecimento pelo som (WAV de ~10–20 s): SceneShop ID primeiro, ACRCloud como reserva
+  //   (com SCENESHOP_AUDIO_ID=acrcloud a ordem se inverte). O áudio não é guardado.
+  const audioId=require('./audio-id');
+  async function recognizeOwn(req){
+    const buf=Buffer.isBuffer(req.body)?req.body:Buffer.alloc(0);
+    if(buf.length<4000)return{error:'SYNC_SAMPLE_TOO_SHORT',code:400};
+    let r;try{r=audioId.recognizeWav(buf,req.query&&req.query.workId?{only:[String(req.query.workId)]}:undefined);}catch(e){return{error:e.message==='SYNC_SAMPLE_TOO_SHORT'?'SYNC_SAMPLE_TOO_SHORT':'SYNC_BAD_AUDIO',code:e.code||400};}
+    if(!r.best)return{error:'SYNC_NOT_RECOGNIZED',code:404};
+    const work=await Promise.resolve(content.getWorkAuthoritative(r.best.workId));
+    if(!work)return{error:'SYNC_NOT_RECOGNIZED',code:404};
+    const bindings=await Promise.resolve(distribution.listBindingsForWork(work.id));
+    const max=Number(work.duration)>0?Number(work.duration):Number.MAX_SAFE_INTEGER;
+    // offsetSeconds = onde o trecho começa na obra; "agora" = começo + duração do trecho + tempo da consulta
+    const position=Math.min(max,Math.max(0,r.best.offsetSeconds+r.sampleSeconds+r.latencySeconds));
+    return{out:{work:{id:work.id,title:work.title,duration:work.duration,syncId:work.syncId},position,confidence:r.best.confidence,provider:'sceneshop',score:r.best.score,binding:null,bindings:bindings.map(b=>({id:b.id,mode:b.mode,platform:b.platform,externalContentId:b.externalContentId,canonicalUrl:b.canonicalUrl,officialOwnerUrl:b.officialOwnerUrl,label:b.label}))}};
+  }
+  const audioRoute=(start)=>async(req,res,next)=>{try{
+    const acrFirst=String(process.env.SCENESHOP_AUDIO_ID||'').toLowerCase()==='acrcloud'&&acr.identifyConfigured();
+    const order=acrFirst?['acrcloud','sceneshop']:['sceneshop'].concat(acr.identifyConfigured()?['acrcloud']:[]);
+    let last={error:'SYNC_NOT_RECOGNIZED',code:404};
+    for(const p of order){
+      let r;
+      if(p==='sceneshop')r=await recognizeOwn(req);
+      else{try{r=await recognizeAcr(req);}catch(e){console.error('[acr]',e.message);r={error:'ACR_UNAVAILABLE',code:502};}}
+      if(!r.error){const src=p==='sceneshop'?'SCENESHOP_ID':'ACRCLOUD';return res.status(start?201:200).json(start?await startCompanion(r.out,src,{provider:p}):r.out);}
+      if(r.code===400)return res.status(400).json({error:r.error});
+      last=r;
+    }
+    res.status(last.code||404).json({error:last.error});
+  }catch(e){next(e);}};
+  r.post('/api/sync/audio/recognize',antifraud.rateLimit('verify'),acrAudio,audioRoute(false));
+  r.post('/api/sync/audio/start',antifraud.rateLimit('verify'),acrAudio,audioRoute(true));
   r.post('/api/sync/acr/recognize',antifraud.rateLimit('verify'),acrAudio,acrRoute(false));
   r.post('/api/sync/acr/start',antifraud.rateLimit('verify'),acrAudio,acrRoute(true));
 

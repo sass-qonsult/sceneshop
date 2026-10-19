@@ -19,7 +19,7 @@
       <button data-tab="aiops">IA & Publicação</button>
       <button data-tab="ganhos">Ganhos</button>
       <button data-tab="ofertas">Ofertas oficiais</button>
-      <button data-tab="piloto">Piloto</button>
+      <button data-tab="piloto">Desempenho</button>
       <button data-tab="equipe">Equipe & Segurança</button>
       <button data-tab="moderacao">Moderação</button>
     </nav>
@@ -127,7 +127,7 @@
               <input name="name" placeholder="Nome (ex.: Jaqueta jeans oversized)" required />
               <input name="brand" placeholder="Marca" />
               <input name="category" placeholder="Categoria" />
-              <input name="referencePrice" placeholder="Preço de referência (R$)" inputmode="decimal" required />
+              <input name="referencePrice" placeholder="Preço de referência (R$ 1.250,00)" data-money required />
               <button class="primary">Cadastrar e adicionar</button>
             </form>
           </details>
@@ -166,9 +166,9 @@
           <div class="aiops-form-grid">
             <label>Modo
               <select id="aiOpsMode">
-                <option value="TARGETED">Targeted · inventário primeiro</option>
-                <option value="DISCOVERY">Discovery · descoberta aberta</option>
-                <option value="HYBRID">Hybrid · inventário + descoberta</option>
+                <option value="HYBRID">Meus produtos + descoberta aberta</option>
+                <option value="TARGETED">Só os produtos marcados</option>
+                <option value="DISCOVERY">Só descoberta aberta (a IA sugere tudo)</option>
               </select>
             </label>
             <label>Profundidade
@@ -176,7 +176,7 @@
             </label>
           </div>
           <div>
-            <div class="section-label">Categorias de descoberta</div>
+            <div class="section-label">Tipos de item na descoberta aberta</div>
             <div id="aiOpsCategories" class="choice-cloud">
               <label><input type="checkbox" value="APPAREL" checked /> Moda</label>
               <label><input type="checkbox" value="WATCHES" /> Relógios</label>
@@ -189,7 +189,7 @@
             </div>
           </div>
           <div>
-            <div class="section-label">Inventário alvo</div>
+            <div class="section-label">Produtos que a IA deve procurar (da aba Produtos)</div>
             <div id="aiOpsAssets" class="asset-picker"></div>
           </div>
           <div class="row">
@@ -276,7 +276,7 @@
     <div class="wrap">
       <div class="card">
         <h3>Enviar uma obra</h3>
-        <p class="help">Use MP4 (H.264 + áudio AAC): é o formato que qualquer navegador e TV tocam. O vídeo fica no seu computador, na pasta <code>data/uploads</code>.</p>
+        <p class="help">Use MP4 (H.264 + áudio AAC): é o formato que qualquer navegador e TV tocam. Envie a mesma versão que vai ao ar (YouTube, TikTok, TV, cinema): é pelo som dela que o celular reconhece a cena.</p>
         <form id="workForm" class="upload-row">
           <label class="grow">Título da obra <input id="workTitle" maxlength="80" placeholder="Ex.: Campanha Verão 2027 — filme 30s" required /></label>
           <label class="grow">Arquivo de vídeo <input id="workFile" type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.m4v,.webm,.mov" required /></label>
@@ -307,7 +307,7 @@
       </div>
       <div id="drafts"></div>
       <div class="card">
-        <div class="head-row"><h3>Meus produtos</h3><a class="ghost small" href="/marketplace" target="_blank">Abrir o Marketplace Piloto</a></div>
+        <div class="head-row"><h3>Meus produtos</h3><span><a class="ghost small" id="pilotMarketLink" href="/marketplace" target="_blank" hidden>Abrir o Marketplace Piloto</a> <button type="button" class="ghost small" id="goOffers">Lojas e ofertas</button></span></div>
         <div id="myProducts" class="plist"></div>
       </div>
     </div>
@@ -317,20 +317,30 @@
   <section id="tab-piloto" class="tab" hidden>
     <div class="wrap">
       <div class="card">
+        <h3>Todos os projetos</h3>
+        <p class="help">Rendimento de cada obra enviada: audiência, cliques em comprar, vendas confirmadas e comissão. Clique numa linha para ver os detalhes.</p>
+        <div class="table-wrap"><table class="ledger"><thead><tr><th>Obra</th><th class="num">Espectadores</th><th class="num">Cliques em comprar</th><th class="num">Vendas</th><th class="num">Receita</th><th class="num">Comissão</th></tr></thead><tbody id="perfAll"></tbody></table></div>
+      </div>
+      <div class="card">
         <div class="head-row">
           <label>Obra <select id="pilotWork"></select></label>
           <div class="actions">
             <a class="ghost small" id="pilotWatch" target="_blank">Assistir como espectador</a>
-            <a class="ghost small" href="/marketplace" target="_blank">Marketplace</a>
+            <a class="ghost small" id="pilotMarket" href="/marketplace" target="_blank">Marketplace</a>
             <button class="small" id="pilotRefresh">Atualizar</button>
           </div>
         </div>
+      </div>
+      <div class="card">
+        <h3>Por loja</h3>
+        <p class="help">Vendas efetivadas pelo link do SceneShop em cada loja: lidas direto da loja conectada (cupom ou link), informadas pela loja, registradas por você ou importadas do relatório de afiliados.</p>
+        <div class="table-wrap"><table class="ledger"><thead><tr><th>Loja</th><th class="num">Cliques</th><th class="num">Cupons</th><th class="num">Vendas</th><th class="num">Conversão</th><th class="num">Receita</th><th class="num">Comissão</th><th>Como foram confirmadas</th><th>Última leitura da loja</th></tr></thead><tbody id="perfStores"></tbody></table></div>
       </div>
       <div class="tiles" id="pilotTiles"></div>
       <div class="card"><h3>Funil</h3><div id="pilotFunnel" class="funnel"></div></div>
       <div class="card"><h3>Por cena</h3><div class="table-wrap"><table class="ledger"><thead><tr><th>Cena</th><th>Tempo</th><th class="num">Produtos</th><th class="num">Aberturas do painel</th><th class="num">Cliques em comprar</th></tr></thead><tbody id="pilotScenes"></tbody></table></div></div>
       <div class="card"><h3>Por produto</h3><div class="table-wrap"><table class="ledger"><thead><tr><th>Produto</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Receita</th><th class="num">Comissão</th></tr></thead><tbody id="pilotProducts"></tbody></table></div></div>
-      <div class="card"><h3>Pedidos recentes no Marketplace Piloto</h3><div class="table-wrap"><table class="ledger"><thead><tr><th>Pedido</th><th>Quando</th><th>Itens</th><th class="num">Total</th><th>Situação</th></tr></thead><tbody id="pilotOrders"></tbody></table></div></div>
+      <div class="card" id="pilotOrdersCard"><h3>Pedidos recentes no Marketplace Piloto</h3><div class="table-wrap"><table class="ledger"><thead><tr><th>Pedido</th><th>Quando</th><th>Itens</th><th class="num">Total</th><th>Situação</th></tr></thead><tbody id="pilotOrders"></tbody></table></div></div>
     </div>
   </section>
 
@@ -365,42 +375,92 @@
   <section id="tab-ofertas" class="tab" hidden>
     <div class="wrap">
       <div class="card">
-        <h3>Loja com acordo e preço garantido</h3>
-        <p class="help">Para cada produto das suas trilhas oficiais, indique a loja com acordo (da marca ou grande varejista), o preço que ela garante ao espectador e a comissão que ela paga.
-          Ao clicar em "Comprar", o espectador vai para essa loja com um <b>código de oferta assinado</b>: produto, preço e comissão não podem ser alterados, e a loja só recebe o repasse se cobrar o preço garantido.
-          Mudanças valem para novos cliques; quem já recebeu o código mantém o preço até o código vencer (48 h).</p>
+        <h3>Onde o espectador compra</h3>
+        <p class="help">Três passos: <b>1.</b> cadastre a loja oficial indicada pelo patrocinador; <b>2.</b> para cada produto, escolha a loja, cole o link do produto nela e defina o preço e a comissão;
+          <b>3.</b> acompanhe as vendas: com a loja conectada, cada clique ganha um cupom único criado na loja e o SceneShop lê os pedidos direto dela, sem depender de a loja informar. O pagamento acontece na loja.</p>
       </div>
+
       <div class="card">
+        <div class="head-row"><div><h3>1. Lojas</h3><p class="help">Lojas oficiais (da marca, varejista ou marketplace) com acordo com a sua produtora.</p></div>
+          <button class="primary small" id="sellerNewBtn" type="button">+ Cadastrar loja</button></div>
+        <form id="sellerForm" class="seller-form" hidden>
+          <input type="hidden" name="id" />
+          <label class="grow">Nome da loja <input name="name" maxlength="80" placeholder="Ex.: Loja oficial Urbano&amp;Co" required /></label>
+          <label>Tipo <select name="kind"><option value="marca">Loja da marca</option><option value="varejista">Grande varejista</option><option value="marketplace">Marketplace</option></select></label>
+          <label class="grow">Endereço da loja <input name="storeUrl" type="url" placeholder="https://www.loja.com.br" required /></label>
+          <label>CNPJ (opcional) <input name="cnpj" inputmode="numeric" placeholder="00.000.000/0000-00" /></label>
+          <label>Como a venda é confirmada <select name="integration">
+            <option value="link_produto">Link do produto + relatório da loja (mais simples)</option>
+            <option value="codigos_unicos">Cupons de uso único enviados pela loja</option>
+            <option value="assinatura">Plugin na loja confere o código assinado</option>
+            <option value="link_campanha">Página de campanha criada pela loja</option>
+          </select></label>
+          <label>Acordo válido até <input name="until" type="date" /></label>
+          <label class="full">Observações do acordo <input name="notes" maxlength="300" placeholder="Ex.: comissão de 10%, relatório semanal por e-mail" /></label>
+          <label>Conexão com a loja <select name="platform">
+            <option value="">Sem conexão (vendas registradas aqui)</option>
+            <option value="vtex">VTEX</option>
+            <option value="shopify">Shopify</option>
+            <option value="nuvemshop">Nuvemshop</option>
+            <option value="awin">Awin: rede de afiliados (ex.: Oakley, JBL)</option>
+            <option value="afiliado">Marketplace: programa de afiliados</option>
+          </select></label>
+          <label>Conta na plataforma <input name="account" placeholder="VTEX: jbl · Shopify: marca.myshopify.com · Nuvemshop: nº da loja · Awin: ID do publisher" /></label>
+          <label>ID do anunciante na Awin (só Awin) <input name="advertiserId" inputmode="numeric" placeholder="awinmid, ex.: 72213" /></label>
+          <label>Desconto do cupom SceneShop (%) <input name="couponDiscountPct" inputmode="decimal" placeholder="0 a 90" value="0" /></label>
+          <p class="help full" id="sellerConnHelp">Com a loja conectada, cada clique gera um cupom único (SS-XXXXXX) criado na própria loja, e o SceneShop lê os pedidos dela sozinho a cada 10 minutos. As chaves de acesso ficam só no servidor (sceneshop.env), nunca no Studio.</p>
+          <div class="full row"><span class="msg" id="sellerFormMsg"></span><span class="spacer"></span><button type="button" class="ghost small" id="sellerCancel">Cancelar</button><button class="primary">Salvar loja</button></div>
+        </form>
+        <div class="msg" id="sellerSecret"></div>
+        <div id="sellersList"></div>
+      </div>
+
+      <div class="card">
+        <h3>2. Produtos à venda</h3>
+        <p class="help">Todos os produtos cadastrados na aba Produtos. Preço no padrão 1.250,00. Mudanças valem para os próximos cliques.</p>
         <div class="table-wrap"><table class="ledger offers-table"><thead><tr>
-          <th>Produto</th><th class="num">Preço de referência</th><th>Loja com acordo</th><th class="num">Preço garantido (R$)</th><th class="num">Comissão (%)</th><th class="num">Validade (dias)</th><th></th>
+          <th>Produto</th><th class="num">Preço de tabela</th><th>Loja</th><th>Link do produto na loja</th><th class="num">Preço em cena (R$)</th><th class="num">Comissão (%)</th><th class="num">Validade (dias)</th><th></th>
         </tr></thead><tbody id="offersBody"></tbody></table></div>
       </div>
+
       <div class="card">
-        <div class="head-row"><div><h3>Prévia do roteamento comercial</h3><p class="help">Simula qual oferta o consumidor receberia agora, sem criar atribuição nem alterar a campanha.</p></div></div>
-        <div class="row"><label class="grow">Produto <select id="commercePreviewProduct"></select></label><label>Campanha <select id="commercePreviewCampaign"><option value="">— automática / nenhuma —</option></select></label><label>Território <input id="commercePreviewTerritory" value="BR" maxlength="16" /></label><button id="commercePreviewBtn" class="primary">Resolver</button></div>
-        <div id="commercePreviewResult" class="msg"></div>
-        <div id="commercePreviewOffers"></div>
+        <div class="head-row"><div><h3>3. Cliques enviados e vendas</h3><p class="help">Cada clique em "Comprar" gera uma referência única (e, nas lojas conectadas, um cupom SS-XXXXXX criado na própria loja). <b>Lojas conectadas:</b> o SceneShop lê os pedidos sozinho a cada 10 minutos e as vendas entram aqui e em Ganhos. <b>Marketplaces:</b> importe o relatório do programa de afiliados no cartão da loja. <b>Sem conexão:</b> registre o pedido abaixo.</p></div>
+          <label>Loja <select id="refSeller"></select></label></div>
+        <form id="manualOrder" class="seller-form">
+          <label>Nº do pedido na loja <input name="orderId" required maxlength="64" /></label>
+          <label>Referência (ss_ref) <input name="ref" placeholder="of_…" /></label>
+          <label>ou Cupom <input name="coupon" /></label>
+          <label>Valor unitário (R$) <input name="unitPrice" data-money required /></label>
+          <label>Qtd. <input name="quantity" type="number" min="1" max="20" value="1" /></label>
+          <label>Data do pedido <input name="orderedAt" type="date" /></label>
+          <div class="row"><button class="primary small">Registrar venda</button><span class="msg" id="manualOrderMsg"></span></div>
+        </form>
+        <div class="table-wrap"><table class="ledger"><thead><tr><th>Quando</th><th>Produto</th><th>Referência</th><th class="num">Preço garantido</th><th>Situação</th><th></th></tr></thead><tbody id="refBody"></tbody></table></div>
       </div>
-      <div class="card">
-        <div class="head-row"><div><h3>Financeiro & conciliação</h3><p class="help">Visão operacional do fluxo gerenciado. Pagamentos externos continuam fora da custódia SceneShop.</p></div><button id="financeRefresh" class="ghost small">Atualizar</button></div>
-        <div class="tiles" id="financeBalances"></div>
-        <div class="row">
-          <label>Conexão <select id="financeConnection"></select></label>
-          <label>Gross <input id="settleGross" type="number" min="0" step="0.01" /></label>
-          <label>Fees <input id="settleFees" type="number" min="0" step="0.01" value="0" /></label>
-          <button id="settlementBtn" class="small">Registrar settlement</button>
-          <label>Payout <input id="payoutAmount" type="number" min="0" step="0.01" /></label>
-          <button id="payoutBtn" class="small">Solicitar payout</button>
+
+      <details class="card advanced">
+        <summary><b>Avançado</b> · roteamento comercial e pagamento pelo SceneShop (futuro)</summary>
+        <div class="card inner">
+          <div class="head-row"><div><h3>Prévia do roteamento comercial</h3><p class="help">Simula qual oferta o consumidor receberia agora, sem criar atribuição nem alterar a campanha.</p></div></div>
+          <div class="row"><label class="grow">Produto <select id="commercePreviewProduct"></select></label><label>Campanha <select id="commercePreviewCampaign"><option value="">— automática / nenhuma —</option></select></label><label>Território <input id="commercePreviewTerritory" value="BR" maxlength="16" /></label><button id="commercePreviewBtn" class="primary">Resolver</button></div>
+          <div id="commercePreviewResult" class="msg"></div>
+          <div id="commercePreviewOffers"></div>
         </div>
-        <div id="financeMsg" class="msg"></div>
-        <div id="financeOps"></div>
-      </div>
-      <div class="card">
-        <h3>Acordos com lojas</h3>
-        <p class="help">Cada loja (da marca ou grande varejista) tem um acordo comercial com a produção que define como ela honra o preço: conferindo o código assinado, com cupons de uso único ou com um link de campanha. Todas confirmam as vendas por aviso de pedido ou relatório diário, assinados.</p>
-        <div id="sellersList"></div>
-        <p class="help">Novas lojas passam pelo onboarding de empresa (CNPJ, KYC e contrato) e recebem as credenciais de integração.</p>
-      </div>
+        <div class="card inner">
+          <div class="head-row"><div><h3>Pagamento pelo SceneShop (fase futura)</h3><p class="help">Hoje o espectador paga direto na loja. Esta área fica para quando o SceneShop receber o pagamento e repassar à loja (carteira, cartão, Pix), o que exige provedor de pagamento, conciliação e controle de estoque com o vendedor.</p></div><button id="financeRefresh" class="ghost small">Atualizar</button></div>
+          <div class="tiles" id="financeBalances"></div>
+          <div class="row">
+            <label>Conexão <select id="financeConnection"></select></label>
+            <label>Bruto <input id="settleGross" data-money /></label>
+            <label>Taxas <input id="settleFees" data-money value="0,00" /></label>
+            <button id="settlementBtn" class="small">Registrar liquidação</button>
+            <label>Repasse <input id="payoutAmount" data-money /></label>
+            <button id="payoutBtn" class="small">Solicitar repasse</button>
+          </div>
+          <div id="financeMsg" class="msg"></div>
+          <div id="financeOps"></div>
+        </div>
+      </details>
     </div>
   </section>
 

@@ -277,8 +277,8 @@ globalThis.SceneShopI18nDict = {
 "La nueva política debe entrar en vigor ahora o en el futuro."
 ],
 "A obra precisa ter um vídeo enviado pelo estúdio.": [
-"The title needs a video uploaded by the Studio.",
-"La obra necesita un video subido por el Estudio."
+"The title needs a video uploaded through the Studio.",
+"La obra necesita un video subido por el estudio."
 ],
 "A organização precisa manter ao menos um OWNER ativo.": [
 "The organization must keep at least one active OWNER.",
@@ -1349,7 +1349,7 @@ globalThis.SceneShopI18nDict = {
 "Desafío MFA inválido o expirado."
 ],
 "Desativar": [
-"Disable",
+"Deactivate",
 "Desactivar"
 ],
 "Descartar": [
@@ -1719,6 +1719,10 @@ globalThis.SceneShopI18nDict = {
 "Falha ao cadastrar.": [
 "Registration failed.",
 "Falló el registro."
+],
+"Erro interno do servidor. Tente novamente; se persistir, avise o suporte.": [
+"Internal server error. Please try again; if it keeps happening, contact support.",
+"Error interno del servidor. Inténtalo de nuevo; si persiste, avisa al soporte."
 ],
 "Falha ao carregar o workspace de IA.": [
 "Failed to load the AI workspace.",
@@ -3161,7 +3165,7 @@ globalThis.SceneShopI18nDict = {
 "QR code de la sesión"
 ],
 "Qtd.": [
-"Qty",
+"Qty.",
 "Cant."
 ],
 "Quando": [
@@ -3686,7 +3690,7 @@ globalThis.SceneShopI18nDict = {
 ],
 "Situação": [
 "Status",
-"Estado"
+"Situación"
 ],
 "Slug da organização é inválido.": [
 "Invalid organization slug.",
@@ -5047,5 +5051,953 @@ globalThis.SceneShopI18nDict = {
 "“{0}” salvo{1}.": [
 "“{0}” saved{1}.",
 "“{0}” guardado{1}."
+],
+"Preço de referência (R$ 1.250,00)": [
+"Reference price (R$ 1,250.00)",
+"Precio de referencia (R$ 1.250,00)"
+],
+"Meus produtos + descoberta aberta": [
+"My products + open discovery",
+"Mis productos + descubrimiento abierto"
+],
+"Só os produtos marcados": [
+"Only the selected products",
+"Solo los productos marcados"
+],
+"Só descoberta aberta (a IA sugere tudo)": [
+"Open discovery only (AI suggests everything)",
+"Solo descubrimiento abierto (la IA sugiere todo)"
+],
+"Produtos que a IA deve procurar (da aba Produtos)": [
+"Products the AI should look for (from the Products tab)",
+"Productos que la IA debe buscar (de la pestaña Productos)"
+],
+"Tipos de item na descoberta aberta": [
+"Item types for open discovery",
+"Tipos de artículo en el descubrimiento abierto"
+],
+"Use MP4 (H.264 + áudio AAC): é o formato que qualquer navegador e TV tocam. Envie a mesma versão que vai ao ar (YouTube, TikTok, TV, cinema): é pelo som dela que o celular reconhece a cena.": [
+"Use MP4 (H.264 + AAC audio): the format every browser and TV plays. Upload the same version that goes on air (YouTube, TikTok, TV, cinema): the phone recognizes the scene by its sound.",
+"Usa MP4 (H.264 + audio AAC): el formato que cualquier navegador y TV reproduce. Sube la misma versión que sale al aire (YouTube, TikTok, TV, cine): el celular reconoce la escena por su sonido."
+],
+"Desempenho": [
+"Performance",
+"Rendimiento"
+],
+"Todos os projetos": [
+"All projects",
+"Todos los proyectos"
+],
+"Rendimento de cada obra enviada: audiência, cliques em comprar, vendas confirmadas e comissão. Clique numa linha para ver os detalhes.": [
+"Results for each uploaded title: audience, buy clicks, confirmed sales and commission. Click a row to see the details.",
+"Rendimiento de cada obra subida: audiencia, clics en comprar, ventas confirmadas y comisión. Haz clic en una fila para ver los detalles."
+],
+"Vendas": [
+"Sales",
+"Ventas"
+],
+"Nenhuma obra ainda.": [
+"No titles yet.",
+"Aún no hay obras."
+],
+"Nenhuma obra: envie um vídeo na aba Obras": [
+"No titles: upload a video in the Titles tab",
+"Ninguna obra: sube un video en la pestaña Obras"
+],
+"Onde o espectador compra": [
+"Where the viewer buys",
+"Dónde compra el espectador"
+],
+"Três passos:": [
+"Three steps:",
+"Tres pasos:"
+],
+"cadastre a loja oficial indicada pelo patrocinador;": [
+"register the official store named by the sponsor;",
+"registra la tienda oficial indicada por el patrocinador;"
+],
+"para cada produto, escolha a loja, cole o link do produto nela e defina o preço e a comissão;": [
+"for each product, choose the store, paste the product link there and set the price and commission;",
+"para cada producto, elige la tienda, pega el enlace del producto en ella y define el precio y la comisión;"
+],
+"acompanhe os cliques enviados e confirme as vendas que a loja informar. O pagamento acontece na loja; o SceneShop registra de onde veio cada compra (referência": [
+"follow the clicks sent and confirm the sales the store reports. Payment happens at the store; SceneShop records where each purchase came from (reference",
+"sigue los clics enviados y confirma las ventas que informe la tienda. El pago ocurre en la tienda; SceneShop registra de dónde vino cada compra (referencia"
+],
+"ou cupom).": [
+"or coupon).",
+"o cupón)."
+],
+"1. Lojas": [
+"1. Stores",
+"1. Tiendas"
+],
+"Lojas oficiais (da marca, varejista ou marketplace) com acordo com a sua produtora.": [
+"Official stores (brand, retailer or marketplace) with an agreement with your production company.",
+"Tiendas oficiales (de la marca, minorista o marketplace) con acuerdo con tu productora."
+],
+"+ Cadastrar loja": [
+"+ Add store",
+"+ Registrar tienda"
+],
+"Nome da loja": [
+"Store name",
+"Nombre de la tienda"
+],
+"Ex.: Loja oficial Urbano&Co": [
+"E.g.: Urbano&Co official store",
+"Ej.: Tienda oficial Urbano&Co"
+],
+"Tipo": [
+"Type",
+"Tipo"
+],
+"Endereço da loja": [
+"Store address (URL)",
+"Dirección de la tienda (URL)"
+],
+"https://www.loja.com.br": [
+"https://www.store.com",
+"https://www.tienda.com"
+],
+"CNPJ (opcional)": [
+"CNPJ / tax ID (optional)",
+"CNPJ / ID fiscal (opcional)"
+],
+"Como a venda é confirmada": [
+"How the sale is confirmed",
+"Cómo se confirma la venta"
+],
+"Link do produto + relatório da loja (mais simples)": [
+"Product link + store report (simplest)",
+"Enlace del producto + informe de la tienda (más simple)"
+],
+"Cupons de uso único enviados pela loja": [
+"Single-use coupons sent by the store",
+"Cupones de un solo uso enviados por la tienda"
+],
+"Plugin na loja confere o código assinado": [
+"Store plugin checks the signed code",
+"Plugin en la tienda verifica el código firmado"
+],
+"Página de campanha criada pela loja": [
+"Campaign page created by the store",
+"Página de campaña creada por la tienda"
+],
+"Acordo válido até": [
+"Agreement valid until",
+"Acuerdo válido hasta"
+],
+"Observações do acordo": [
+"Agreement notes",
+"Notas del acuerdo"
+],
+"Ex.: comissão de 10%, relatório semanal por e-mail": [
+"E.g.: 10% commission, weekly report by e-mail",
+"Ej.: comisión del 10%, informe semanal por e-mail"
+],
+"Cancelar": [
+"Cancel",
+"Cancelar"
+],
+"Salvar loja": [
+"Save store",
+"Guardar tienda"
+],
+"2. Produtos à venda": [
+"2. Products for sale",
+"2. Productos a la venta"
+],
+"Todos os produtos cadastrados na aba Produtos. Preço no padrão 1.250,00. Mudanças valem para os próximos cliques.": [
+"All products registered in the Products tab. Price format 1.250,00 (Brazilian). Changes apply to the next clicks.",
+"Todos los productos registrados en la pestaña Productos. Precio en formato 1.250,00. Los cambios valen para los próximos clics."
+],
+"Preço de tabela": [
+"List price",
+"Precio de lista"
+],
+"Link do produto na loja": [
+"Product link at the store",
+"Enlace del producto en la tienda"
+],
+"Preço em cena (R$)": [
+"In-scene price (R$)",
+"Precio en escena (R$)"
+],
+"https://loja.com.br/produto": [
+"https://store.com/product",
+"https://tienda.com/producto"
+],
+"— não vender —": [
+"— don't sell —",
+"— no vender —"
+],
+"Salvo": [
+"Saved",
+"Guardado"
+],
+"Removido": [
+"Removed",
+"Eliminado"
+],
+"Nenhum produto ainda. Cadastre os produtos na aba Produtos.": [
+"No products yet. Register them in the Products tab.",
+"Aún no hay productos. Regístralos en la pestaña Productos."
+],
+"Cadastre uma loja no passo 1 para poder escolher onde cada produto será vendido.": [
+"Add a store in step 1 to choose where each product will be sold.",
+"Registra una tienda en el paso 1 para elegir dónde se venderá cada producto."
+],
+"3. Cliques enviados e vendas": [
+"3. Clicks sent and sales",
+"3. Clics enviados y ventas"
+],
+"Cada clique em \"Comprar\" gera uma referência única. Quando a loja informar a venda (relatório, e-mail ou painel dela), registre aqui o número do pedido: a comissão entra em Ganhos.": [
+"Each \"Buy\" click creates a unique reference. When the store reports the sale (report, e-mail or its dashboard), record the order number here: the commission goes to Earnings.",
+"Cada clic en \"Comprar\" genera una referencia única. Cuando la tienda informe la venta (informe, e-mail o su panel), registra aquí el número de pedido: la comisión entra en Ganancias."
+],
+"Nº do pedido na loja": [
+"Store order number",
+"Nº de pedido en la tienda"
+],
+"Referência (ss_ref)": [
+"Reference (ss_ref)",
+"Referencia (ss_ref)"
+],
+"ou Cupom": [
+"or Coupon",
+"o Cupón"
+],
+"Valor unitário (R$)": [
+"Unit price (R$)",
+"Valor unitario (R$)"
+],
+"Data do pedido": [
+"Order date",
+"Fecha del pedido"
+],
+"Registrar venda": [
+"Record sale",
+"Registrar venta"
+],
+"Registrar devolução": [
+"Record return",
+"Registrar devolución"
+],
+"Referência": [
+"Reference",
+"Referencia"
+],
+"Devolvido": [
+"Returned",
+"Devuelto"
+],
+"Sem compra (vencido)": [
+"No purchase (expired)",
+"Sin compra (vencido)"
+],
+"Aguardando a loja": [
+"Waiting for the store",
+"Esperando a la tienda"
+],
+"cupom {0}": [
+"coupon {0}",
+"cupón {0}"
+],
+"— nenhuma loja —": [
+"— no store —",
+"— ninguna tienda —"
+],
+"Cadastre uma loja para acompanhar os cliques.": [
+"Add a store to follow the clicks.",
+"Registra una tienda para seguir los clics."
+],
+"Nenhum clique enviado para esta loja ainda.": [
+"No clicks sent to this store yet.",
+"Aún no se enviaron clics a esta tienda."
+],
+"Nenhuma loja cadastrada ainda.": [
+"No stores registered yet.",
+"Aún no hay tiendas registradas."
+],
+"Esse pedido já estava registrado.": [
+"This order was already recorded.",
+"Ese pedido ya estaba registrado."
+],
+"Venda registrada. Comissão": [
+"Sale recorded. Commission",
+"Venta registrada. Comisión"
+],
+"Escolha a loja.": [
+"Choose the store.",
+"Elige la tienda."
+],
+"Registrar a devolução deste pedido? A comissão é estornada.": [
+"Record a return for this order? The commission is reversed.",
+"¿Registrar la devolución de este pedido? La comisión se revierte."
+],
+"Devolução registrada.": [
+"Return recorded.",
+"Devolución registrada."
+],
+"Avançado": [
+"Advanced",
+"Avanzado"
+],
+"· roteamento comercial e pagamento pelo SceneShop (futuro)": [
+"· commerce routing and payment through SceneShop (future)",
+"· enrutamiento comercial y pago por SceneShop (futuro)"
+],
+"Pagamento pelo SceneShop (fase futura)": [
+"Payment through SceneShop (future phase)",
+"Pago por SceneShop (fase futura)"
+],
+"Hoje o espectador paga direto na loja. Esta área fica para quando o SceneShop receber o pagamento e repassar à loja (carteira, cartão, Pix), o que exige provedor de pagamento, conciliação e controle de estoque com o vendedor.": [
+"Today the viewer pays directly at the store. This area is for when SceneShop collects the payment and passes it on to the store (wallet, card, Pix), which requires a payment provider, reconciliation and inventory control with the seller.",
+"Hoy el espectador paga directamente en la tienda. Esta área es para cuando SceneShop cobre el pago y lo transfiera a la tienda (billetera, tarjeta, Pix), lo que exige proveedor de pagos, conciliación y control de stock con el vendedor."
+],
+"Bruto": [
+"Gross",
+"Bruto"
+],
+"Taxas": [
+"Fees",
+"Tasas"
+],
+"Registrar liquidação": [
+"Record settlement",
+"Registrar liquidación"
+],
+"Repasse": [
+"Payout",
+"Transferencia"
+],
+"Solicitar repasse": [
+"Request payout",
+"Solicitar transferencia"
+],
+"Ainda não está à venda.": [
+"Not for sale yet.",
+"Aún no está a la venta."
+],
+"Vender na loja": [
+"Sell at store",
+"Vender en la tienda"
+],
+"— não vender agora —": [
+"— don't sell now —",
+"— no vender ahora —"
+],
+"À venda em": [
+"For sale at",
+"A la venta en"
+],
+"por": [
+"for",
+"por"
+],
+"abrir a página na loja": [
+"open the store page",
+"abrir la página en la tienda"
+],
+"Para vender, cadastre a loja oficial na aba": [
+"To sell, register the official store in the",
+"Para vender, registra la tienda oficial en la pestaña"
+],
+"Lojas e ofertas": [
+"Stores and offers",
+"Tiendas y ofertas"
+],
+"Informe o preço no padrão 1.250,00.": [
+"Enter the price in the format 1.250,00.",
+"Informa el precio en el formato 1.250,00."
+],
+"Produtos no inventário": [
+"Products in inventory",
+"Productos en inventario"
+],
+"vindos da aba Produtos": [
+"from the Products tab",
+"de la pestaña Productos"
+],
+"Qual produto é este?": [
+"Which product is this?",
+"¿Qué producto es este?"
+],
+"Cadastre os produtos na aba Produtos: eles aparecem aqui para a IA procurar no vídeo.": [
+"Register products in the Products tab: they show up here for the AI to look for in the video.",
+"Registra los productos en la pestaña Productos: aparecen aquí para que la IA los busque en el video."
+],
+"produto cadastrado": [
+"registered product",
+"producto registrado"
+],
+"Marque ao menos um produto para a IA procurar.": [
+"Select at least one product for the AI to look for.",
+"Marca al menos un producto para que la IA lo busque."
+],
+"Marque ao menos um produto (ou use Descoberta aberta).": [
+"Select at least one product (or use Open discovery).",
+"Marca al menos un producto (o usa Descubrimiento abierto)."
+],
+"Escolha qual dos seus produtos é este item.": [
+"Choose which of your products this item is.",
+"Elige cuál de tus productos es este artículo."
+],
+"Cada venda confirmada pela loja (aviso, relatório ou registro na aba Ofertas oficiais) gera a comissão combinada na oferta do produto.": [
+"Each sale confirmed by the store (notification, report or entry in the Official offers tab) generates the commission agreed in the product's offer.",
+"Cada venta confirmada por la tienda (aviso, informe o registro en la pestaña Ofertas oficiales) genera la comisión acordada en la oferta del producto."
+],
+"Cada venda confirmada pela loja (aviso, relatório ou registro na aba Ofertas oficiais) gera a comissão combinada na oferta do produto. Você recebe": [
+"Each sale confirmed by the store (notification, report or entry in the Official offers tab) generates the commission agreed in the product's offer. You receive",
+"Cada venta confirmada por la tienda (aviso, informe o registro en la pestaña Ofertas oficiales) genera la comisión acordada en la oferta del producto. Recibes"
+],
+"Editar": [
+"Edit",
+"Editar"
+],
+"Reativar": [
+"Reactivate",
+"Reactivar"
+],
+"Desativada": [
+"Deactivated",
+"Desactivada"
+],
+"Integração automática (chave)": [
+"Automatic integration (key)",
+"Integración automática (clave)"
+],
+"Gerar uma nova chave de integração para esta loja? A chave anterior deixa de funcionar.": [
+"Generate a new integration key for this store? The previous key stops working.",
+"¿Generar una nueva clave de integración para esta tienda? La clave anterior deja de funcionar."
+],
+"chave de integração (aparece só agora; envie à equipe técnica da loja)": [
+"integration key (shown only now; send it to the store's tech team)",
+"clave de integración (se muestra solo ahora; envíala al equipo técnico de la tienda)"
+],
+"Aviso de pedido": [
+"Order notification",
+"Aviso de pedido"
+],
+"Relatório em lote": [
+"Batch report",
+"Informe por lotes"
+],
+"assinatura HMAC-SHA256 nos cabeçalhos X-SceneShop-Timestamp e X-SceneShop-Signature": [
+"HMAC-SHA256 signature in the X-SceneShop-Timestamp and X-SceneShop-Signature headers",
+"firma HMAC-SHA256 en los encabezados X-SceneShop-Timestamp y X-SceneShop-Signature"
+],
+"{0} pedido(s) confirmado(s)": [
+"{0} confirmed order(s)",
+"{0} pedido(s) confirmado(s)"
+],
+"Acordo válido até {0}.": [
+"Agreement valid until {0}.",
+"Acuerdo válido hasta {0}."
+],
+"Oferta salva. Vale para os próximos cliques.": [
+"Offer saved. It applies to the next clicks.",
+"Oferta guardada. Vale para los próximos clics."
+],
+"Produto retirado da venda.": [
+"Product removed from sale.",
+"Producto retirado de la venta."
+],
+"Loja atualizada.": [
+"Store updated.",
+"Tienda actualizada."
+],
+"Loja cadastrada. Agora escolha os produtos que ela vende.": [
+"Store added. Now choose the products it sells.",
+"Tienda registrada. Ahora elige los productos que vende."
+],
+"“{0}” salvo e à venda em {1}.": [
+"“{0}” saved and for sale at {1}.",
+"“{0}” guardado y a la venta en {1}."
+],
+"administrador": [
+"administrator",
+"administrador"
+],
+"Informe um preço válido (ex.: 1.250,00).": [
+"Enter a valid price (e.g.: 1,250.00).",
+"Informa un precio válido (ej.: 1.250,00)."
+],
+"Informe o nome da loja.": [
+"Enter the store name.",
+"Informa el nombre de la tienda."
+],
+"Tipo de loja inválido.": [
+"Invalid store type.",
+"Tipo de tienda inválido."
+],
+"Forma de integração inválida.": [
+"Invalid integration method.",
+"Forma de integración inválida."
+],
+"Endereço da loja inválido: use o endereço completo, começando com https://": [
+"Invalid store address: use the full address, starting with https://",
+"Dirección de la tienda inválida: usa la dirección completa, empezando con https://"
+],
+"CNPJ deve ter 14 dígitos.": [
+"CNPJ must have 14 digits.",
+"El CNPJ debe tener 14 dígitos."
+],
+"Link do produto inválido: use o endereço completo, começando com https://": [
+"Invalid product link: use the full address, starting with https://",
+"Enlace del producto inválido: usa la dirección completa, empezando con https://"
+],
+"Informe o link do produto na loja.": [
+"Enter the product link at the store.",
+"Informa el enlace del producto en la tienda."
+],
+"Essa loja pertence a outra organização.": [
+"This store belongs to another organization.",
+"Esa tienda pertenece a otra organización."
+],
+"Essa loja está desativada.": [
+"This store is deactivated.",
+"Esa tienda está desactivada."
+],
+"Loja não encontrada nesta organização.": [
+"Store not found in this organization.",
+"Tienda no encontrada en esta organización."
+],
+"Informe o número do pedido na loja.": [
+"Enter the store order number.",
+"Informa el número de pedido en la tienda."
+],
+"Informe a referência SceneShop (ss_ref) ou o cupom usado no pedido.": [
+"Enter the SceneShop reference (ss_ref) or the coupon used in the order.",
+"Informa la referencia SceneShop (ss_ref) o el cupón usado en el pedido."
+],
+"Selecione uma organização.": [
+"Select an organization.",
+"Selecciona una organización."
+],
+"Loja cadastrada": [
+"Store added",
+"Tienda registrada"
+],
+"Loja atualizada": [
+"Store updated",
+"Tienda actualizada"
+],
+"Chave da loja trocada": [
+"Store key replaced",
+"Clave de la tienda cambiada"
+],
+"Venda registrada pela produtora": [
+"Sale recorded by the producer",
+"Venta registrada por la productora"
+],
+"Administrador definido": [
+"Administrator set",
+"Administrador definido"
+],
+"Organização criada": [
+"Organization created",
+"Organización creada"
+],
+"Nenhuma análise persistente desta obra.": [
+"No saved analysis for this title.",
+"Ningún análisis guardado de esta obra."
+],
+"Nenhuma identificação para revisar nesta obra.": [
+"No identifications to review for this title.",
+"Ninguna identificación para revisar en esta obra."
+],
+"Nenhum placement aprovado ainda.": [
+"No approved placements yet.",
+"Aún no hay placements aprobados."
+],
+"· CNPJ {0} · {1} · {2} pedido(s) confirmado(s)": [
+"· CNPJ {0} · {1} · {2} confirmed order(s)",
+"· CNPJ {0} · {1} · {2} pedido(s) confirmado(s)"
+],
+"Link do produto na loja (venda confirmada por relatório)": [
+"Product link at the store (sale confirmed by report)",
+"Enlace del producto en la tienda (venta confirmada por informe)"
+],
+"Código assinado (loja confere)": [
+"Signed code (store verifies)",
+"Código firmado (la tienda verifica)"
+],
+"Cupons de uso único do varejista": [
+"Retailer single-use coupons",
+"Cupones de un solo uso del minorista"
+],
+"Link de campanha do varejista": [
+"Retailer campaign link",
+"Enlace de campaña del minorista"
+],
+"Vídeo com selo SceneShop": [
+"Video with SceneShop badge",
+"Video con sello SceneShop"
+],
+"Gera uma cópia do vídeo com o selo SceneShop compatible nos primeiros segundos": [
+"Creates a copy of the video with the SceneShop compatible badge in the first seconds",
+"Genera una copia del video con el sello SceneShop compatible en los primeros segundos"
+],
+"Selo no canto superior · 4 s": [
+"Badge in the top corner · 4 s",
+"Sello en la esquina superior · 4 s"
+],
+"Abertura centralizada · 4 s": [
+"Centered opening · 4 s",
+"Apertura centrada · 4 s"
+],
+"Gerar vídeo": [
+"Create video",
+"Generar video"
+],
+"Baixar MP4 com selo": [
+"Download MP4 with badge",
+"Descargar MP4 con sello"
+],
+"Gerando…": [
+"Creating…",
+"Generando…"
+],
+"Pronto. O áudio é o mesmo do original: o celular continua reconhecendo a obra.": [
+"Ready. The audio is the same as the original: the phone still recognizes the title.",
+"Listo. El audio es el mismo del original: el celular sigue reconociendo la obra."
+],
+"Falhou": [
+"Failed",
+"Falló"
+],
+"O servidor precisa do ffmpeg para gerar o vídeo.": [
+"The server needs ffmpeg to create the video.",
+"El servidor necesita ffmpeg para generar el video."
+],
+"Falha ao gerar.": [
+"Could not create it.",
+"No se pudo generar."
+],
+"O servidor não tem o ffmpeg instalado (a imagem Docker da rcprep.9 já inclui).": [
+"The server doesn't have ffmpeg installed (the rcprep.9 Docker image includes it).",
+"El servidor no tiene ffmpeg instalado (la imagen Docker de rcprep.9 ya lo incluye)."
+],
+"Vídeo com selo gerado": [
+"Video with badge created",
+"Video con sello generado"
+],
+"Pronto. O áudio foi convertido para AAC (MP4); o reconhecimento pelo som continua funcionando.": [
+"Ready. The audio was converted to AAC (MP4); recognition by sound still works.",
+"Listo. El audio se convirtió a AAC (MP4); el reconocimiento por sonido sigue funcionando."
+],
+"Conexão com a loja": [
+"Store connection",
+"Conexión con la tienda"
+],
+"Sem conexão (vendas registradas aqui)": [
+"No connection (sales recorded here)",
+"Sin conexión (ventas registradas aquí)"
+],
+"Marketplace: programa de afiliados": [
+"Marketplace: affiliate program",
+"Marketplace: programa de afiliados"
+],
+"Conta na plataforma": [
+"Platform account",
+"Cuenta en la plataforma"
+],
+"VTEX: jbl · Shopify: marca.myshopify.com · Nuvemshop: nº da loja": [
+"VTEX: jbl · Shopify: brand.myshopify.com · Nuvemshop: store number",
+"VTEX: jbl · Shopify: marca.myshopify.com · Nuvemshop: nº de tienda"
+],
+"Desconto do cupom SceneShop (%)": [
+"SceneShop coupon discount (%)",
+"Descuento del cupón SceneShop (%)"
+],
+"0 a 90": [
+"0 to 90",
+"0 a 90"
+],
+"Com a loja conectada, cada clique gera um cupom único (SS-XXXXXX) criado na própria loja, e o SceneShop lê os pedidos dela sozinho a cada 10 minutos. As chaves de acesso ficam só no servidor (sceneshop.env), nunca no Studio.": [
+"With the store connected, each click creates a unique coupon (SS-XXXXXX) in the store itself, and SceneShop reads its orders on its own every 10 minutes. Access keys stay only on the server (sceneshop.env), never in the Studio.",
+"Con la tienda conectada, cada clic genera un cupón único (SS-XXXXXX) creado en la propia tienda, y SceneShop lee sus pedidos solo cada 10 minutos. Las claves de acceso quedan solo en el servidor (sceneshop.env), nunca en el Studio."
+],
+"Por loja": [
+"By store",
+"Por tienda"
+],
+"Vendas efetivadas pelo link do SceneShop em cada loja: lidas direto da loja conectada (cupom ou link), informadas pela loja, registradas por você ou importadas do relatório de afiliados.": [
+"Sales made through the SceneShop link at each store: read directly from the connected store (coupon or link), reported by the store, recorded by you or imported from the affiliate report.",
+"Ventas hechas por el enlace de SceneShop en cada tienda: leídas directo de la tienda conectada (cupón o enlace), informadas por la tienda, registradas por ti o importadas del informe de afiliados."
+],
+"Cupons": [
+"Coupons",
+"Cupones"
+],
+"Como foram confirmadas": [
+"How they were confirmed",
+"Cómo se confirmaron"
+],
+"Última leitura da loja": [
+"Last store read",
+"Última lectura de la tienda"
+],
+"Cadastre as lojas na aba Ofertas oficiais.": [
+"Add the stores in the Official offers tab.",
+"Registra las tiendas en la pestaña Ofertas oficiales."
+],
+"Sem conexão: as vendas entram pelo aviso da loja ou pelo registro na seção 3.": [
+"No connection: sales come in through the store's notification or the entry in section 3.",
+"Sin conexión: las ventas entran por el aviso de la tienda o por el registro en la sección 3."
+],
+"importe o relatório de vendas do programa (CSV).": [
+"import the program's sales report (CSV).",
+"importa el informe de ventas del programa (CSV)."
+],
+"Importar relatório CSV": [
+"Import CSV report",
+"Importar informe CSV"
+],
+"Conectada à {0}": [
+"Connected to {0}",
+"Conectada a {0}"
+],
+"Chaves configuradas no servidor": [
+"Keys set on the server",
+"Claves configuradas en el servidor"
+],
+"Faltam no servidor": [
+"Missing on the server",
+"Faltan en el servidor"
+],
+"ainda não leu pedidos": [
+"no orders read yet",
+"aún no leyó pedidos"
+],
+"Testar conexão": [
+"Test connection",
+"Probar conexión"
+],
+"Ler pedidos agora": [
+"Read orders now",
+"Leer pedidos ahora"
+],
+"Lendo pedidos…": [
+"Reading orders…",
+"Leyendo pedidos…"
+],
+"Conexão com a loja funcionando.": [
+"Store connection working.",
+"Conexión con la tienda funcionando."
+],
+"cupom lido na loja": [
+"coupon read at the store",
+"cupón leído en la tienda"
+],
+"link lido na loja": [
+"link read at the store",
+"enlace leído en la tienda"
+],
+"registrada por você": [
+"recorded by you",
+"registrada por ti"
+],
+"relatório de afiliados": [
+"affiliate report",
+"informe de afiliados"
+],
+"cupom do lote": [
+"batch coupon",
+"cupón del lote"
+],
+"código assinado": [
+"signed code",
+"código firmado"
+],
+"aviso da loja": [
+"store notification",
+"aviso de la tienda"
+],
+"Cupom SceneShop por clique + leitura dos pedidos na loja": [
+"SceneShop coupon per click + reading the store's orders",
+"Cupón SceneShop por clic + lectura de los pedidos en la tienda"
+],
+"Programa de afiliados (relatório importado)": [
+"Affiliate program (imported report)",
+"Programa de afiliados (informe importado)"
+],
+"Plataforma da loja inválida.": [
+"Invalid store platform.",
+"Plataforma de la tienda inválida."
+],
+"Informe o nome da conta VTEX (ex.: jbl).": [
+"Enter the VTEX account name (e.g.: jbl).",
+"Informa el nombre de la cuenta VTEX (ej.: jbl)."
+],
+"Informe o domínio da loja Shopify (ex.: marca.myshopify.com).": [
+"Enter the Shopify store domain (e.g.: brand.myshopify.com).",
+"Informa el dominio de la tienda Shopify (ej.: marca.myshopify.com)."
+],
+"Informe o número da loja na Nuvemshop.": [
+"Enter the Nuvemshop store number.",
+"Informa el número de la tienda en Nuvemshop."
+],
+"Desconto do cupom deve ficar entre 0% e 90%.": [
+"Coupon discount must be between 0% and 90%.",
+"El descuento del cupón debe estar entre 0% y 90%."
+],
+"Escolha a plataforma e informe a conta da loja.": [
+"Choose the platform and enter the store account.",
+"Elige la plataforma e informa la cuenta de la tienda."
+],
+"Arquivo vazio ou sem cabeçalho.": [
+"Empty file or no header row.",
+"Archivo vacío o sin encabezado."
+],
+"Seu cupom para": [
+"Your coupon for",
+"Tu cupón para"
+],
+"na": [
+"at",
+"en"
+],
+"Use este código no carrinho da loja. Ele vale para uma compra e só por 48 horas.": [
+"Use this code in the store's cart. It's good for one purchase and only for 48 hours.",
+"Usa este código en el carrito de la tienda. Vale para una compra y solo por 48 horas."
+],
+"Continuar para a loja": [
+"Continue to the store",
+"Continuar a la tienda"
+],
+"Você será levado à loja em alguns segundos. Preço garantido em cena: {0}.": [
+"You'll be taken to the store in a few seconds. Guaranteed in-scene price: {0}.",
+"Serás llevado a la tienda en unos segundos. Precio garantizado en escena: {0}."
+],
+"{0}% de desconto. Use este código no carrinho da loja. Ele vale para uma compra e só por 48 horas.": [
+"{0}% off. Use this code in the store's cart. It's good for one purchase and only for 48 hours.",
+"{0}% de descuento. Usa este código en el carrito de la tienda. Vale para una compra y solo por 48 horas."
+],
+"Copiar": [
+"Copy",
+"Copiar"
+],
+"Venda sincronizada da loja": [
+"Sale synced from the store",
+"Venta sincronizada de la tienda"
+],
+"Cupom da loja falhou": [
+"Store coupon failed",
+"Falló el cupón de la tienda"
+],
+"Relatório de afiliados importado": [
+"Affiliate report imported",
+"Informe de afiliados importado"
+],
+"Cada clique em \"Comprar\" gera uma referência única (e, nas lojas conectadas, um cupom SS-XXXXXX criado na própria loja).": [
+"Each \"Buy\" click creates a unique reference (and, at connected stores, an SS-XXXXXX coupon created in the store itself).",
+"Cada clic en \"Comprar\" genera una referencia única (y, en las tiendas conectadas, un cupón SS-XXXXXX creado en la propia tienda)."
+],
+"Lojas conectadas:": [
+"Connected stores:",
+"Tiendas conectadas:"
+],
+"o SceneShop lê os pedidos sozinho a cada 10 minutos e as vendas entram aqui e em Ganhos.": [
+"SceneShop reads the orders on its own every 10 minutes and sales show up here and in Earnings.",
+"SceneShop lee los pedidos solo cada 10 minutos y las ventas entran aquí y en Ganancias."
+],
+"Marketplaces:": [
+"Marketplaces:",
+"Marketplaces:"
+],
+"importe o relatório do programa de afiliados no cartão da loja.": [
+"import the affiliate program report on the store card.",
+"importa el informe del programa de afiliados en la tarjeta de la tienda."
+],
+"Sem conexão:": [
+"No connection:",
+"Sin conexión:"
+],
+"registre o pedido abaixo.": [
+"record the order below.",
+"registra el pedido abajo."
+],
+"acompanhe as vendas: com a loja conectada, cada clique ganha um cupom único criado na loja e o SceneShop lê os pedidos direto dela, sem depender de a loja informar. O pagamento acontece na loja.": [
+"follow the sales: with the store connected, each click gets a unique coupon created in the store and SceneShop reads the orders directly from it, without relying on the store to report. Payment happens at the store.",
+"sigue las ventas: con la tienda conectada, cada clic recibe un cupón único creado en la tienda y SceneShop lee los pedidos directo de ella, sin depender de que la tienda informe. El pago ocurre en la tienda."
+],
+"Awin: rede de afiliados (ex.: Oakley, JBL)": [
+"Awin: affiliate network (e.g.: Oakley, JBL)",
+"Awin: red de afiliados (ej.: Oakley, JBL)"
+],
+"ID do anunciante na Awin (só Awin)": [
+"Advertiser ID on Awin (Awin only)",
+"ID del anunciante en Awin (solo Awin)"
+],
+"awinmid, ex.: 72213": [
+"awinmid, e.g.: 72213",
+"awinmid, ej.: 72213"
+],
+"VTEX: jbl · Shopify: marca.myshopify.com · Nuvemshop: nº da loja · Awin: ID do publisher": [
+"VTEX: jbl · Shopify: brand.myshopify.com · Nuvemshop: store number · Awin: publisher ID",
+"VTEX: jbl · Shopify: marca.myshopify.com · Nuvemshop: nº de tienda · Awin: ID del publisher"
+],
+"transação da Awin": [
+"Awin transaction",
+"transacción de Awin"
+],
+"venda reconhecida pelo clickref do link": [
+"sale recognized by the link's clickref",
+"venta reconocida por el clickref del enlace"
+],
+"Awin: clickref por clique + leitura das transações": [
+"Awin: clickref per click + reading transactions",
+"Awin: clickref por clic + lectura de transacciones"
+],
+"Awin (rede de afiliados)": [
+"Awin (affiliate network)",
+"Awin (red de afiliados)"
+],
+"Informe o ID do publisher SceneShop na Awin.": [
+"Enter SceneShop's publisher ID on Awin.",
+"Informa el ID de publisher de SceneShop en Awin."
+],
+"Informe o ID do anunciante na Awin (awinmid).": [
+"Enter the advertiser ID on Awin (awinmid).",
+"Informa el ID del anunciante en Awin (awinmid)."
+],
+"Reconhecimento pelo som (SceneShop ID)": [
+"Sound recognition (SceneShop ID)",
+"Reconocimiento por sonido (SceneShop ID)"
+],
+"Reconhecimento pelo som (SceneShop ID): consultando…": [
+"Sound recognition (SceneShop ID): checking…",
+"Reconocimiento por sonido (SceneShop ID): consultando…"
+],
+"indexando o som da obra…": [
+"indexing the title's sound…",
+"indexando el sonido de la obra…"
+],
+"ainda não indexado": [
+"not indexed yet",
+"aún no indexado"
+],
+"falhou": [
+"failed",
+"falló"
+],
+"Indexar de novo": [
+"Index again",
+"Indexar de nuevo"
+],
+"Indexar agora": [
+"Index now",
+"Indexar ahora"
+],
+"Ainda não reconheci. Ouvindo mais {0} segundos…": [
+"Not recognized yet. Listening {0} more seconds…",
+"Aún no lo reconocí. Escuchando {0} segundos más…"
+],
+"O servidor precisa do ffmpeg para indexar o som.": [
+"The server needs ffmpeg to index the sound.",
+"El servidor necesita ffmpeg para indexar el sonido."
 ]
 };

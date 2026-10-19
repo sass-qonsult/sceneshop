@@ -30,11 +30,13 @@ const audit = require("./audit");
 const { writePaidOrder, writeReversal } = require("./repositories/commerce-postgres");
 const { OFFER_TTL_HOURS, WEBHOOK_TOLERANCE_MIN, REPORT_MAX_DAYS, CODE_POOL_LOW } = require("./config");
 const commercialPolicy = require("./commercial-policy");
+const connectors = require("./store-connectors");
 
 const S = () => store.state;
 const b64 = (x) => Buffer.from(x).toString("base64url");
 const round = (v) => Math.round(v * 100) / 100;
 const INTEGRATIONS = {
+  link_produto: "Link do produto na loja (venda confirmada por relatório)",
   assinatura: "Código assinado (loja confere)",
   codigos_unicos: "Cupons de uso único do varejista",
   link_campanha: "Link de campanha do varejista",
@@ -64,11 +66,11 @@ function asListedOffer(productId) {
     price: o.price, currency: "BRL", inStock: true, integration: o.seller.integration,
     shipping: retailer ? "Preço negociado pela produção" : "Vendedor indicado pela produção",
     label: retailer ? "Preço negociado pela produção com a loja · garantido" : "Loja oficial indicada pela produção · preço garantido",
-    url: o.seller.storeUrl,
+    url: o.url || o.seller.storeUrl,
   };
 }
 
-function setOffer(productId, { sellerId, price, commission, validDays }, actor, { product } = {}) {
+function setOffer(productId, { sellerId, price, commission, validDays, url }, actor, { product, organizationId } = {}) {
   const p = product || catalog.getProduct(productId);
   if (!p) return { error: "Produto não encontrado." };
   if (!sellerId) {
@@ -78,18 +80,23 @@ function setOffer(productId, { sellerId, price, commission, validDays }, actor, 
     return { ok: true };
   }
   const seller = S().sellers[sellerId];
-  const pr = Number(price), cm = Number(commission);
+  const pr = require("./price").parsePrice(price), cm = Number(commission);
   const errors = [];
   if (!seller || !seller.verified) errors.push("Loja não verificada.");
+  else if (organizationId && seller.organizationId && seller.organizationId !== organizationId) errors.push("Essa loja pertence a outra organização.");
+  else if (seller.active === false) errors.push("Essa loja está desativada.");
+  const link = String(url || "").trim();
+  if (link && !validStoreUrl(link)) errors.push("Link do produto inválido: use o endereço completo, começando com https://");
+  if (seller && seller.integration === "link_produto" && !link && !seller.storeUrl) errors.push("Informe o link do produto na loja.");
   else if (!agreementValid(seller)) errors.push("O acordo com essa loja está vencido.");
-  if (!(pr > 0 && pr < 1e6)) errors.push("Preço garantido inválido.");
+  if (!require("./price").validPrice(pr)) errors.push("Preço garantido inválido.");
   if (!(cm >= 0 && cm <= 1)) errors.push("Comissão deve ficar entre 0% e 100%.");
   if (seller && seller.integration === "link_campanha" && !(seller.campaigns || {})[productId]) {
     errors.push("Essa loja ainda não criou a campanha deste produto. Informe o ID da campanha em Acordos.");
   }
   if (errors.length) return { errors };
   S().officialOffers[productId] = {
-    sellerId, price: round(pr), commission: cm, setBy: actor,
+    sellerId, price: round(pr), commission: cm, setBy: actor, url: link || null,
     validUntil: store.now() + Math.min(365, Math.max(1, Number(validDays) || 90)) * store.DAY,
   };
   audit.log(actor, "oferta_oficial_definida", { productId, sellerId, preco: round(pr), comissao: cm });
@@ -208,10 +215,16 @@ function buildRedirect({ productId, click, workId, partnerId }) {
   } else if (seller.integration === "link_campanha") {
     q.set("campanha", seller.campaigns[productId]);
     q.set("ss_ref", issued.payload.oid);
+  } else if (seller.integration === "link_produto") {
+    // loja sem integração: a referência viaja no link (e nas UTMs) para a loja informar no relatório de vendas
+    q.delete("produto");
+    q.set("ss_ref", issued.payload.oid);
+    q.set("utm_source", "sceneshop"); q.set("utm_medium", "scene"); q.set("utm_campaign", workId || "sceneshop"); q.set("utm_content", issued.payload.oid);
   }
-  q.set("ss_offer", issued.token);
-  const sep = seller.storeUrl.includes("?") ? "&" : "?";
-  return { url: `${seller.storeUrl}${sep}${q}`, guaranteed, offerId: issued.payload.oid };
+  if (seller.integration !== "link_produto") q.set("ss_offer", issued.token);
+  const base = o.url || seller.storeUrl;
+  const sep = base.includes("?") ? "&" : "?";
+  return { url: `${base}${sep}${q}`, guaranteed, offerId: issued.payload.oid };
 }
 
 // ---------------------------------------------------------------- confirmação de vendas pela loja
@@ -297,7 +310,7 @@ async function confirmPaidOrderPostgres(seller, order, deps, { orderId, orderedA
         clickId: p.cid, value: round(unit * qty), storeId: seller.id, at: orderedAt,
         official: { sellerId: seller.id, commission: p.com, offerId: p.oid, partnerId: p.par, orderId, trackId: p.tid },
       });
-      const via = order.offer ? "codigo" : order.coupon ? "cupom" : "referencia";
+      const via = order.via || (order.offer ? "codigo" : order.coupon ? "cupom" : "referencia");
       const orderRecord = {
         sellerId: seller.id, orderId, offerId: p.oid, saleId: sale.id,
         amount: round(unit * qty), status: "pago", via, at: store.now(), orderedAt,
@@ -463,7 +476,7 @@ function processOrder(seller, order, deps) {
     official: { sellerId: seller.id, commission: p.com, offerId: p.oid, partnerId: p.par, orderId, trackId: p.tid },
   });
   if (r.coupon) Object.assign(r.coupon, { status: "usado", orderId });
-  const via = order.offer ? "codigo" : order.coupon ? "cupom" : "referencia";
+  const via = order.via || (order.offer ? "codigo" : order.coupon ? "cupom" : "referencia");
   S().orders.push({ sellerId: seller.id, orderId, offerId: p.oid, saleId: sale.id, amount: round(unit * qty), status: "pago", via, at: store.now(), orderedAt });
   audit.log(seller.id, "pedido_confirmado", { orderId, offerId: p.oid, via, valor: round(unit * qty), comissao: p.com });
   store.save();
@@ -519,10 +532,20 @@ function receiveReport(sellerId, body, headers, rawBody, deps) {
   return reportResult(sellerId, results);
 }
 
-function sellersView(forProducer) {
-  return Object.values(S().sellers).map((s) => ({
+function sellersView(forProducer, organizationId) {
+  const { DEMO } = require("./config");
+  return Object.values(S().sellers)
+    .filter((s) => organizationId === undefined || s.organizationId === organizationId || (!s.organizationId && DEMO))
+    .map((s) => ({
+    storeUrl: forProducer ? s.storeUrl || null : undefined, active: s.active !== false, organizationId: s.organizationId || null,
+    connection: forProducer && s.connection ? { platform: s.connection.platform, platformLabel: connectors.PLATFORMS[s.connection.platform], account: s.connection.account, advertiserId: s.connection.advertiserId || null, couponDiscountPct: s.connection.couponDiscountPct || 0,
+      credentials: connectors.credentialStatus(s), lastSync: s.connection.lastSync || null, lastResult: s.connection.lastResult || null, lastError: s.connection.lastError || null } : forProducer ? null : undefined,
+    webhook: forProducer ? { orders: `/api/sellers/${s.id}/orders`, report: `/api/sellers/${s.id}/report` } : undefined,
     id: s.id, name: s.name, kind: s.kind, cnpj: s.cnpj, verified: s.verified, color: s.color,
-    integration: s.integration, integrationLabel: INTEGRATIONS[s.integration],
+    integration: s.integration,
+    integrationLabel: s.connection && s.connection.platform === "afiliado" ? "Programa de afiliados (relatório importado)"
+      : s.connection && s.connection.platform === "awin" ? "Awin: clickref por clique + leitura das transações"
+      : s.connection && ["vtex", "shopify", "nuvemshop"].includes(s.connection.platform) ? "Cupom SceneShop por clique + leitura dos pedidos na loja" : INTEGRATIONS[s.integration],
     agreement: s.agreement ? { since: s.agreement.since, until: s.agreement.until, notes: s.agreement.notes, valid: agreementValid(s) } : null,
     campaigns: forProducer ? s.campaigns || null : undefined,
     pool: forProducer && s.integration === "codigos_unicos" ? poolStatus(s.id) : undefined,
@@ -540,7 +563,198 @@ function setCampaign(sellerId, productId, campaignId, actor) {
   return { ok: true };
 }
 
+// ---------------------------------------------------------------- lojas cadastradas pela produtora
+function validStoreUrl(u) {
+  try { const x = new URL(u); return x.protocol === "https:" || (x.protocol === "http:" && /^(localhost|127\.0\.0\.1)$/.test(x.hostname)); } catch (e) { return false; }
+}
+const SELLER_KINDS = { marca: "Loja da marca", varejista: "Grande varejista", marketplace: "Marketplace" };
+const onlyDigits = (v) => String(v || "").replace(/\D/g, "");
+function fmtCnpj(v) { const d = onlyDigits(v); return d.length === 14 ? d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, "$1.$2.$3/$4-$5") : ""; }
+function untilFrom(v, fallbackDays = 365) {
+  if (v) { const t = Date.parse(String(v).length === 10 ? `${v}T23:59:59` : v); if (!isNaN(t)) return t; }
+  return store.now() + fallbackDays * store.DAY;
+}
+
+function sellerFields(body, current = {}) {
+  const errors = [];
+  const name = String(body.name ?? current.name ?? "").trim().slice(0, 80);
+  if (name.length < 2) errors.push("Informe o nome da loja.");
+  const kind = String(body.kind ?? current.kind ?? "marca");
+  if (!SELLER_KINDS[kind]) errors.push("Tipo de loja inválido.");
+  const integration = String(body.integration ?? current.integration ?? "link_produto");
+  if (!INTEGRATIONS[integration]) errors.push("Forma de integração inválida.");
+  const storeUrl = String(body.storeUrl ?? current.storeUrl ?? "").trim();
+  if (!validStoreUrl(storeUrl)) errors.push("Endereço da loja inválido: use o endereço completo, começando com https://");
+  const cnpjRaw = body.cnpj ?? current.cnpj ?? "";
+  const cnpj = cnpjRaw ? fmtCnpj(cnpjRaw) : "";
+  if (cnpjRaw && !cnpj) errors.push("CNPJ deve ter 14 dígitos.");
+  const until = body.until !== undefined ? untilFrom(body.until) : (current.agreement && current.agreement.until) || untilFrom(null);
+  const notes = String(body.notes ?? (current.agreement && current.agreement.notes) ?? "").trim().slice(0, 300);
+  // conexão direta com a loja: plataforma + conta (as chaves ficam só no ambiente do servidor)
+  const cur = current.connection || {};
+  const platform = String(body.platform ?? cur.platform ?? "").trim();
+  if (platform && !connectors.PLATFORMS[platform]) errors.push("Plataforma da loja inválida.");
+  const account = String(body.account ?? cur.account ?? "").trim().slice(0, 120);
+  if (["vtex", "shopify", "nuvemshop", "awin"].includes(platform) && !account) errors.push(platform === "vtex" ? "Informe o nome da conta VTEX (ex.: jbl)." : platform === "shopify" ? "Informe o domínio da loja Shopify (ex.: marca.myshopify.com)." : platform === "awin" ? "Informe o ID do publisher SceneShop na Awin." : "Informe o número da loja na Nuvemshop.");
+  const advertiserId = String(body.advertiserId ?? cur.advertiserId ?? "").trim().replace(/\D/g, "").slice(0, 12);
+  if (platform === "awin" && !advertiserId) errors.push("Informe o ID do anunciante na Awin (awinmid).");
+  const pct = body.couponDiscountPct !== undefined ? Number(String(body.couponDiscountPct).replace(",", ".")) : Number(cur.couponDiscountPct || 0);
+  if (!(pct >= 0 && pct <= 90)) errors.push("Desconto do cupom deve ficar entre 0% e 90%.");
+  const connection = platform ? { ...cur, platform, account, advertiserId: advertiserId || undefined, couponDiscountPct: Math.round(pct * 100) / 100 } : null;
+  if (connection && cur.platform && (cur.platform !== platform || cur.account !== account)) delete connection.priceRuleId;
+  return { errors, fields: { name, kind, integration, storeUrl, cnpj, until, notes, connection } };
+}
+
+function createSeller(organizationId, body, actor) {
+  if (!organizationId) return { error: "Selecione uma organização." };
+  const { errors, fields } = sellerFields(body || {});
+  if (errors.length) return { errors };
+  const base = fields.name.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 32) || "loja";
+  let id = base; while (S().sellers[id]) id = `${base}-${crypto.randomBytes(2).toString("hex")}`;
+  const secret = crypto.randomBytes(24).toString("hex");
+  S().sellers[id] = {
+    id, name: fields.name, cnpj: fields.cnpj, kind: fields.kind, integration: fields.integration, storeUrl: fields.storeUrl,
+    color: "#1E4D8F", verified: true, active: true, secret, organizationId, campaigns: {}, connection: fields.connection,
+    agreement: { since: store.now(), until: fields.until, notes: fields.notes },
+    createdBy: actor, createdAt: store.now(),
+  };
+  audit.log(actor, "loja_cadastrada", { sellerId: id, organizationId, integration: fields.integration });
+  store.save();
+  return { seller: sellersView(true, organizationId).find((x) => x.id === id), secret };
+}
+
+function ownSeller(organizationId, sellerId) {
+  const s = S().sellers[sellerId];
+  return s && s.organizationId && s.organizationId === organizationId ? s : null;
+}
+
+function updateSeller(organizationId, sellerId, body, actor) {
+  const s = ownSeller(organizationId, sellerId);
+  if (!s) return { error: "Loja não encontrada nesta organização.", code: 404 };
+  const { errors, fields } = sellerFields(body || {}, s);
+  if (errors.length) return { errors };
+  Object.assign(s, { name: fields.name, kind: fields.kind, integration: fields.integration, storeUrl: fields.storeUrl, cnpj: fields.cnpj, connection: fields.connection });
+  s.agreement = { ...(s.agreement || {}), until: fields.until, notes: fields.notes };
+  if (body.active != null) s.active = !!body.active;
+  audit.log(actor, "loja_atualizada", { sellerId, active: s.active !== false });
+  store.save();
+  return { seller: sellersView(true, organizationId).find((x) => x.id === sellerId) };
+}
+
+function rotateSellerSecret(organizationId, sellerId, actor) {
+  const s = ownSeller(organizationId, sellerId);
+  if (!s) return { error: "Loja não encontrada nesta organização.", code: 404 };
+  s.secret = crypto.randomBytes(24).toString("hex");
+  audit.log(actor, "loja_chave_trocada", { sellerId });
+  store.save();
+  return { secret: s.secret };
+}
+
+/** Cliques enviados à loja (ofertas emitidas) e se já viraram pedido. */
+function referrals(organizationId, sellerId, { limit = 200 } = {}) {
+  const s = ownSeller(organizationId, sellerId);
+  if (!s) return { error: "Loja não encontrada nesta organização.", code: 404 };
+  const orders = new Map(S().orders.filter((o) => o.sellerId === sellerId).map((o) => [o.offerId, o]));
+  const coupons = new Map(pool(sellerId).filter((c) => c.offerId).map((c) => [c.offerId, c.code]));
+  const rows = Object.values(S().issuedOffers).filter((p) => p.sid === sellerId).sort((a, b) => b.iat - a.iat).slice(0, limit).map((p) => {
+    const o = orders.get(p.oid);
+    const prod = catalog.getProduct(p.pid);
+    return {
+      ref: p.oid, productId: p.pid, product: prod ? prod.name : p.pid, price: p.prc / 100, commission: p.com,
+      workId: p.wid, at: p.iat, expiresAt: p.exp, coupon: p.cpn || coupons.get(p.oid) || null,
+      order: o ? { orderId: o.orderId, amount: o.amount, status: o.status, via: o.via || null, at: o.orderedAt || o.at } : null,
+    };
+  });
+  return { referrals: rows };
+}
+
+/** A produtora registra uma venda informada pela loja (relatório, e-mail, painel da loja). */
+function registerManualOrder(organizationId, sellerId, body, actor, deps) {
+  const s = ownSeller(organizationId, sellerId);
+  if (!s) return { error: "Loja não encontrada nesta organização.", code: 404 };
+  const b = body || {};
+  const order = {
+    orderId: String(b.orderId || "").trim(), ref: b.ref ? String(b.ref).trim() : undefined, coupon: b.coupon ? String(b.coupon).trim() : undefined,
+    unitPrice: require("./price").parsePrice(b.unitPrice), quantity: Number(b.quantity) || 1, orderedAt: b.orderedAt || undefined,
+    status: b.status === "devolvido" ? "devolvido" : undefined, via: "manual",
+  };
+  if (!order.orderId) return { error: "Informe o número do pedido na loja." };
+  if (!order.status && !order.ref && !order.coupon) return { error: "Informe a referência SceneShop (ss_ref) ou o cupom usado no pedido." };
+  const finish = (r) => { if (r && r.ok && !r.duplicate) audit.log(actor, "venda_registrada_manual", { sellerId, orderId: order.orderId, ref: order.ref || null, coupon: order.coupon || null }); return r; };
+  const r = processOrder(s, order, deps);
+  return r && typeof r.then === "function" ? r.then(finish) : finish(r);
+}
+
+// ---------------------------------------------------------------- cupom SceneShop por clique (loja conectada)
+const COUPON_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // sem 0/O/1/I: fácil de ler e digitar
+function newCouponCode() {
+  for (;;) {
+    const b = crypto.randomBytes(6);
+    const code = "SS-" + Array.from(b, (x) => COUPON_ALPHABET[x % 32]).join("");
+    if (!S().issuedCoupons || !S().issuedCoupons[code]) return code;
+  }
+}
+
+/**
+ * Link de compra com cupom único criado na própria loja. Sem conexão (ou se a loja não responder),
+ * cai no link com referência (buildRedirect). O comprador passa pela página /cupom/<oferta>,
+ * que mostra o código e segue para a loja.
+ */
+async function buildRedirectAsync(args) {
+  const o = offerFor(args.productId);
+  if (!o) return null;
+  const seller = o.seller;
+  const status = connectors.credentialStatus(seller);
+  if (!status.ready) return buildRedirect(args);
+  const conn = connectors.connectorFor(seller, { save: () => store.save() });
+  const issued = issueToken(args);
+  const p = issued.payload;
+  const ref = p.oid;
+  const productUrl = o.url || seller.storeUrl;
+  let code = null, applyUrl = null, error = null;
+  try {
+    const candidate = newCouponCode();
+    const r = await conn.createCoupon({ code: candidate, discountPct: seller.connection.couponDiscountPct || 0, expiresAt: p.exp });
+    if (r && r.ok) { code = candidate; applyUrl = r.applyUrl ? r.applyUrl(productUrl) : null; }
+  } catch (e) {
+    error = e.message;
+    audit.log("sistema", "cupom_loja_falhou", { sellerId: seller.id, erro: String(e.message).slice(0, 120) });
+  }
+  if (conn.buildLink) {
+    const link = conn.buildLink(productUrl, ref);
+    Object.assign(S().issuedOffers[ref], { to: link, cpn: null, discountPct: 0 });
+    store.save();
+    return { url: link, guaranteed: true, offerId: ref, coupon: null, interstitial: false };
+  }
+  const params = conn.linkParams(ref);
+  const base = applyUrl || productUrl;
+  const url = new URL(base);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  if (applyUrl) {
+    // Shopify: /discount/<código>?redirect=<produto>: as UTMs vão para dentro do redirect
+    const red = new URL(url.searchParams.get("redirect") || "/", new URL(productUrl).origin);
+    for (const [k, v] of Object.entries(params)) red.searchParams.set(k, v);
+    url.search = ""; url.searchParams.set("redirect", red.pathname + red.search);
+  }
+  const rec = S().issuedOffers[ref];
+  rec.cpn = code; rec.to = url.toString(); rec.discountPct = code ? seller.connection.couponDiscountPct || 0 : 0;
+  if (code) (S().issuedCoupons = S().issuedCoupons || {})[code] = ref;
+  store.save();
+  return { url: url.toString(), guaranteed: true, offerId: ref, coupon: code, couponError: error, interstitial: !!code };
+}
+
+/** Dados da página /cupom/<oferta> (sem credenciais nem token). */
+function landing(offerId) {
+  const p = S().issuedOffers[offerId];
+  if (!p || !p.to) return null;
+  const seller = S().sellers[p.sid] || {};
+  const prod = catalog.getProduct(p.pid) || {};
+  return { coupon: p.cpn || null, url: p.to, store: seller.name || p.sid, product: prod.name || p.pid, price: p.prc / 100, discountPct: p.discountPct || 0, expiresAt: p.exp };
+}
+
 module.exports = {
   INTEGRATIONS, offerFor, asListedOffer, setOffer, issueToken, verifyToken, sign, buildRedirect,
   addCodes, assignCode, poolStatus, receiveOrder, receiveReport, processOrder, sellerSignature, sellersView, setCampaign,
+  createSeller, updateSeller, rotateSellerSecret, referrals, registerManualOrder, validStoreUrl, SELLER_KINDS,
+  buildRedirectAsync, landing, newCouponCode, ownSeller,
 };

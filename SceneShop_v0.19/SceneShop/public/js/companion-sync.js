@@ -24,11 +24,12 @@
     return new Uint8Array(buf);
   }
   let providerPromise=null;
-  /** "acrcloud" quando o servidor tem a ACRCloud configurada; senão "fingerprint" (motor próprio). */
+  /** "sceneshop" (SceneShop ID, padrão) ou "acrcloud": o celular manda o áudio e o servidor reconhece. */
   function provider(){
-    if(!providerPromise)providerPromise=fetch('/api/config').then(r=>r.json()).then(c=>c.audioRecognition==='acrcloud'?'acrcloud':'fingerprint').catch(()=>'fingerprint');
+    if(!providerPromise)providerPromise=fetch('/api/config').then(r=>r.json()).then(c=>c.audioRecognition==='acrcloud'?'acrcloud':c.audioRecognition==='sceneshop'?'sceneshop':'fingerprint').catch(()=>'fingerprint');
     return providerPromise;
   }
+  function joinAudio(a,b){const r=a.sampleRate;const fp2=fp&&b.sampleRate!==r?fp.downsample(b.samples,b.sampleRate):b.samples;const out=new Float32Array(a.samples.length+fp2.length);out.set(a.samples,0);out.set(fp2,a.samples.length);return{samples:out,sampleRate:r};}
   const ACR_SECONDS=10;
   function errorText(data){
     if(data.error==='SYNC_NOT_RECOGNIZED')return 'Conteúdo não reconhecido. Aproxime o aparelho da fonte de áudio e tente novamente.';
@@ -36,8 +37,24 @@
     if(data.error==='SYNC_SAMPLE_TOO_SHORT')return 'Amostra curta ou silenciosa demais para sincronizar.';
     return data.error||'Falha ao sincronizar.';
   }
-  async function requestSync(kind,{externalUrl=null,seconds=5,workId=null}={}){
-    if((await provider())==='acrcloud'){
+  async function requestSync(kind,{externalUrl=null,seconds=5,workId=null,onRetry=null}={}){
+    const prov=await provider();
+    if(prov==='sceneshop'){
+      // 10 s; se não reconhecer (sala barulhenta), ouve mais 10 s e manda os 20 s juntos
+      let audio=await capture(ACR_SECONDS);
+      for(let attempt=0;attempt<2;attempt++){
+        const r=await fetch(`/api/sync/audio/${kind}${workId?`?workId=${encodeURIComponent(workId)}`:''}`,{method:'POST',headers:{'Content-Type':'audio/wav'},body:encodeWav(audio.samples,audio.sampleRate)});
+        const data=await r.json().catch(()=>({}));
+        if(r.ok){
+          if(workId&&data.work&&data.work.id!==workId)throw new Error('O áudio é de outro conteúdo. Conecte de novo pela tela inicial.');
+          return data;
+        }
+        if(data.error!=='SYNC_NOT_RECOGNIZED'||attempt)throw new Error(errorText(data));
+        if(onRetry)onRetry();
+        audio=joinAudio(audio,await capture(ACR_SECONDS));
+      }
+    }
+    if(prov==='acrcloud'){
       const audio=await capture(ACR_SECONDS);
       const r=await fetch(`/api/sync/acr/${kind}`,{method:'POST',headers:{'Content-Type':'audio/wav'},body:encodeWav(audio.samples,audio.sampleRate)});
       const data=await r.json().catch(()=>({}));

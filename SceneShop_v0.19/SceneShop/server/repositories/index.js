@@ -63,6 +63,7 @@ const identity = {
   enableMfaAuthoritative: (u) => impl().enableMfa ? impl().enableMfa(u) : null,
   disableMfaAuthoritative: (u) => impl().disableMfa ? impl().disableMfa(u) : null,
   listSessionsAuthoritative: (u) => impl().listSessions ? impl().listSessions(u) : [],
+  adminUpdateAccountAuthoritative: (u, patch) => impl().adminUpdateAccount(u, patch),
   revokeSessionAuthoritative: (u,sid,reason) => impl().revokeSession ? impl().revokeSession(u,sid,reason) : false,
 };
 

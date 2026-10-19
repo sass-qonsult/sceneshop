@@ -16,7 +16,17 @@ if(!['https:','http:'].includes(url.protocol)) throw new Error('SceneShop deskto
 if(url.protocol==='http:'&&!['127.0.0.1','localhost'].includes(url.hostname)&&process.env.SCENESHOP_ALLOW_INSECURE!=='1') throw new Error('Non-local SceneShop desktop origins must use HTTPS');
 
 const candidates=process.platform==='win32'
-  ? [process.env.SCENESHOP_BROWSER,'msedge.exe','chrome.exe']
+  ? [
+      process.env.SCENESHOP_BROWSER,
+      'msedge.exe',
+      'chrome.exe',
+      'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
+      'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',
+      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+      'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+      path.join(process.env.LOCALAPPDATA||'','Microsoft\\Edge\\Application\\msedge.exe'),
+      path.join(process.env.LOCALAPPDATA||'','Google\\Chrome\\Application\\chrome.exe')
+    ].filter(Boolean)
   : process.platform==='darwin'
     ? [process.env.SCENESHOP_BROWSER,'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome','/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge']
     : [process.env.SCENESHOP_BROWSER,'chromium','chromium-browser','google-chrome','microsoft-edge'];

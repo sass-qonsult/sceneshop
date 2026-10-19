@@ -2,9 +2,9 @@
 //   produtora envia a obra -> o SceneShop cadastra o áudio na ACRCloud sozinho -> estúdio mostra "pronto"
 //   -> celular toca em "Sincronizar com o que estou assistindo" (microfone simulado do Chromium)
 //   -> a ACRCloud reconhece a obra e a posição -> o celular entra na obra, no segundo certo.
-// Uso: o servidor precisa estar apontado para o simulador:
+// Uso: o servidor precisa estar apontado para o simulador e com a ACRCloud como principal (SCENESHOP_AUDIO_ID=acrcloud):
 //   node test/acrcloud-mock.mjs 3997 &
-//   ACRCLOUD_HOST=http://127.0.0.1:3997 ACRCLOUD_CONSOLE_URL=http://127.0.0.1:3997 ACRCLOUD_ACCESS_KEY=mock-access-key \
+//   SCENESHOP_AUDIO_ID=acrcloud ACRCLOUD_HOST=http://127.0.0.1:3997 ACRCLOUD_CONSOLE_URL=http://127.0.0.1:3997 ACRCLOUD_ACCESS_KEY=mock-access-key \
 //   ACRCLOUD_ACCESS_SECRET=mock-access-secret ACRCLOUD_BUCKET_ID=4242 ACRCLOUD_CONSOLE_TOKEN=mock-console-token npm start
 //   node test/acr.e2e.mjs
 import { chromium } from "playwright";

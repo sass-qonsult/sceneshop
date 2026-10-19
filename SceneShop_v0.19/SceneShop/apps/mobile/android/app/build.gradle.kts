@@ -21,13 +21,6 @@ android {
   buildTypes {
     getByName("release") { if (releaseSigningReady) signingConfig = signingConfigs.getByName("production") }
   }
-  compileOptions {
-    sourceCompatibility = JavaVersion.VERSION_17
-    targetCompatibility = JavaVersion.VERSION_17
-  }
-  kotlinOptions {
-    jvmTarget = "17"
-  }
 }
-android.defaultConfig.buildConfigField("String", "SCENESHOP_APP_URL", "\"${System.getenv("SCENESHOP_APP_URL") ?: "https://sceneshop.qonsult.cc"}\"")
+android.defaultConfig.buildConfigField("String", "SCENESHOP_APP_URL", "\"${System.getenv("SCENESHOP_APP_URL") ?: "https://app.sceneshop.io"}\"")
 android.buildFeatures.buildConfig = true

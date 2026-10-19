@@ -44,6 +44,8 @@ async function offersFor(product) {
   const offers = results
     .filter((r) => r.status === 'fulfilled' && r.value)
     .map((r) => r.value)
+    // preços simulados (Amazon/Mercado Livre/Magalu de exemplo) só aparecem na demonstração
+    .filter((o) => !o.simulated || require('./config').DEMO)
     .sort((a, b) => (b.inStock - a.inStock) || (a.price - b.price));
 
   await cacheSet(product.id, offers);

@@ -59,6 +59,7 @@ function publicUser(acc) {
     authorId: acc.authorId,
     name: author ? author.name : acc.username,
     kyc: author ? author.kyc : null,
+    platformAdmin: !!acc.platformAdmin,
   };
 }
 
@@ -236,7 +237,9 @@ function attach(req, res, next) {
 function requireRole(...roles) {
   return (req, res, next) => {
     if (!req.user) return res.status(401).json({ error: "Entre na sua conta." });
-    if (roles.length && !roles.includes(req.user.role)) return res.status(403).json({ error: "Sem permissão para esta ação." });
+    // administrador da plataforma: produtora com acesso também às telas de moderação
+    const ok = !roles.length || roles.includes(req.user.role) || (req.user.platformAdmin && roles.includes("moderator"));
+    if (!ok) return res.status(403).json({ error: "Sem permissão para esta ação." });
     next();
   };
 }

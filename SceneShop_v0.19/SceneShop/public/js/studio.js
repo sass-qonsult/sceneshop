@@ -9,6 +9,28 @@
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const brl = (v) => Number(v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  // valores em reais no padrão 1.250.000,00 (sem teto); aceita também 1250000.5
+  const money2 = (v) => (v == null || v === "" || !Number.isFinite(Number(v))) ? "" : Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function parseMoney(v) {
+    if (typeof v === "number") return v;
+    let raw = String(v ?? "").trim().replace(/^R\$\s*/i, "").replace(/\s/g, "");
+    if (!raw) return NaN;
+    if (raw.includes(",")) raw = raw.replace(/\./g, "").replace(",", ".");
+    else if ((raw.match(/\./g) || []).length > 1) raw = raw.replace(/\./g, "");
+    else if (/^\d{1,3}\.\d{3}$/.test(raw)) raw = raw.replace(".", "");
+    return /^-?\d+(\.\d+)?$/.test(raw) ? Number(raw) : NaN;
+  }
+  // ao sair do campo, o valor é reescrito no padrão brasileiro
+  document.addEventListener("focusout", (e) => {
+    const el = e.target;
+    if (!el.matches || !el.matches("input[data-money], input[name=referencePrice], input[name=offerPrice]") || !el.value.trim()) return;
+    const n = parseMoney(el.value);
+    if (Number.isFinite(n)) el.value = money2(n);
+  });
+  document.addEventListener("input", (e) => {
+    const el = e.target;
+    if (el.matches && el.matches("input[data-money], input[name=referencePrice], input[name=offerPrice]")) el.value = el.value.replace(/[^\d.,]/g, "");
+  });
   const fmtT = (s) => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, "0")}`;
   let token = null;
   let organizationId = null;
@@ -87,7 +109,7 @@
 
   function whoHtml() {
     const orgSelect = organizationList.length ? `<select id="orgSelect" title="Organização ativa">${organizationList.map((o) => `<option value="${esc(o.id)}"${o.id===organizationId?" selected":""}>${esc(o.name)} · ${esc((o.membership||{}).role||"")}</option>`).join("")}</select>` : "";
-    return `<span class="me"><b>${esc(st.user.name)}</b> · ${{ author: "autor da comunidade", producer: "produtora", moderator: "moderador" }[st.user.role]}</span>${orgSelect}
+    return `<span class="me"><b>${esc(st.user.name)}</b> · ${{ author: "autor da comunidade", producer: "produtora", moderator: "moderador" }[st.user.role]}${st.user.platformAdmin ? " · administrador" : ""}</span>${orgSelect}
       <button class="ghost small" id="logoutBtn">Sair</button>`;
   }
 
@@ -101,7 +123,8 @@
       st.workId = null; st.track = null; st.works = []; st.products = {};
       toast("Organização alterada.");
       const tab = store.get("ss-studio-tab") || "editor";
-      if (tab === "editor") { await loadWorks(); await loadTrackList(); newTrack(); }
+      await refreshWorks(); await selectWork(st.workId);
+      if (tab === "editor") { await loadTrackList(); newTrack(); }
       else showTab(tab);
     };
   }
@@ -121,12 +144,11 @@
       : orgRole === "COMMERCIAL" ? ["produtos","ofertas","piloto","ganhos","equipe"]
       : orgRole === "ANALYST" ? ["aiops","piloto","ganhos","equipe"]
       : ["ganhos","equipe"];
+    if (st.user.platformAdmin && !allowed.includes("moderacao")) allowed.push("moderacao");
     document.querySelectorAll(".tabs button").forEach((b) => (b.hidden = !allowed.includes(b.dataset.tab)));
-    if (!isMod()) { await loadTrackList(); newTrack(); }
+    if (!isMod()) { await refreshWorks(); await selectWork(st.workId); }
     refreshAi();
-    // a opção "Vender no Marketplace Piloto" só existe quando essa loja existe (demonstração)
-    st.hasPilotSeller = false;
-    if (st.user.role === "producer") { const sl = await api("/api/me/sellers"); st.hasPilotSeller = !!(sl.ok && (sl.data || []).some((x) => x.id === "loja-piloto")); }
+    st.sellers = [];
     const saved = store.get("ss-studio-tab");
     // primeiro acesso de uma produtora: sem obras, começa enviando o vídeo
     const firstRun = st.user.role === "producer" && !st.works.length;
@@ -197,7 +219,11 @@
   // Troca a obra do editor: vídeo, duração e trilhas
   async function selectWork(id) {
     const w = st.works.find((x) => x.id === id) || st.works[0];
-    if (!w) { st.workId = null; st.duration = 0; video.removeAttribute("src"); return; } // ainda não há obras
+    if (!w) { // ainda não há obras
+      st.workId = null; st.duration = 0; video.removeAttribute("src");
+      if (st.user && !isMod()) { await loadTrackList(); newTrack(); }
+      return;
+    }
     st.workId = w.id;
     st.duration = w.duration;
     $("work").value = w.id;
@@ -208,9 +234,16 @@
   }
 
   async function refreshWorks() {
-    st.works = (await api("/api/works")).data;
-    $("work").innerHTML = st.works.map((w) => `<option value="${w.id}">${esc(w.title)}${w.pilot ? " (piloto)" : ""}</option>`).join("");
-    $("work").value = st.workId;
+    // logado: só as obras da organização ativa; antes do login, a lista pública
+    // (na demonstração, a obra de exemplo demo-01 também aparece)
+    const mine = token && organizationId ? await api("/api/me/works") : null;
+    const pub = !mine || (st.config && st.config.demo) ? await api("/api/works") : null;
+    const list = [...(mine && mine.ok && Array.isArray(mine.data) ? mine.data : [])];
+    for (const w of (pub && pub.ok && Array.isArray(pub.data) ? pub.data : [])) if (!list.some((x) => x.id === w.id) && (!mine || !w.pilot)) list.push(w);
+    st.works = list;
+    $("work").innerHTML = st.works.map((w) => `<option value="${esc(w.id)}">${esc(w.title)}</option>`).join("") || `<option value="">${(window.t || String)("Nenhuma obra: envie um vídeo na aba Obras")}</option>`;
+    if (!st.works.some((w) => w.id === st.workId)) st.workId = st.works[0] ? st.works[0].id : null;
+    $("work").value = st.workId || "";
   }
 
   function newTrack() {
@@ -399,6 +432,7 @@
   }
 
   let searchT;
+  $("goOffers").onclick = () => showTab("ofertas");
   $("prodSearch").oninput = (e) => {
     clearTimeout(searchT);
     searchT = setTimeout(async () => {
@@ -598,7 +632,9 @@
     // v0.19: as regras vêm da política comercial versionada (rules.commercialPolicy.terms)
     const R = L.rules, terms = (R.commercialPolicy && R.commercialPolicy.terms) || R;
     const sp = (terms.splits || R.split || {})[a.type === "producer" ? "official" : "community"] || { owner: 0 };
-    $("rules").innerHTML = `Cada venda gera comissão da loja (${Object.entries(terms.storeCommission || R.storeCommission || {}).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(", ")}). ` +
+    document.querySelector("#tab-ganhos .card.demo").hidden = !st.config.demo;
+    $("rules").innerHTML = (st.config.demo ? `Cada venda gera comissão da loja (${Object.entries(terms.storeCommission || R.storeCommission || {}).map(([k, v]) => `${k} ${Math.round(v * 100)}%`).join(", ")}). `
+      : `Cada venda confirmada pela loja (aviso, relatório ou registro na aba Ofertas oficiais) gera a comissão combinada na oferta do produto. `) +
       `Você recebe <b>${Math.round(sp.owner * 100)}%</b> dela (valor de exemplo). O valor fica <b>${R.HOLD_DAYS} dias em custódia</b> para cobrir devoluções e denúncias. Saque mínimo ${brl(R.MIN_PAYOUT)}. ${L.clicks} cliques rastreados.`;
 
     $("withdrawBtn").disabled = !L.canWithdraw;
@@ -652,91 +688,225 @@
   };
 
   // ================================================================ ofertas oficiais (produtora)
+  // Lojas da organização, oferta de cada produto (loja + link + preço + comissão) e conferência das vendas.
+  const tr = (x) => (window.t || String)(x);
+  const SELLER_KIND = { marca: "Loja da marca", varejista: "Grande varejista", marketplace: "Marketplace" };
+  const dateInput = (ms) => { if (!ms) return ""; const d = new Date(ms); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const errText = (r) => (r.data.errors || [r.data.error || r.data.message || "Erro"]).join(" ");
+  const offersSt = { sellers: [], items: [] };
+
   async function loadOffers() {
-    const [items, sellers, policy, campaigns] = await Promise.all([api("/api/me/official-offers"), api("/api/me/sellers"), api("/api/commercial-policy"), api("/api/commerce/campaigns")]);
-    const defaultCommissionPct = +(((policy.data || {}).current?.terms?.defaultCommissionRate ?? 0.10) * 100).toFixed(2);
-    const kindLbl = (x) => x.kind === "varejista" ? `varejista · ${x.integration === "codigos_unicos" ? "cupons" : "campanha"}` : "loja da marca";
-    const opts = (sel) => `<option value="">— sem oferta garantida —</option>` +
-      sellers.data.filter((x) => x.agreement && x.agreement.valid).map((x) => `<option value="${x.id}" ${x.id === sel ? "selected" : ""}>${esc(x.name)} (${kindLbl(x)})</option>`).join("");
-    $("offersBody").innerHTML = items.data.map((it) => {
+    const [items, sellers, policy] = await Promise.all([api("/api/me/official-offers"), api("/api/me/sellers"), api("/api/commercial-policy")]);
+    if (!items.ok) { $("offersBody").innerHTML = `<tr><td colspan="8" class="empty">${esc(errText(items))}</td></tr>`; return; }
+    offersSt.items = items.data || [];
+    offersSt.sellers = sellers.ok ? sellers.data || [] : [];
+    const defaultCommissionPct = +((((policy.data || {}).current || {}).terms || {}).defaultCommissionRate ?? 0.10) * 100;
+    renderSellers();
+    const usable = offersSt.sellers.filter((x) => x.active && x.agreement && x.agreement.valid);
+    const opts = (sel) => `<option value="">— não vender —</option>` + usable.map((x) => `<option value="${esc(x.id)}" ${x.id === sel ? "selected" : ""}>${esc(x.name)}</option>`).join("");
+    $("offersBody").innerHTML = offersSt.items.map((it) => {
       const o = it.offer || {};
       const days = o.validUntil ? Math.max(1, Math.round((o.validUntil - Date.now()) / 864e5)) : 90;
-      return `<tr data-id="${it.productId}">
-        <td><div class="pcell"><img src="${it.image}" alt=""/><div><b>${esc(it.name)}</b><div class="help">${esc(it.brand)}</div></div></div></td>
+      return `<tr data-id="${esc(it.productId)}">
+        <td><div class="pcell"><img src="${esc(it.image)}" alt=""/><div><b>${esc(it.name)}</b><div class="help">${esc(it.brand)}</div></div></div></td>
         <td class="num">${brl(it.referencePrice)}</td>
         <td><select data-f="sellerId">${opts(o.sellerId)}</select></td>
-        <td class="num"><input data-f="price" type="number" step="0.01" min="0" value="${o.price ?? it.referencePrice}" /></td>
-        <td class="num"><input data-f="commission" type="number" step="0.1" min="0" max="100" value="${o.commission != null ? +(o.commission * 100).toFixed(2) : defaultCommissionPct}" /></td>
+        <td><input class="url" data-f="url" type="url" placeholder="https://loja.com.br/produto" value="${esc(o.url || "")}" /></td>
+        <td class="num"><input data-f="price" data-money value="${money2(o.price ?? it.referencePrice)}" /></td>
+        <td class="num"><input data-f="commission" type="number" step="0.1" min="0" max="100" value="${o.commission != null ? +(o.commission * 100).toFixed(2) : +defaultCommissionPct.toFixed(2)}" /></td>
         <td class="num"><input data-f="validDays" type="number" min="1" max="365" value="${days}" /></td>
-        <td><button class="small" data-save>Salvar</button></td>
+        <td><button class="small primary" data-save>Salvar</button><span class="rowmsg"></span></td>
       </tr>`;
-    }).join("") || `<tr><td colspan="7" class="empty">Nenhum produto nas suas trilhas oficiais.</td></tr>`;
+    }).join("") || `<tr><td colspan="8" class="empty">${tr("Nenhum produto ainda. Cadastre os produtos na aba Produtos.")}</td></tr>`;
+    if (!usable.length && offersSt.items.length) $("offersBody").insertAdjacentHTML("afterbegin", `<tr><td colspan="8" class="help">${tr("Cadastre uma loja no passo 1 para poder escolher onde cada produto será vendido.")}</td></tr>`);
     $("offersBody").querySelectorAll("[data-save]").forEach((b) => (b.onclick = async () => {
-      const tr = b.closest("tr"), f = (k) => tr.querySelector(`[data-f=${k}]`).value;
-      const body = { sellerId: f("sellerId"), price: Number(f("price")), commission: Number(f("commission")) / 100, validDays: Number(f("validDays")) };
-      const r = await api(`/api/official-offers/${tr.dataset.id}`, { method: "PUT", body });
-      if (!r.ok) return toast((r.data.errors || [r.data.error]).join(" "), true);
-      toast(body.sellerId ? "Oferta oficial salva. Vale para os próximos cliques." : "Oferta oficial removida.");
-      loadOffers();
+      const row = b.closest("tr"), f = (k) => row.querySelector(`[data-f=${k}]`).value, msg = row.querySelector(".rowmsg");
+      const body = { sellerId: f("sellerId"), url: f("url").trim(), price: parseMoney(f("price")), commission: Number(f("commission")) / 100, validDays: Number(f("validDays")) };
+      b.disabled = true;
+      const r = await api(`/api/official-offers/${encodeURIComponent(row.dataset.id)}`, { method: "PUT", body });
+      b.disabled = false;
+      msg.className = "rowmsg " + (r.ok ? "ok" : "bad");
+      msg.textContent = r.ok ? (body.sellerId ? tr("Salvo") : tr("Removido")) : errText(r);
+      if (r.ok) toast(body.sellerId ? "Oferta salva. Vale para os próximos cliques." : "Produto retirado da venda.");
     }));
-    const prodOpts = items.data.map((it) => `<option value="${it.productId}">${esc(it.name)}</option>`).join("");
-    const previewProduct=$("commercePreviewProduct"), previewCampaign=$("commercePreviewCampaign");
-    if(previewProduct) previewProduct.innerHTML=prodOpts;
-    if(previewCampaign) previewCampaign.innerHTML='<option value="">— automática / nenhuma —</option>'+((campaigns.ok?campaigns.data:[])||[]).map((c)=>`<option value="${esc(c.id)}">${esc(c.name)} · ${esc(c.status)}</option>`).join('');
-    const pname = (id) => (items.data.find((i) => i.productId === id) || {}).name || id;
-    $("sellersList").innerHTML = sellers.data.map((x) => {
+    // conferência de vendas por loja
+    const refSel = $("refSeller"), keep = refSel.value;
+    refSel.innerHTML = offersSt.sellers.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join("") || `<option value="">${tr("— nenhuma loja —")}</option>`;
+    if (offersSt.sellers.some((x) => x.id === keep)) refSel.value = keep;
+    loadReferrals();
+    // avançado
+    const prodOpts = offersSt.items.map((it) => `<option value="${esc(it.productId)}">${esc(it.name)}</option>`).join("");
+    if ($("commercePreviewProduct")) $("commercePreviewProduct").innerHTML = prodOpts;
+    const previewBtn = $("commercePreviewBtn");
+    if (previewBtn) previewBtn.onclick = async () => {
+      const body = { productId: $("commercePreviewProduct").value, campaignId: $("commercePreviewCampaign").value || null, territory: $("commercePreviewTerritory").value || "GLOBAL" };
+      const r = await api("/api/commerce/resolve-preview", { method: "POST", body });
+      $("commercePreviewResult").textContent = r.ok ? `Política: ${r.data.resolution.strategy} · ${r.data.offers.length} oferta(s) elegível(is)` : errText(r);
+      $("commercePreviewOffers").innerHTML = r.ok ? r.data.offers.map((o, i) => `<div class="agreement"><b>${i + 1}. ${esc((o.provider || {}).name || o.providerId)}</b> · ${o.price == null ? "preço sob consulta" : brl(o.price)} · ${esc(o.cta || "BUY")} · ${esc(o.territory || "GLOBAL")}</div>`).join("") : "";
+    };
+    const camps = await api("/api/commerce/campaigns");
+    if ($("commercePreviewCampaign")) $("commercePreviewCampaign").innerHTML = '<option value="">— automática / nenhuma —</option>' + ((camps.ok ? camps.data : []) || []).map((c) => `<option value="${esc(c.id)}">${esc(c.name)} · ${esc(c.status)}</option>`).join("");
+    await loadFinanceOps();
+  }
+
+  function renderSellers() {
+    const pname = (id) => (offersSt.items.find((i) => i.productId === id) || {}).name || id;
+    const prodOpts = offersSt.items.map((it) => `<option value="${esc(it.productId)}">${esc(it.name)}</option>`).join("");
+    $("sellersList").innerHTML = offersSt.sellers.map((x) => {
       const a = x.agreement || {};
       let extra = "";
       if (x.integration === "codigos_unicos" && x.pool) {
         const per = Object.entries(x.pool.byProduct).map(([k, n]) => `${k === "*" ? "qualquer produto" : esc(pname(k))}: ${n}`).join(" · ") || "nenhum livre";
         extra = `<div class="pool ${x.pool.low ? "low" : ""}">Cupons: <b>${x.pool.livre}</b> livres · ${x.pool.reservado} entregues a espectadores · ${x.pool.usado} usados
-            ${x.pool.low ? '<span class="pill frozen">estoque baixo: peça um novo lote ao varejista</span>' : ""}<div class="help">${per}</div></div>
-          <form class="codes-form" data-seller="${x.id}">
-            <select name="productId"><option value="">qualquer produto</option>${prodOpts}</select>
-            <textarea name="codes" rows="2" placeholder="Cole aqui o lote de cupons enviado pelo varejista (um por linha)"></textarea>
-            <button class="small">Carregar lote</button>
+            ${x.pool.low ? '<span class="pill frozen">estoque baixo: peça um novo lote à loja</span>' : ""}<div class="help">${per}</div></div>
+          <form class="codes-form seller-form" data-seller="${esc(x.id)}">
+            <label>Produto <select name="productId"><option value="">qualquer produto</option>${prodOpts}</select></label>
+            <label class="grow">Cupons <textarea name="codes" rows="2" placeholder="Cole o lote de cupons enviado pela loja (um por linha)"></textarea></label>
+            <div class="row"><button class="small">Carregar lote</button></div>
           </form>`;
       }
       if (x.integration === "link_campanha") {
-        const camps = Object.entries(x.campaigns || {}).map(([pid, c]) => `${esc(pname(pid))}: <code>${esc(c)}</code>`).join(" · ") || "nenhuma";
-        extra = `<div class="pool">Campanhas: ${camps}</div>
-          <form class="camp-form" data-seller="${x.id}">
-            <select name="productId">${prodOpts}</select><input name="campaignId" placeholder="ID da campanha criada pelo varejista" />
-            <button class="small">Registrar campanha</button>
+        const cs = Object.entries(x.campaigns || {}).map(([pid, c]) => `${esc(pname(pid))}: <code>${esc(c)}</code>`).join(" · ") || "nenhuma";
+        extra = `<div class="pool">Campanhas: ${cs}</div>
+          <form class="camp-form seller-form" data-seller="${esc(x.id)}">
+            <label>Produto <select name="productId">${prodOpts}</select></label><label>ID da campanha <input name="campaignId" placeholder="criado pela loja" /></label>
+            <div class="row"><button class="small">Registrar campanha</button></div>
           </form>`;
       }
-      return `<div class="agreement">
-        <div class="head-row"><div><b>${esc(x.name)}</b> <span class="pill ${x.kind === "varejista" ? "hold" : "gold"}">${x.kind === "varejista" ? "Grande varejista" : "Loja da marca"}</span>
-          <div class="help">CNPJ ${esc(x.cnpj)} · ${esc(x.integrationLabel)} · ${x.orders} pedido(s) confirmado(s)</div>
+      const mine = !!x.organizationId;
+      return `<div class="agreement" data-seller-id="${esc(x.id)}">
+        <div class="head-row"><div><b>${esc(x.name)}</b> <span class="pill ${x.kind === "varejista" ? "hold" : "gold"}">${esc(SELLER_KIND[x.kind] || x.kind)}</span>
+          <div class="help">${x.storeUrl ? `<a href="${esc(x.storeUrl)}" target="_blank" rel="noopener">${esc(x.storeUrl)}</a> · ` : ""}${x.cnpj ? "CNPJ " + esc(x.cnpj) + " · " : ""}${esc(x.integrationLabel || x.integration)} · ${x.orders || 0} pedido(s) confirmado(s)</div>
           <div class="help">${esc(a.notes || "")} Acordo válido até ${a.until ? new Date(a.until).toLocaleDateString("pt-BR") : "—"}.</div></div>
-          ${a.valid ? '<span class="pill free">Acordo vigente</span>' : '<span class="pill rev">Acordo vencido</span>'}</div>
-        ${extra}</div>`;
-    }).join("");
+          ${!x.active ? '<span class="pill rev">Desativada</span>' : a.valid ? '<span class="pill free">Acordo vigente</span>' : '<span class="pill rev">Acordo vencido</span>'}</div>
+        ${extra}
+        ${mine ? connBlock(x) : ""}
+        ${mine ? `<div class="seller-actions"><button class="ghost small" data-edit>Editar</button><button class="ghost small" data-toggle>${x.active ? "Desativar" : "Reativar"}</button><button class="ghost small" data-secret>Integração automática (chave)</button></div>` : ""}
+      </div>`;
+    }).join("") || `<p class="help">${tr("Nenhuma loja cadastrada ainda.")}</p>`;
     $("sellersList").querySelectorAll(".codes-form").forEach((f) => (f.onsubmit = async (e) => {
       e.preventDefault();
-      const body = Object.fromEntries(new FormData(f));
-      const r = await api(`/api/sellers/${f.dataset.seller}/codes`, { method: "POST", body });
-      if (!r.ok) return toast(r.data.error, true);
+      const r = await api(`/api/sellers/${encodeURIComponent(f.dataset.seller)}/codes`, { method: "POST", body: Object.fromEntries(new FormData(f)) });
+      if (!r.ok) return toast(errText(r), true);
       toast(`${r.data.added} cupom(ns) carregado(s)` + (r.data.duplicated ? `, ${r.data.duplicated} repetido(s) ignorado(s)` : "") + (r.data.invalid.length ? `, ${r.data.invalid.length} inválido(s)` : "") + ".");
       loadOffers();
     }));
     $("sellersList").querySelectorAll(".camp-form").forEach((f) => (f.onsubmit = async (e) => {
       e.preventDefault();
       const b = Object.fromEntries(new FormData(f));
-      const r = await api(`/api/sellers/${f.dataset.seller}/campaigns/${b.productId}`, { method: "PUT", body: { campaignId: b.campaignId } });
-      if (!r.ok) return toast(r.data.error, true);
-      toast("Campanha registrada.");
+      const r = await api(`/api/sellers/${encodeURIComponent(f.dataset.seller)}/campaigns/${encodeURIComponent(b.productId)}`, { method: "PUT", body: { campaignId: b.campaignId } });
+      if (!r.ok) return toast(errText(r), true);
+      toast("Campanha registrada."); loadOffers();
+    }));
+    $("sellersList").querySelectorAll("[data-test]").forEach((b) => (b.onclick = async () => {
+      b.disabled = true; const r = await api(`/api/me/sellers/${encodeURIComponent(b.dataset.test)}/test`, { method: "POST", body: {} }); b.disabled = false;
+      r.ok ? toast("Conexão com a loja funcionando.") : toast(errText(r), true);
+    }));
+    $("sellersList").querySelectorAll("[data-sync]").forEach((b) => (b.onclick = async () => {
+      b.disabled = true; b.textContent = (window.t || String)("Lendo pedidos…");
+      const r = await api(`/api/me/sellers/${encodeURIComponent(b.dataset.sync)}/sync`, { method: "POST", body: {} });
+      r.ok ? toast(`${r.data.lidos} pedido(s) lido(s), ${r.data.vendas} venda(s) nova(s), ${r.data.estornos} estorno(s).`) : toast(errText(r), true);
       loadOffers();
     }));
-    const previewBtn=$("commercePreviewBtn");
-    if(previewBtn) previewBtn.onclick=async()=>{
-      const body={productId:$("commercePreviewProduct").value,campaignId:$("commercePreviewCampaign").value||null,territory:$("commercePreviewTerritory").value||'GLOBAL'};
-      const r=await api('/api/commerce/resolve-preview',{method:'POST',body});
-      $("commercePreviewResult").textContent=r.ok?`Política: ${r.data.resolution.strategy} · ${r.data.offers.length} oferta(s) elegível(is)`:(r.data.error||(r.data.errors||[]).join(' '));
-      $("commercePreviewOffers").innerHTML=r.ok?r.data.offers.map((o,i)=>`<div class="agreement"><b>${i+1}. ${esc((o.provider||{}).name||o.providerId)}</b> · ${o.price==null?'preço sob consulta':brl(o.price)} · ${esc(o.cta||'BUY')} · ${esc(o.territory||'GLOBAL')}</div>`).join(''):'';
-    };
-    await loadFinanceOps();
+    $("sellersList").querySelectorAll("[data-import]").forEach((inp) => (inp.onchange = async () => {
+      const f = inp.files[0]; if (!f) return;
+      const r = await api(`/api/me/sellers/${encodeURIComponent(inp.dataset.import)}/import-report`, { method: "POST", body: { csv: await f.text() } });
+      r.ok ? toast(`${r.data.linhas} linha(s): ${r.data.vendas} venda(s) atribuída(s) a cenas, ${r.data.semReferencia} sem referência do SceneShop, ${r.data.duplicadas} repetida(s).`) : toast(errText(r), true);
+      inp.value = ""; loadOffers();
+    }));
+    $("sellersList").querySelectorAll("[data-seller-id]").forEach((el) => {
+      const x = offersSt.sellers.find((s) => s.id === el.dataset.sellerId);
+      const ed = el.querySelector("[data-edit]"), tg = el.querySelector("[data-toggle]"), sc = el.querySelector("[data-secret]");
+      if (ed) ed.onclick = () => openSellerForm(x);
+      if (tg) tg.onclick = async () => { const r = await api(`/api/me/sellers/${encodeURIComponent(x.id)}`, { method: "PUT", body: { active: !x.active } }); if (!r.ok) return toast(errText(r), true); loadOffers(); };
+      if (sc) sc.onclick = async () => {
+        if (!confirm(tr("Gerar uma nova chave de integração para esta loja? A chave anterior deixa de funcionar."))) return;
+        const r = await api(`/api/me/sellers/${encodeURIComponent(x.id)}/secret`, { method: "POST", body: {} });
+        if (!r.ok) return toast(errText(r), true);
+        showSecret(x, r.data.secret);
+      };
+    });
   }
+
+  const VIA = { loja_cupom: "cupom lido na loja", loja_link: "link lido na loja", rede_afiliados: "transação da Awin", manual: "registrada por você", relatorio_afiliado: "relatório de afiliados", cupom: "cupom do lote", codigo: "código assinado", referencia: "aviso da loja" };
+  function connBlock(x) {
+    const c = x.connection;
+    if (!c || !c.platform) return `<div class="help">Sem conexão: as vendas entram pelo aviso da loja ou pelo registro na seção 3.</div>`;
+    if (c.platform === "afiliado") return `<div class="conn"><b>${esc(c.platformLabel)}</b> · importe o relatório de vendas do programa (CSV).
+      <label class="ghost small file-btn">Importar relatório CSV <input type="file" accept=".csv,text/csv,text/plain" data-import="${esc(x.id)}" hidden /></label></div>`;
+    const cr = c.credentials || {}, r = c.lastResult;
+    return `<div class="conn"><b>Conectada à ${esc(c.platformLabel)}</b> (${esc(c.account || "—")}${c.advertiserId ? ` · anunciante ${esc(c.advertiserId)}` : ""})${c.platform === "awin" ? " · venda reconhecida pelo clickref do link" : ` · cupom ${esc(String(c.couponDiscountPct || 0).replace(".", ","))}%`}
+      <div class="help">${cr.ready ? '<span class="pill free">Chaves configuradas no servidor</span>' : `<span class="pill rev">Faltam no servidor</span> ${esc((cr.missing || []).join(", "))}`}
+      ${c.lastSync ? ` · última leitura ${new Date(c.lastSync).toLocaleString("pt-BR")}${r ? ` · ${r.lidos} pedidos lidos, ${r.vendas} vendas novas, ${r.estornos} estornos` : ""}` : " · ainda não leu pedidos"}
+      ${c.lastError ? ` · <span class="bad">erro: ${esc(c.lastError)}</span>` : ""}</div>
+      <div class="seller-actions"><button class="ghost small" data-test="${esc(x.id)}" ${cr.ready ? "" : "disabled"}>Testar conexão</button><button class="ghost small" data-sync="${esc(x.id)}" ${cr.ready ? "" : "disabled"}>Ler pedidos agora</button></div></div>`;
+  }
+
+  function showSecret(seller, secret) {
+    const origin = location.origin;
+    $("sellerSecret").innerHTML = `<div class="secret-box"><b>${esc(seller.name)}</b> · ${tr("chave de integração (aparece só agora; envie à equipe técnica da loja)")}:<br><code>${esc(secret)}</code>
+      <div class="help">${tr("Aviso de pedido")}: <code>POST ${esc(origin)}/api/sellers/${esc(seller.id)}/orders</code> · ${tr("Relatório em lote")}: <code>POST ${esc(origin)}/api/sellers/${esc(seller.id)}/report</code> · ${tr("assinatura HMAC-SHA256 nos cabeçalhos X-SceneShop-Timestamp e X-SceneShop-Signature")}</div></div>`;
+  }
+
+  function openSellerForm(x) {
+    const f = $("sellerForm");
+    f.hidden = false; f.reset(); $("sellerFormMsg").textContent = "";
+    f.elements.id.value = x ? x.id : "";
+    if (x) {
+      f.elements.name.value = x.name || ""; f.elements.kind.value = x.kind || "marca"; f.elements.storeUrl.value = x.storeUrl || "";
+      f.elements.cnpj.value = x.cnpj || ""; f.elements.integration.value = x.integration || "link_produto";
+      f.elements.until.value = dateInput(x.agreement && x.agreement.until); f.elements.notes.value = (x.agreement && x.agreement.notes) || "";
+      const c = x.connection || {}; f.elements.platform.value = c.platform || ""; f.elements.account.value = c.account || ""; f.elements.couponDiscountPct.value = String(c.couponDiscountPct || 0).replace(".", ","); f.elements.advertiserId.value = c.advertiserId || "";
+    } else f.elements.until.value = dateInput(Date.now() + 365 * 864e5);
+    f.elements.name.focus();
+  }
+  $("sellerNewBtn").onclick = () => openSellerForm(null);
+  $("sellerCancel").onclick = () => ($("sellerForm").hidden = true);
+  $("sellerForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(e.target)); const id = body.id; delete body.id;
+    const r = id ? await api(`/api/me/sellers/${encodeURIComponent(id)}`, { method: "PUT", body }) : await api("/api/me/sellers", { method: "POST", body });
+    if (!r.ok) { $("sellerFormMsg").className = "msg bad"; $("sellerFormMsg").textContent = errText(r); return; }
+    e.target.hidden = true;
+    toast(id ? "Loja atualizada." : "Loja cadastrada. Agora escolha os produtos que ela vende.");
+    if (!id && r.data.secret) showSecret(r.data.seller, r.data.secret);
+    loadOffers();
+  };
+
+  async function loadReferrals() {
+    const id = $("refSeller").value;
+    if (!id) { $("refBody").innerHTML = `<tr><td colspan="6" class="empty">${tr("Cadastre uma loja para acompanhar os cliques.")}</td></tr>`; return; }
+    const r = await api(`/api/me/sellers/${encodeURIComponent(id)}/referrals`);
+    const rows = r.ok ? r.data.referrals : [];
+    $("refBody").innerHTML = rows.map((x) => `<tr>
+      <td>${new Date(x.at).toLocaleString("pt-BR")}</td><td>${esc(x.product)}</td>
+      <td class="mono">${esc(x.ref)}${x.coupon ? `<div class="help">cupom ${esc(x.coupon)}</div>` : ""}</td>
+      <td class="num">${brl(x.price)}</td>
+      <td>${x.order ? `<span class="pill ${x.order.status === "pago" ? "free" : "rev"}">${x.order.status === "pago" ? "Venda" : "Devolvido"}</span> #${esc(x.order.orderId)} · ${brl(x.order.amount)}${x.order.via ? `<div class="help">${esc(VIA[x.order.via] || x.order.via)}</div>` : ""}` : x.expiresAt < Date.now() ? '<span class="pill">Sem compra (vencido)</span>' : '<span class="pill hold">Aguardando a loja</span>'}</td>
+      <td>${x.order ? (x.order.status === "pago" ? `<button class="ghost small" data-return="${esc(x.order.orderId)}">Registrar devolução</button>` : "") : `<button class="small" data-use-ref="${esc(x.ref)}" data-price="${esc(money2(x.price))}">Registrar venda</button>`}</td>
+    </tr>`).join("") || `<tr><td colspan="6" class="empty">${r.ok ? tr("Nenhum clique enviado para esta loja ainda.") : esc(errText(r))}</td></tr>`;
+    $("refBody").querySelectorAll("[data-use-ref]").forEach((b) => (b.onclick = () => {
+      const f = $("manualOrder"); f.elements.ref.value = b.dataset.useRef; f.elements.unitPrice.value = b.dataset.price; f.elements.orderId.focus();
+      f.scrollIntoView({ behavior: "smooth", block: "center" });
+    }));
+    $("refBody").querySelectorAll("[data-return]").forEach((b) => (b.onclick = async () => {
+      if (!confirm(tr("Registrar a devolução deste pedido? A comissão é estornada."))) return;
+      const r2 = await api(`/api/me/sellers/${encodeURIComponent(id)}/orders`, { method: "POST", body: { orderId: b.dataset.return, status: "devolvido" } });
+      r2.ok ? toast("Devolução registrada.") : toast(errText(r2), true); loadReferrals();
+    }));
+  }
+  $("refSeller").onchange = loadReferrals;
+  $("manualOrder").onsubmit = async (e) => {
+    e.preventDefault();
+    const id = $("refSeller").value; if (!id) return toast("Escolha a loja.", true);
+    const b = Object.fromEntries(new FormData(e.target));
+    b.unitPrice = parseMoney(b.unitPrice);
+    if (b.orderedAt) b.orderedAt = `${b.orderedAt}T12:00:00`; else delete b.orderedAt;
+    const r = await api(`/api/me/sellers/${encodeURIComponent(id)}/orders`, { method: "POST", body: b });
+    $("manualOrderMsg").className = "msg " + (r.ok ? "ok" : "bad");
+    $("manualOrderMsg").textContent = r.ok ? (r.data.duplicate ? tr("Esse pedido já estava registrado.") : `${tr("Venda registrada. Comissão")}: ${brl(r.data.commission || 0)}`) : errText(r);
+    if (r.ok) { e.target.reset(); loadReferrals(); }
+  };
 
   async function loadFinanceOps(){
     if(!$("financeBalances")) return;
@@ -753,8 +923,8 @@
     for(const x of (recons.ok?recons.data:[]).slice(0,3)) rows.push(`<div class="agreement"><b>Conciliação</b> ${esc(x.status||'')} · exceções ${x.exception_count??x.exceptionCount??0}</div>`);
     $("financeOps").innerHTML=rows.join('')||'<p class="help">Nenhuma operação financeira registrada.</p>';
     $("financeRefresh").onclick=loadFinanceOps;
-    $("settlementBtn").onclick=async()=>{const connectionId=$("financeConnection").value,gross=Number($("settleGross").value),fees=Number($("settleFees").value||0);if(!connectionId)return toast('Crie/configure uma conexão MANAGED primeiro.',true);const r=await api('/api/payments/settlements',{method:'POST',headers:{'Idempotency-Key':`studio-settle-${Date.now()}`},body:{connectionId,grossAmount:gross,fees,netAmount:gross-fees,currency:'BRL'}});$("financeMsg").textContent=r.ok?'Settlement registrado.':(r.data.message||r.data.error||(r.data.errors||[]).join(' '));if(r.ok)loadFinanceOps();};
-    $("payoutBtn").onclick=async()=>{const amount=Number($("payoutAmount").value);const r=await api('/api/payments/payouts',{method:'POST',headers:{'Idempotency-Key':`studio-payout-${Date.now()}`},body:{amount,currency:'BRL'}});$("financeMsg").textContent=r.ok?'Payout solicitado.':(r.data.message||r.data.error||(r.data.errors||[]).join(' '));if(r.ok)loadFinanceOps();};
+    $("settlementBtn").onclick=async()=>{const connectionId=$("financeConnection").value,gross=parseMoney($("settleGross").value),fees=parseMoney($("settleFees").value||"0");if(!connectionId)return toast('Crie/configure uma conexão MANAGED primeiro.',true);const r=await api('/api/payments/settlements',{method:'POST',headers:{'Idempotency-Key':`studio-settle-${Date.now()}`},body:{connectionId,grossAmount:gross,fees,netAmount:gross-fees,currency:'BRL'}});$("financeMsg").textContent=r.ok?'Settlement registrado.':(r.data.message||r.data.error||(r.data.errors||[]).join(' '));if(r.ok)loadFinanceOps();};
+    $("payoutBtn").onclick=async()=>{const amount=parseMoney($("payoutAmount").value);const r=await api('/api/payments/payouts',{method:'POST',headers:{'Idempotency-Key':`studio-payout-${Date.now()}`},body:{amount,currency:'BRL'}});$("financeMsg").textContent=r.ok?'Payout solicitado.':(r.data.message||r.data.error||(r.data.errors||[]).join(' '));if(r.ok)loadFinanceOps();};
   }
 
   // ================================================================ moderação
@@ -768,6 +938,7 @@
     oferta_oficial_definida: "Oferta oficial definida", oferta_oficial_removida: "Oferta oficial removida",
     pedido_confirmado: "Pedido confirmado pela loja", relatorio_conciliado: "Relatório de vendas conciliado", cupons_recebidos: "Lote de cupons carregado",
     cupons_esgotados: "Cupons esgotados", cupom_reutilizado: "Cupom reutilizado", campanha_registrada: "Campanha registrada", pedido_devolvido: "Pedido devolvido", preco_divergente: "Preço acima do garantido", aviso_pedido_recusado: "Aviso de pedido recusado",
+    loja_cadastrada: "Loja cadastrada", loja_atualizada: "Loja atualizada", loja_chave_trocada: "Chave da loja trocada", venda_registrada_manual: "Venda registrada pela produtora", administrador_definido: "Administrador definido", video_com_selo_gerado: "Vídeo com selo gerado", venda_sincronizada: "Venda sincronizada da loja", cupom_loja_falhou: "Cupom da loja falhou", relatorio_afiliado_importado: "Relatório de afiliados importado", organizacao_criada: "Organização criada",
   };
 
   async function loadModeration() {
@@ -899,8 +1070,9 @@
         await seekTo(v, t);
         ctx.drawImage(v, 0, 0, W, H);
         const d = ctx.getImageData(0, 0, W, H).data;
-        const g = new Float32Array(W * H);
-        for (let i = 0; i < g.length; i++) g[i] = 0.299 * d[i * 4] + 0.587 * d[i * 4 + 1] + 0.114 * d[i * 4 + 2];
+        // compara cor (R, G e B), não só o brilho: cortes entre cenas de mesma luminosidade também contam
+        const g = new Float32Array(W * H * 3);
+        for (let i = 0; i < W * H; i++) { g[i * 3] = d[i * 4]; g[i * 3 + 1] = d[i * 4 + 1]; g[i * 3 + 2] = d[i * 4 + 2]; }
         if (prev) { let s = 0; for (let i = 0; i < g.length; i++) s += Math.abs(g[i] - prev[i]); diffs.push({ t, v: s / g.length / 255 }); }
         prev = g;
         btn.textContent = `Analisando… ${Math.round((t / dur) * 100)}%`;
@@ -992,6 +1164,7 @@
     $("workForm").reset(); $("workProbe").hidden = true; probed = null;
     toast(`“${r.data.title}” cadastrada. Agora é inventariar os produtos.`);
     await refreshWorks();
+    await selectWork(r.data.id); // o editor já abre na obra recém-enviada
     loadWorks();
   };
 
@@ -1002,12 +1175,31 @@
         <div class="wi"><b>${esc(w.title)}</b><span class="help">${fmtDur(w.duration)} · ${w.tracks.length} trilha(s)${w.tracks[0] ? ` · ${w.tracks[0].scenes} cenas · ${w.tracks[0].products} produtos` : ""}</span>
           <div class="wa"><button class="small primary" data-inv="${w.id}">Inventariar</button>
             <a class="ghost small" href="/assistir/${encodeURIComponent(w.id)}" target="_blank">Assistir</a>
-            <button class="small" data-pil="${w.id}">Painel</button>${acrOn() ? `
+            <button class="small" data-pil="${w.id}">Painel</button>
+            <button class="small" data-brand="${esc(w.id)}" title="Gera uma cópia do vídeo com o selo SceneShop compatible nos primeiros segundos">Vídeo com selo SceneShop</button>${acrOn() ? `
             <button class="small" data-acr-reg="${w.id}">Reconhecimento por áudio</button>` : ""}</div>${acrOn() ? `
-          <span class="help acr-state" data-acr="${w.id}">Reconhecimento por áudio: consultando…</span>` : ""}</div></div>`).join("")
+          <span class="help acr-state" data-acr="${w.id}">Reconhecimento por áudio: consultando…</span>` : ""}
+          <span class="help aid-state" data-aid="${esc(w.id)}">Reconhecimento pelo som (SceneShop ID): consultando…</span>
+          <div class="brand-box" data-brand-box="${esc(w.id)}" hidden>
+            <select data-brand-style><option value="corner">Selo no canto superior · 4 s</option><option value="intro">Abertura centralizada · 4 s</option></select>
+            <button class="small primary" data-brand-go>Gerar vídeo</button>
+            <span class="help" data-brand-state></span>
+            <a class="ghost small" data-brand-dl hidden download>Baixar MP4 com selo</a>
+          </div></div></div>`).join("")
       : `<p class="help">Nenhuma obra ainda. Envie o primeiro vídeo acima.</p>`;
     $("myWorks").querySelectorAll("[data-inv]").forEach((b) => (b.onclick = async () => { await selectWork(b.dataset.inv); showTab("editor"); }));
     $("myWorks").querySelectorAll("[data-pil]").forEach((b) => (b.onclick = () => { st.pilotWork = b.dataset.pil; showTab("piloto"); }));
+    $("myWorks").querySelectorAll("[data-aid]").forEach((el) => aidStatus(el.dataset.aid));
+    $("myWorks").querySelectorAll("[data-brand]").forEach((b) => (b.onclick = () => {
+      const box = $("myWorks").querySelector(`[data-brand-box="${CSS.escape(b.dataset.brand)}"]`);
+      box.hidden = !box.hidden;
+      if (!box.hidden) brandStatus(b.dataset.brand);
+      box.querySelector("[data-brand-go]").onclick = async () => {
+        const r = await api(`/api/works/${encodeURIComponent(b.dataset.brand)}/branded`, { method: "POST", body: { style: box.querySelector("[data-brand-style]").value, seconds: 4 } });
+        if (!r.ok) return toast(r.data.error || "Falha ao gerar.", true);
+        brandStatus(b.dataset.brand);
+      };
+    }));
     if (acrOn()) {
       $("myWorks").querySelectorAll("[data-acr]").forEach((el) => acrStatus(el.dataset.acr));
       $("myWorks").querySelectorAll("[data-acr-reg]").forEach((b) => (b.onclick = async () => {
@@ -1018,6 +1210,39 @@
         acrStatus(b.dataset.acrReg);
       }));
     }
+  }
+
+  // ================================================================ reconhecimento próprio pelo som (SceneShop ID)
+  const aidTimers = {};
+  async function aidStatus(workId) {
+    const el = document.querySelector(`[data-aid="${CSS.escape(workId)}"]`);
+    if (!el) return;
+    const r = await api(`/api/audio-id/works/${encodeURIComponent(workId)}`);
+    const tr = window.t || String, d = r.ok ? r.data : { state: "error", error: r.data.error };
+    const label = { ready: tr("pronto: o celular reconhece esta obra pelo som"), indexing: tr("indexando o som da obra…"), not_indexed: tr("ainda não indexado"), error: tr("falhou") }[d.state] || d.state;
+    el.innerHTML = `${esc(tr("Reconhecimento pelo som (SceneShop ID)"))}: ${esc(label)}${d.state === "ready" && d.duration ? ` · ${esc(fmtDur(d.duration))}` : ""}${d.error ? ` (${esc(d.error)})` : ""}${d.state !== "indexing" ? ` <button class="ghost small" data-aid-redo="${esc(workId)}">${esc(tr(d.state === "ready" ? "Indexar de novo" : "Indexar agora"))}</button>` : ""}`;
+    const btn = el.querySelector("[data-aid-redo]");
+    if (btn) btn.onclick = async () => { const x = await api(`/api/audio-id/works/${encodeURIComponent(workId)}/index`, { method: "POST", body: {} }); if (!x.ok) return toast(x.data.error || "Falha.", true); aidStatus(workId); };
+    clearTimeout(aidTimers[workId]);
+    if (d.state === "indexing") aidTimers[workId] = setTimeout(() => aidStatus(workId), 2000);
+  }
+
+  // ================================================================ vídeo com o selo "SceneShop compatible"
+  const brandTimers = {};
+  async function brandStatus(workId) {
+    const box = document.querySelector(`[data-brand-box="${CSS.escape(workId)}"]`);
+    if (!box) return;
+    const r = await api(`/api/works/${encodeURIComponent(workId)}/branded`);
+    const d = r.ok ? r.data : { state: "error", error: r.data.error };
+    const tr = window.t || String;
+    const label = box.querySelector("[data-brand-state]"), dl = box.querySelector("[data-brand-dl]");
+    label.textContent = d.state === "running" ? `${tr("Gerando…")} ${Math.round((d.progress || 0) * 100)}%`
+      : d.state === "ready" ? (d.audioCopied === false ? tr("Pronto. O áudio foi convertido para AAC (MP4); o reconhecimento pelo som continua funcionando.") : tr("Pronto. O áudio é o mesmo do original: o celular continua reconhecendo a obra."))
+      : d.state === "error" ? `${tr("Falhou")}: ${d.error || ""}` : d.available === false ? tr("O servidor precisa do ffmpeg para gerar o vídeo.") : "";
+    dl.hidden = d.state !== "ready"; if (d.url) dl.href = d.url;
+    box.querySelector("[data-brand-go]").disabled = d.state === "running";
+    clearTimeout(brandTimers[workId]);
+    if (d.state === "running") brandTimers[workId] = setTimeout(() => brandStatus(workId), 1500);
   }
 
   // ================================================================ reconhecimento por áudio (ACRCloud)
@@ -1066,9 +1291,13 @@
     renderDrafts();
   };
 
-  const money2 = (v) => Number(v).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   function productForm(p, key) {
-    const o = p.offer && p.offer.sellerId === "loja-piloto" ? p.offer : null;
+    const o = p.offer || null;
+    const sellers = (st.sellers || []).filter((x) => x.active && x.agreement && x.agreement.valid);
+    const seller = o && (st.sellers || []).find((x) => x.id === o.sellerId);
+    // produto novo: já vem com a loja escolhida quando só existe uma (ou o Marketplace Piloto, na demonstração)
+    const preset = !p.id && !o ? ((sellers.length === 1 && sellers[0].id) || (sellers.find((x) => x.id === "loja-piloto") || {}).id || "") : "";
+    const state = !p.id ? "" : o && seller ? `À venda em <b>${esc(seller.name)}</b> por ${brl(o.price)}${o.url || seller.storeUrl ? ` · <a href="${esc(o.url || seller.storeUrl)}" target="_blank" rel="noopener">abrir a página na loja</a>` : ""}` : "Ainda não está à venda.";
     return `<form class="pedit" data-key="${key}">
       <div class="gal">
         <img class="main" src="${esc(p.images[0] || "/media/products/placeholder.svg")}" alt=""/>
@@ -1080,13 +1309,16 @@
         <label>Marca <input name="brand" value="${esc(p.brand && p.brand !== "Sem marca" ? p.brand : "")}" /></label>
         <label>Categoria <input name="category" value="${esc(p.category && p.category !== "Outros" ? p.category : "")}" placeholder="Moda, Casa, Beleza…" /></label>
         <label>SKU / código <input name="sku" value="${esc(p.sku || "")}" /></label>
-        <label>Preço de tabela (R$) <input name="referencePrice" inputmode="decimal" value="${p.referencePrice != null ? money2(p.referencePrice) : ""}" required /></label>
+        <label>Preço de tabela (R$) <input name="referencePrice" inputmode="decimal" placeholder="1.250,00" value="${p.referencePrice != null ? money2(p.referencePrice) : ""}" required /></label>
         <label class="full">Descrição <textarea name="description" maxlength="1200">${esc(p.description || "")}</textarea></label>
-        ${st.hasPilotSeller ? `<div class="mkt">
-          <label class="chk"><input type="checkbox" name="sell" ${o || !p.id ? "checked" : ""}/> Vender no Marketplace Piloto</label>
-          <label>Preço garantido em cena (R$) <input name="offerPrice" inputmode="decimal" value="${o ? money2(o.price) : ""}" placeholder="igual ao de tabela" /></label>
-          <label>Comissão (%) <input name="commission" type="number" min="1" max="50" step="0.5" value="${o ? +(o.commission * 100).toFixed(1) : 10}" /></label>
-        </div>` : ""}
+        <div class="mkt">
+          ${state ? `<div class="offer-state">${state}</div>` : ""}
+          <label>Vender na loja <select name="sellerId"><option value="">— não vender agora —</option>${sellers.map((x) => `<option value="${esc(x.id)}" ${(o && o.sellerId === x.id) || preset === x.id ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select></label>
+          <label class="grow">Link do produto na loja <input name="offerUrl" type="url" placeholder="https://loja.com.br/produto" value="${esc((o && o.url) || "")}" /></label>
+          <label>Preço em cena (R$) <input name="offerPrice" inputmode="decimal" value="${o ? money2(o.price) : ""}" placeholder="igual ao de tabela" /></label>
+          <label>Comissão (%) <input name="commission" type="number" min="0" max="100" step="0.5" value="${o ? +(o.commission * 100).toFixed(1) : 10}" /></label>
+          ${sellers.length ? "" : `<p class="help full">Para vender, cadastre a loja oficial na aba <b>Ofertas oficiais</b>.</p>`}
+        </div>
         <div class="foot"><span class="msg" data-msg></span>${p.id ? "" : `<button type="button" class="ghost small" data-discard>Descartar</button>`}<button class="primary">${p.id ? "Salvar alterações" : "Salvar produto"}</button></div>
       </div>
     </form>`;
@@ -1105,22 +1337,25 @@
     form.onsubmit = async (e) => {
       e.preventDefault();
       const fd = Object.fromEntries(new FormData(form));
-      const body = { name: fd.name, brand: fd.brand, category: fd.category, sku: fd.sku, referencePrice: fd.referencePrice, description: fd.description, images: p.images };
-      const r = p.id ? await api(`/api/products/${p.id}`, { method: "PUT", body }) : await api("/api/products", { method: "POST", body });
       const msg = form.querySelector("[data-msg]");
+      const ref = parseMoney(fd.referencePrice);
+      if (!Number.isFinite(ref) || ref <= 0) { msg.className = "msg bad"; msg.textContent = (window.t || String)("Informe o preço no padrão 1.250,00."); return; }
+      const body = { name: fd.name, brand: fd.brand, category: fd.category, sku: fd.sku, referencePrice: ref, description: fd.description, images: p.images };
+      const r = p.id ? await api(`/api/products/${p.id}`, { method: "PUT", body }) : await api("/api/products", { method: "POST", body });
       if (!r.ok) { msg.className = "msg bad"; msg.textContent = (r.data.errors || [r.data.error]).join(" "); return; }
       const saved = r.data;
-      // vitrine do piloto: oferta com preço garantido (ou remove)
-      const wantsSell = !!fd.sell;
-      const hadPilot = p.offer && p.offer.sellerId === "loja-piloto";
-      if (wantsSell) {
-        const price = fd.offerPrice ? Number(String(fd.offerPrice).replace(/\./g, "").replace(",", ".")) : saved.referencePrice;
-        const o = await api(`/api/official-offers/${saved.id}`, { method: "PUT", body: { sellerId: "loja-piloto", price, commission: Number(fd.commission) / 100, validDays: 180 } });
+      // espelho da aba Ofertas oficiais: loja, link, preço em cena e comissão
+      const had = !!(p.offer && p.offer.sellerId);
+      if (fd.sellerId) {
+        const price = fd.offerPrice ? parseMoney(fd.offerPrice) : saved.referencePrice;
+        const days = p.offer && p.offer.validUntil ? Math.max(1, Math.round((p.offer.validUntil - Date.now()) / 864e5)) : 180;
+        const o = await api(`/api/official-offers/${encodeURIComponent(saved.id)}`, { method: "PUT", body: { sellerId: fd.sellerId, url: (fd.offerUrl || "").trim(), price, commission: Number(fd.commission) / 100, validDays: days } });
         if (!o.ok) { msg.className = "msg bad"; msg.textContent = (o.data.errors || [o.data.error]).join(" "); return; }
-      } else if (hadPilot) {
-        await api(`/api/official-offers/${saved.id}`, { method: "PUT", body: {} });
+      } else if (had) {
+        await api(`/api/official-offers/${encodeURIComponent(saved.id)}`, { method: "PUT", body: {} });
       }
-      toast(`“${saved.name}” salvo${wantsSell ? " e à venda no Marketplace Piloto" : ""}.`);
+      const sname = fd.sellerId ? ((st.sellers || []).find((x) => x.id === fd.sellerId) || {}).name : "";
+      toast(`“${saved.name}” salvo${sname ? ` e à venda em ${sname}` : ""}.`);
       onSaved();
     };
   }
@@ -1133,7 +1368,13 @@
     });
   }
 
+  async function loadSellersCache() {
+    const sl = await api("/api/me/sellers");
+    st.sellers = sl.ok ? sl.data || [] : [];
+  }
   async function loadMyProducts() {
+    await loadSellersCache();
+    $("pilotMarketLink").hidden = !(st.config && st.config.demo);
     const list = (await api("/api/me/products")).data || [];
     $("myProducts").innerHTML = list.length ? list.map((p) => productForm({ ...p, images: p.images && p.images.length ? p.images : [p.image] }, "p" + p.id)).join("")
       : `<p class="help">Nenhum produto cadastrado ainda.</p>`;
@@ -1148,6 +1389,20 @@
     const mine = st.works.filter((w) => w.pilot || w.id === "demo-01");
     const cur = st.pilotWork || (mine.find((w) => w.pilot) || mine[0] || {}).id;
     $("pilotWork").innerHTML = mine.map((w) => `<option value="${w.id}" ${w.id === cur ? "selected" : ""}>${esc(w.title)}</option>`).join("");
+    $("pilotMarket").hidden = $("pilotOrdersCard").hidden = !(st.config && st.config.demo);
+    // visão geral: uma linha por obra
+    const all = await Promise.all(mine.map(async (w) => ({ w, r: await api(`/api/me/pilot?work=${encodeURIComponent(w.id)}`) })));
+    $("perfAll").innerHTML = all.map(({ w, r }) => { const k = (r.ok && r.data.kpis) || {}; const clicks = r.ok ? (r.data.byProduct || []).reduce((n, p) => n + (p.clicks || 0), 0) : 0;
+      return `<tr data-perf="${esc(w.id)}" style="cursor:pointer"><td><b>${esc(w.title)}</b></td><td class="num">${k.viewers || 0}</td><td class="num">${clicks}</td><td class="num">${k.orders || 0}</td><td class="num">${brl(k.revenue || 0)}</td><td class="num">${brl(k.commission || 0)}</td></tr>`; }).join("")
+      || `<tr><td colspan="6" class="empty">${(window.t || String)("Nenhuma obra ainda.")}</td></tr>`;
+    const ps = await api("/api/me/stores-performance");
+    $("perfStores").innerHTML = (ps.ok ? ps.data : []).map((x) => `<tr><td><b>${esc(x.name)}</b>${x.platform ? `<div class="help">${esc(x.platform)}</div>` : ""}</td><td class="num">${x.clicks}</td><td class="num">${x.coupons}</td>
+      <td class="num">${x.orders}${x.affiliate.orders ? `<div class="help">+${x.affiliate.orders} afiliados</div>` : ""}</td><td class="num">${String(x.conversion).replace(".", ",")}%</td>
+      <td class="num">${brl(x.revenue)}${x.affiliate.revenue ? `<div class="help">+${brl(x.affiliate.revenue)}</div>` : ""}</td><td class="num">${brl(x.commission)}${x.affiliate.commission ? `<div class="help">+${brl(x.affiliate.commission)}</div>` : ""}</td>
+      <td>${Object.entries(x.byVia).map(([k, n]) => `${n} ${esc(VIA[k] || k)}`).join(" · ") || "—"}</td>
+      <td>${x.lastSync ? new Date(x.lastSync).toLocaleString("pt-BR") : "—"}${x.lastError ? `<div class="help bad">${esc(x.lastError)}</div>` : ""}</td></tr>`).join("")
+      || `<tr><td colspan="9" class="empty">${(window.t || String)("Cadastre as lojas na aba Ofertas oficiais.")}</td></tr>`;
+    $("perfAll").querySelectorAll("[data-perf]").forEach((tr) => (tr.onclick = () => { st.pilotWork = tr.dataset.perf; loadPilot(); }));
     if (!cur) return;
     st.pilotWork = cur;
     const w = st.works.find((x) => x.id === cur);
@@ -1199,6 +1454,9 @@
     const wanted=aiOps.workId||st.workId||works[0].id;
     select.innerHTML=works.map(w=>`<option value="${esc(w.id)}"${w.id===wanted?' selected':''}>${esc(w.title)}</option>`).join('');
     aiOps.workId=select.value||works[0].id;
+    // produtos da aba Produtos viram o inventário da IA automaticamente
+    const prods=await api('/api/me/products'); aiOps.products=prods.ok?prods.data||[]:[];
+    if(aiOps.products.length&&!aiOps.synced){const sy=await api('/api/ai/assets/sync-products',{method:'POST',body:{}});if(sy.ok)aiOps.synced=true;}
     const [r,policyR]=await Promise.all([api(`/api/ai/workspace?workId=${encodeURIComponent(aiOps.workId)}`),api(`/api/distribution/works/${encodeURIComponent(aiOps.workId)}/timeline-policy`)]);
     if(!r.ok){$("aiOpsReview").innerHTML=`<div class="empty-state bad">${esc(r.data.error||'Falha ao carregar o workspace de IA.')}</div>`;return;}
     aiOps.data={...r.data, timelinePolicy:policyR.ok?policyR.data:null}; renderAiOps();
@@ -1209,14 +1467,16 @@
     const d=aiOps.data||{},assets=d.assets||[],jobs=d.jobs||[],cands=d.candidates||[],flags=d.flags||[],placements=d.placements||[];
     const openFlags=flags.filter(f=>f.status==='OPEN').length,approved=cands.filter(c=>c.reviewStatus==='APPROVED').length;
     $("aiOpsKpis").innerHTML=[
-      ['Ativos comerciais',assets.length,'Inventário governado'],
+      ['Produtos no inventário',assets.length,'vindos da aba Produtos'],
       ['Identificações',cands.length,`${approved} aprovadas`],
       ['Flags abertas',openFlags,openFlags?'exigem operador':'sem pendências'],
       ['Placements',placements.length,'aprovados']
     ].map(([l,v,s])=>`<div class="aiops-kpi"><span>${esc(l)}</span><b>${esc(v)}</b><small>${esc(s)}</small></div>`).join('');
 
     const mode=$("aiOpsMode").value;
-    $("aiOpsAssets").innerHTML=assets.length?assets.map(a=>`<label class="asset-chip"><input type="checkbox" value="${esc(a.id)}" ${mode==='DISCOVERY'?'disabled':''}/><span><b>${esc(a.name)}</b><small>${esc([a.brand,a.model,a.category].filter(Boolean).join(' · '))}</small></span></label>`).join(''):'<div class="empty-state">Nenhum Commercial Asset cadastrado ainda.</div>';
+    const prodImg=(a)=>{const pr=(aiOps.products||[]).find(p=>p.id===a.productId);return pr?pr.image:((a.references||[])[0]||{}).uri||'';};
+    const checked=new Set([...$("aiOpsAssets").querySelectorAll('input:checked')].map(x=>x.value));
+    $("aiOpsAssets").innerHTML=assets.length?assets.map(a=>`<label class="asset-chip"><input type="checkbox" value="${esc(a.id)}" ${checked.has(a.id)?'checked':''} ${mode==='DISCOVERY'?'disabled':''}/>${prodImg(a)?`<img src="${esc(prodImg(a))}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover"/>`:''}<span><b>${esc(a.name)}</b><small>${esc([a.brand,a.model].filter(Boolean).join(' · ')||'produto cadastrado')}</small></span></label>`).join(''):'<div class="empty-state">Cadastre os produtos na aba Produtos: eles aparecem aqui para a IA procurar no vídeo.</div>';
 
     $("aiOpsJobs").innerHTML=jobs.length?jobs.slice(0,8).map(j=>`<div class="stack-row"><div><b>${esc(j.mode)}</b> · ${esc(j.scanDepth||'STANDARD')}<small>${new Date(j.createdAt).toLocaleString('pt-BR')} · ${esc(j.primaryProvider||'SceneShop')}</small></div><span class="status-pill ${String(j.status||'').toLowerCase()}">${esc(j.status)}</span></div>`).join(''):'<div class="empty-state">Nenhuma análise persistente desta obra.</div>';
 
@@ -1231,7 +1491,7 @@
           <p>${esc(c.candidateDescription||[c.proposedBrand,c.proposedModel,c.category].filter(Boolean).join(' · ')||'Sem descrição adicional.')}</p>
           <div class="evidence-line"><span>Primário <b>congelado</b></span><span>SHA ${esc(String(c.primaryFingerprint||'').slice(0,12))}…</span>${ver?`<span>Redundância <b>${esc(ver.state)}</b> · ${esc(ver.provider)}</span>`:'<span>Redundância ainda não registrada</span>'}${flag?`<span class="flag-label">⚑ ${esc(flag.reason)}</span>`:''}</div>
         </div>
-        <div class="review-actions"><select data-review-asset ${locked?'disabled':''}><option value="">Selecionar Commercial Asset…</option>${assetOptions}</select><textarea data-review-note placeholder="Nota do operador" ${locked?'disabled':''}></textarea><div class="row"><button class="primary small" data-review="APPROVE" ${locked?'disabled':''}>Aprovar</button><button class="ghost small danger" data-review="REJECT" ${locked?'disabled':''}>Rejeitar</button></div></div>
+        <div class="review-actions"><select data-review-asset ${locked?'disabled':''}><option value="">Qual produto é este?</option>${assetOptions}</select><textarea data-review-note placeholder="Nota do operador" ${locked?'disabled':''}></textarea><div class="row"><button class="primary small" data-review="APPROVE" ${locked?'disabled':''}>Aprovar</button><button class="ghost small danger" data-review="REJECT" ${locked?'disabled':''}>Rejeitar</button></div></div>
       </article>`;
     }).join(''):'<div class="empty-state">Nenhuma identificação para revisar nesta obra.</div>';
 
@@ -1250,7 +1510,7 @@
 
   async function reviewAiOps(card,decision){
     const candidateId=card.dataset.candidate, assetId=card.querySelector('[data-review-asset]').value, note=card.querySelector('[data-review-note]').value.trim();
-    if(decision==='APPROVE'&&!assetId)return toast('Selecione o Commercial Asset que será publicado.',true);
+    if(decision==='APPROVE'&&!assetId)return toast('Escolha qual dos seus produtos é este item.',true);
     const flag=aiOpsOpenFlag(candidateId);
     const url=flag?`/api/ai/operator-flags/${encodeURIComponent(flag.id)}/resolve`:`/api/ai/candidates/${encodeURIComponent(candidateId)}/review`;
     const r=await api(url,{method:'POST',body:{decision,assetId:assetId||undefined,note}});
@@ -1266,8 +1526,8 @@
     const mode=$("aiOpsMode").value;
     const assetIds=[...$("aiOpsAssets").querySelectorAll('input:checked')].map(x=>x.value);
     const categories=[...$("aiOpsCategories").querySelectorAll('input:checked')].map(x=>x.value);
-    if(mode==='TARGETED'&&!assetIds.length)return toast('TARGETED exige ao menos um ativo comercial.',true);
-    if(mode==='HYBRID'&&!assetIds.length)return toast('HYBRID exige ao menos um ativo comercial.',true);
+    if(mode==='TARGETED'&&!assetIds.length)return toast('Marque ao menos um produto para a IA procurar.',true);
+    if(mode==='HYBRID'&&!assetIds.length)return toast('Marque ao menos um produto (ou use Descoberta aberta).',true);
     const body={analysisMode:mode,assetIds,categories,scanDepth:$("aiOpsDepth").value,minimumConfidence:Number($("aiOpsConfidence").value||0.6),includeBackground:$("aiOpsBackground").checked};
     $("aiOpsRun").disabled=true;$("aiOpsRunMsg").textContent='Iniciando análise…';
     const r=await api(`/api/works/${encodeURIComponent(workId)}/ai`,{method:'POST',body});

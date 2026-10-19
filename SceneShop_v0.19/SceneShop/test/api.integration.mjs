@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 
-process.env.SCENESHOP_MEMORY = '1';
+// API_IT_BACKEND=postgres roda o mesmo roteiro contra o PostgreSQL de DATABASE_URL (banco vazio),
+// para pegar consultas SQL que o modo em memória não exercita.
+const usePostgres = process.env.API_IT_BACKEND === 'postgres';
+if (!usePostgres) process.env.SCENESHOP_MEMORY = '1';
 process.env.DEMO = '1';
-process.env.DATA_BACKEND = 'memory';
+process.env.DATA_BACKEND = usePostgres ? 'postgres' : 'memory';
 process.env.SESSION_BACKEND = 'memory';
 process.env.SESSION_SECRET = 'sceneshop-api-integration-secret-0123456789';
 
