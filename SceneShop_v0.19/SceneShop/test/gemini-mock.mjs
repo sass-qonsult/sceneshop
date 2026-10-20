@@ -42,6 +42,18 @@ const SCRIPT = [
   ["00:58", "01:14", "Encerramento: Casa Bossa Brechó", []],
 ];
 
+// pedidos por cena (video_metadata com start_offset/end_offset): os itens do roteiro naquele trecho
+export const calls = { generate: 0, clips: [] };
+const sec = (v) => Number(String(v || "0").replace(/s$/, "")) || 0;
+const toS = (mmss) => mmss.split(":").reduce((a, n) => a * 60 + Number(n), 0);
+function respondClip(prompt, clip) {
+  const base = respond(prompt.replace(/ANALISE SOMENTE[^\n]*/, ""));
+  const from = sec(clip.start_offset), to = sec(clip.end_offset);
+  const items = base.scenes.flatMap((s) => s.items).filter((it) => { const t = toS(it.bestTime); return t >= from && t < to; });
+  return { scenes: [{ start: fmt(from), end: fmt(to), title: "trecho", items }] };
+}
+const fmt = (t) => `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+
 function respond(prompt) {
   const catalog = [...prompt.matchAll(/^- id: (\S+) \| ([^|]+)\|/gm)].map((m) => ({ id: m[1], name: m[2].toLowerCase() }));
   const pick = (hint) => (hint && catalog.find((p) => p.name.includes(hint))) || null;
@@ -102,7 +114,10 @@ export function start(port = PORT) {
           return json(res, 400, { error: { message: "File not ACTIVE or unknown." } });
         }
         const prompt = parts.map((p) => p.text || "").join("\n");
-        const text = JSON.stringify(respond(prompt));
+        calls.generate++;
+        const clip = fileRef.video_metadata || fileRef.videoMetadata || null;
+        if (clip) calls.clips.push({ start: sec(clip.start_offset || clip.startOffset), end: sec(clip.end_offset || clip.endOffset) });
+        const text = JSON.stringify(clip ? respondClip(prompt, { start_offset: clip.start_offset || clip.startOffset, end_offset: clip.end_offset || clip.endOffset }) : respond(prompt));
         return json(res, 200, { candidates: [{ content: { role: "model", parts: [{ text }] }, finishReason: "STOP" }], usageMetadata: { promptTokenCount: 21540, candidatesTokenCount: 1480, totalTokenCount: 23020 }, modelVersion: gm[1] });
       }
       json(res, 404, { error: { message: `rota não simulada: ${req.method} ${url.pathname}` } });

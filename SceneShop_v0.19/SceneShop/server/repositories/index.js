@@ -82,6 +82,12 @@ function contentImpl() {
   return store.backendKind() === "postgres" ? postgresContent : null;
 }
 
+// Produtos excluídos pela produtora ficam arquivados (archivedAt): somem das listas e buscas,
+// mas o id continua resolvendo para não quebrar vendas e publicações antigas.
+const liveProducts = (rows) => (rows && typeof rows.then === "function")
+  ? rows.then((r) => (r || []).filter((p) => p && !p.archivedAt))
+  : (rows || []).filter((p) => p && !p.archivedAt);
+
 const content = {
   getWorkAuthoritative: (id) => contentImpl() ? contentImpl().getWork(id) : catalog.getWork(id),
   listWorksAuthoritative: () => contentImpl() ? contentImpl().listWorks() : catalog.listWorks(),
@@ -96,18 +102,18 @@ const content = {
   getProductAuthoritative: (id) => contentImpl() ? contentImpl().getProduct(id) : catalog.getProduct(id),
   listProductsAuthoritative: () => contentImpl() ? contentImpl().listProducts() : catalog.listProducts(),
   searchPublicProductsAuthoritative: (q) => {
-    if (contentImpl()) return contentImpl().searchPublicProducts(q);
+    if (contentImpl()) return liveProducts(contentImpl().searchPublicProducts(q));
     const norm=(x)=>String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); const words=norm(q).split(/\s+/).filter(Boolean);
-    return catalog.listProducts().filter((p)=>!p.organizationId&&words.every((w)=>norm(`${p.name} ${p.brand} ${p.category} ${p.sku||''}`).includes(w))).slice(0,30);
+    return liveProducts(catalog.listProducts().filter((p)=>!p.organizationId&&words.every((w)=>norm(`${p.name} ${p.brand} ${p.category} ${p.sku||''}`).includes(w)))).slice(0,30);
   },
   getPublicProductAuthoritative: (id) => contentImpl() ? contentImpl().getPublicProduct(id) : (() => { const p=catalog.getProduct(id); return p && !p.organizationId ? p : null; })(),
-  searchProductsAuthoritative: (q, ownerId) => contentImpl() ? contentImpl().searchProducts(q, ownerId) : catalog.searchProducts(q, ownerId),
-  listProductsByOwnerAuthoritative: (ownerId) => contentImpl() ? contentImpl().listProductsByOwner(ownerId) : Object.values(store.state.userProducts || {}).filter((p) => p.createdBy === ownerId),
-  listProductsByOrganizationAuthoritative: (organizationId) => contentImpl() ? contentImpl().listProductsByOrganization(organizationId) : Object.values(store.state.userProducts || {}).filter((p) => p.organizationId === organizationId),
+  searchProductsAuthoritative: (q, ownerId) => liveProducts(contentImpl() ? contentImpl().searchProducts(q, ownerId) : catalog.searchProducts(q, ownerId)),
+  listProductsByOwnerAuthoritative: (ownerId) => liveProducts(contentImpl() ? contentImpl().listProductsByOwner(ownerId) : Object.values(store.state.userProducts || {}).filter((p) => p.createdBy === ownerId)),
+  listProductsByOrganizationAuthoritative: (organizationId) => liveProducts(contentImpl() ? contentImpl().listProductsByOrganization(organizationId) : Object.values(store.state.userProducts || {}).filter((p) => p.organizationId === organizationId)),
   searchProductsForOrganizationAuthoritative: (q, organizationId) => {
-    if (contentImpl()) return contentImpl().searchProductsForOrganization(q, organizationId);
+    if (contentImpl()) return liveProducts(contentImpl().searchProductsForOrganization(q, organizationId));
     const norm=(x)=>String(x||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); const words=norm(q).split(/\s+/).filter(Boolean);
-    return catalog.listProducts().filter((p)=>(!p.organizationId||p.organizationId===organizationId)&&words.every((w)=>norm(`${p.name} ${p.brand} ${p.category} ${p.sku||''}`).includes(w))).sort((a,b)=>(b.organizationId===organizationId)-(a.organizationId===organizationId)).slice(0,30);
+    return liveProducts(catalog.listProducts()).filter((p)=>(!p.organizationId||p.organizationId===organizationId)&&words.every((w)=>norm(`${p.name} ${p.brand} ${p.category} ${p.sku||''}`).includes(w))).sort((a,b)=>(b.organizationId===organizationId)-(a.organizationId===organizationId)).slice(0,30);
   },
   getProductForOrganizationAuthoritative: (id, organizationId, opts={}) => {
     if (contentImpl()) return contentImpl().getProductForOrganization(id, organizationId, opts);
@@ -255,6 +261,8 @@ const ai = {
   reviewCandidate: (...a) => aiImpl().reviewCandidate(...a),
   resolveOperatorFlag: (...a) => aiImpl().resolveOperatorFlag(...a),
   listPlacements: (...a) => aiImpl().listPlacements(...a),
+  deleteCandidates: (...a) => aiImpl().deleteCandidates(...a),
+  deleteJob: (...a) => aiImpl().deleteJob(...a),
 };
 
 const playback = {

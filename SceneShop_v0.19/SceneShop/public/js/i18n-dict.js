@@ -5999,5 +5999,373 @@ globalThis.SceneShopI18nDict = {
 "O servidor precisa do ffmpeg para indexar o som.": [
 "The server needs ffmpeg to index the sound.",
 "El servidor necesita ffmpeg para indexar el sonido."
+],
+"Produtos por cena": [
+"Products by scene",
+"Productos por escena"
+],
+"Todas as cenas numa só tela: busque e adicione os produtos de cada cena sem percorrer o vídeo": [
+"All scenes on one screen: search and add each scene's products without scrubbing the video",
+"Todas las escenas en una sola pantalla: busca y agrega los productos de cada escena sin recorrer el video"
+],
+"Cada cena dos cortes do vídeo, numa só tela. Busque o produto na cena e ele entra só nela; para repetir um produto em várias cenas, marque as cenas e use “Adicionar às cenas marcadas”.": [
+"Every scene from the video cuts, on one screen. Search for the product in a scene and it goes into that scene only; to repeat a product across scenes, tick the scenes and use “Add to ticked scenes”.",
+"Cada escena de los cortes del video, en una sola pantalla. Busca el producto en la escena y entra solo en ella; para repetir un producto en varias escenas, marca las escenas y usa “Agregar a las escenas marcadas”."
+],
+"Marcar todas": [
+"Tick all",
+"Marcar todas"
+],
+"Adicionar às cenas marcadas": [
+"Add to ticked scenes",
+"Agregar a las escenas marcadas"
+],
+"Tirar das cenas marcadas": [
+"Remove from ticked scenes",
+"Quitar de las escenas marcadas"
+],
+"Filtrar cenas pelo nome…": [
+"Filter scenes by name…",
+"Filtrar escenas por nombre…"
+],
+"As mudanças valem no app depois de publicar a trilha.": [
+"Changes reach the app after you publish the track.",
+"Los cambios llegan a la app después de publicar la pista."
+],
+"Cortes do Editor de trilha (cada cena analisada separadamente, em paralelo)": [
+"Track editor cuts (each scene analyzed separately, in parallel)",
+"Cortes del Editor de pista (cada escena analizada por separado, en paralelo)"
+],
+"Deixar a IA dividir as cenas": [
+"Let the AI split the scenes",
+"Dejar que la IA divida las escenas"
+],
+"Vídeo inteiro como uma cena só": [
+"Whole video as a single scene",
+"Video completo como una sola escena"
+],
+"Cenas a analisar": [
+"Scenes to analyze",
+"Escenas a analizar"
+],
+"Cortes de": [
+"Cuts from",
+"Cortes de"
+],
+"Todas": [
+"All",
+"Todas"
+],
+"Todos": [
+"All",
+"Todos"
+],
+"Marque as análises que vão para o app (sem marcação, vale a mais recente). Só entram os itens aprovados, cada um na sua cena.": [
+"Tick the analyses that go to the app (with none ticked, the latest one is used). Only approved items go in, each in its own scene.",
+"Marca los análisis que van a la app (sin marcar, vale el más reciente). Solo entran los ítems aprobados, cada uno en su escena."
+],
+"Publicar no app": [
+"Publish to the app",
+"Publicar en la app"
+],
+"Selecionar todos": [
+"Select all",
+"Seleccionar todos"
+],
+"Mostrar": [
+"Show",
+"Mostrar"
+],
+"Descobertos": [
+"Discovered",
+"Descubiertos"
+],
+"Aceitos": [
+"Accepted",
+"Aceptados"
+],
+"Rejeitados": [
+"Rejected",
+"Rechazados"
+],
+"Análise": [
+"Analysis",
+"Análisis"
+],
+"Aprovar selecionados": [
+"Approve selected",
+"Aprobar seleccionados"
+],
+"Excluir selecionados": [
+"Delete selected",
+"Eliminar seleccionados"
+],
+"Editor de trilha (cortes atuais)": [
+"Track editor (current cuts)",
+"Editor de pista (cortes actuales)"
+],
+"Nenhum corte ainda": [
+"No cuts yet",
+"Aún no hay cortes"
+],
+"Ainda não há cortes de cena para esta obra. No Editor de trilha, use Detectar cortes (ou Nova cena a partir daqui) e volte aqui: cada cena é analisada separadamente.": [
+"This title has no scene cuts yet. In the Track editor, use Detect cuts (or New scene from here) and come back: each scene is analyzed separately.",
+"Esta obra aún no tiene cortes de escena. En el Editor de pista, usa Detectar cortes (o Nueva escena desde aquí) y vuelve: cada escena se analiza por separado."
+],
+"Abrir o Editor": [
+"Open the editor",
+"Abrir el editor"
+],
+"marcadas, analisadas ao mesmo tempo": [
+"ticked, analyzed at the same time",
+"marcadas, analizadas al mismo tiempo"
+],
+"cenas do Editor": [
+"editor scenes",
+"escenas del editor"
+],
+"cenas da IA": [
+"AI scenes",
+"escenas de la IA"
+],
+"Enviar os itens aprovados desta análise para o app": [
+"Send this analysis's approved items to the app",
+"Enviar a la app los ítems aprobados de este análisis"
+],
+"itens": [
+"items",
+"ítems"
+],
+"Excluir esta análise e os itens dela": [
+"Delete this analysis and its items",
+"Eliminar este análisis y sus ítems"
+],
+"Excluir": [
+"Delete",
+"Eliminar"
+],
+"Nenhuma análise marcada: vale a mais recente concluída.": [
+"No analysis ticked: the latest completed one is used.",
+"Ningún análisis marcado: vale el más reciente concluido."
+],
+"Excluir esta análise? Os itens descobertos, aceitos e rejeitados dela também são excluídos.": [
+"Delete this analysis? Its discovered, accepted and rejected items are deleted too.",
+"¿Eliminar este análisis? Sus ítems descubiertos, aceptados y rechazados también se eliminan."
+],
+"Análise excluída": [
+"Analysis deleted",
+"Análisis eliminado"
+],
+"Selecionar": [
+"Select",
+"Seleccionar"
+],
+"Nenhum item com esse filtro.": [
+"No items match this filter.",
+"Ningún ítem con este filtro."
+],
+"selecionado(s)": [
+"selected",
+"seleccionado(s)"
+],
+"Excluir os itens selecionados?": [
+"Delete the selected items?",
+"¿Eliminar los ítems seleccionados?"
+],
+"item(ns) excluído(s).": [
+"item(s) deleted.",
+"ítem(s) eliminado(s)."
+],
+"aprovado(s).": [
+"approved.",
+"aprobado(s)."
+],
+"sem produto escolhido (escolha “Qual produto é este?”).": [
+"without a chosen product (pick “Which product is this?”).",
+"sin producto elegido (elige “¿Qué producto es este?”)."
+],
+"Publicando no app…": [
+"Publishing to the app…",
+"Publicando en la app…"
+],
+"Publicado no app": [
+"Published to the app",
+"Publicado en la app"
+],
+"produto(s) em": [
+"product(s) in",
+"producto(s) en"
+],
+"de": [
+"of",
+"de"
+],
+"aprovado(s) sem produto cadastrado ficaram de fora": [
+"approved item(s) without a registered product were left out",
+"aprobado(s) sin producto registrado quedaron fuera"
+],
+"Análise iniciada": [
+"Analysis started",
+"Análisis iniciado"
+],
+"cena(s) analisadas ao mesmo tempo, cada uma separada.": [
+"scene(s) analyzed at the same time, each one separately.",
+"escena(s) analizadas al mismo tiempo, cada una por separado."
+],
+"— escolha um produto —": [
+"— pick a product —",
+"— elige un producto —"
+],
+"cena(s)": [
+"scene(s)",
+"escena(s)"
+],
+"busque o produto dentro da cena; para repetir um produto em várias cenas, marque as cenas e use “Adicionar às cenas marcadas”.": [
+"search for the product inside the scene; to repeat a product across scenes, tick the scenes and use “Add to ticked scenes”.",
+"busca el producto dentro de la escena; para repetir un producto en varias escenas, marca las escenas y usa “Agregar a las escenas marcadas”."
+],
+"Marcar cena": [
+"Tick scene",
+"Marcar escena"
+],
+"Abrir esta cena no vídeo": [
+"Open this scene in the video",
+"Abrir esta escena en el video"
+],
+"prod.": [
+"prod.",
+"prod."
+],
+"Buscar produto para esta cena…": [
+"Search a product for this scene…",
+"Buscar producto para esta escena…"
+],
+"Nada encontrado. Cadastre na aba Produtos.": [
+"Nothing found. Add it in the Products tab.",
+"No se encontró nada. Regístralo en la pestaña Productos."
+],
+"Nenhuma cena com esse nome.": [
+"No scene with that name.",
+"Ninguna escena con ese nombre."
+],
+"Escolha o produto.": [
+"Pick the product.",
+"Elige el producto."
+],
+"Marque as cenas.": [
+"Tick the scenes.",
+"Marca las escenas."
+],
+"cena(s) receberam o produto.": [
+"scene(s) received the product.",
+"escena(s) recibieron el producto."
+],
+"Escolha o produto e marque as cenas.": [
+"Pick the product and tick the scenes.",
+"Elige el producto y marca las escenas."
+],
+"Produto retirado de": [
+"Product removed from",
+"Producto quitado de"
+],
+"cena(s).": [
+"scene(s).",
+"escena(s)."
+],
+"Excluir produto": [
+"Delete product",
+"Eliminar producto"
+],
+"Excluir o produto": [
+"Delete the product",
+"¿Eliminar el producto"
+],
+"Ele sai das cenas das trilhas (que são republicadas), da oferta oficial e do app.": [
+"It leaves the track scenes (which are republished), the official offer and the app.",
+"Sale de las escenas de las pistas (que se vuelven a publicar), de la oferta oficial y de la app."
+],
+"excluído.": [
+"deleted.",
+"eliminado."
+],
+"trilha(s) republicada(s) sem ele.": [
+"track(s) republished without it.",
+"pista(s) republicada(s) sin él."
+],
+"Padrão": [
+"Default",
+"Predeterminada"
+],
+"Desabilitada nesta organização": [
+"Disabled in this organization",
+"Deshabilitada en esta organización"
+],
+"Habilitada para os seus produtos": [
+"Enabled for your products",
+"Habilitada para tus productos"
+],
+"Desabilitada: não aparece para os seus produtos": [
+"Disabled: not shown for your products",
+"Deshabilitada: no aparece para tus productos"
+],
+"Loja desabilitada.": [
+"Store disabled.",
+"Tienda deshabilitada."
+],
+"Loja habilitada.": [
+"Store enabled.",
+"Tienda habilitada."
+],
+"Falha ao salvar a seleção.": [
+"Could not save the selection.",
+"No se pudo guardar la selección."
+],
+"Falha ao excluir.": [
+"Could not delete.",
+"No se pudo eliminar."
+],
+"Falha ao publicar.": [
+"Could not publish.",
+"No se pudo publicar."
+],
+"Marque ao menos uma cena (ou crie os cortes no Editor de trilha com Detectar cortes).": [
+"Tick at least one scene (or create the cuts in the Track editor with Detect cuts).",
+"Marca al menos una escena (o crea los cortes en el Editor de pista con Detectar cortes)."
+],
+"Marque ao menos uma análise para sincronizar com o app.": [
+"Tick at least one analysis to sync with the app.",
+"Marca al menos un análisis para sincronizar con la app."
+],
+"Nenhum item aprovado nas análises marcadas. Aprove os itens na Fila de revisão.": [
+"No approved items in the ticked analyses. Approve the items in the Review queue.",
+"No hay ítems aprobados en los análisis marcados. Aprueba los ítems en la Cola de revisión."
+],
+"Os itens aprovados não estão ligados a produtos cadastrados. Aprove-os escolhendo um produto da aba Produtos.": [
+"The approved items are not linked to registered products. Approve them by picking a product from the Products tab.",
+"Los ítems aprobados no están vinculados a productos registrados. Apruébalos eligiendo un producto de la pestaña Productos."
+],
+"A análise ainda está rodando. Espere terminar para excluir.": [
+"The analysis is still running. Wait for it to finish before deleting.",
+"El análisis aún está en curso. Espera a que termine para eliminar."
+],
+"Marque ao menos um item.": [
+"Tick at least one item.",
+"Marca al menos un ítem."
+],
+"Escolha ao menos uma cena dos cortes do Editor de trilha (use Detectar cortes no Editor).": [
+"Choose at least one scene from the Track editor cuts (use Detect cuts in the editor).",
+"Elige al menos una escena de los cortes del Editor de pista (usa Detectar cortes en el editor)."
+],
+"Análise não encontrada.": [
+"Analysis not found.",
+"Análisis no encontrado."
+],
+"analisando {0} cena(s) em paralelo: {1}/{2}": [
+"analyzing {0} scene(s) in parallel: {1}/{2}",
+"analizando {0} escena(s) en paralelo: {1}/{2}"
+],
+"analisando {0} cena(s) em paralelo: {1}/{2}…": [
+"analyzing {0} scene(s) in parallel: {1}/{2}…",
+"analizando {0} escena(s) en paralelo: {1}/{2}…"
 ]
 };

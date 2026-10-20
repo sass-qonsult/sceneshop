@@ -144,7 +144,7 @@ const SCHEMA = {
   required: ["scenes"],
 };
 
-function buildPrompt({ work, products = [], assets = [], mode = "DISCOVERY", categories = [], oneScene }) {
+function buildPrompt({ work, products = [], assets = [], mode = "DISCOVERY", categories = [], oneScene, scene }) {
   const cat = products.map((p) => `- id: ${p.id} | ${p.name} | marca: ${p.brand || "-"} | categoria: ${p.category || "-"} | ${String(p.description || "").slice(0, 160)}`).join("\n");
   const target = assets.map((a) => `- assetId: ${a.id} | ${a.name} | marca: ${a.brand || "-"} | modelo: ${a.model || "-"} | categoria: ${a.category || "-"} | ${String(a.description || "").slice(0, 180)}`).join("\n");
   const selected = categories.length ? categories.join(", ") : "todas as categorias comerciais relevantes";
@@ -156,7 +156,9 @@ function buildPrompt({ work, products = [], assets = [], mode = "DISCOVERY", cat
   return [
     `Você é o motor PRIMÁRIO de identificação do SceneShop. Assista ao vídeo "${work.title}" (${Math.round(work.duration)} s). Sua saída será congelada antes de qualquer verificação externa; portanto responda somente com evidência visual própria, sem assumir confirmação por Google, catálogo externo ou outro motor.`,
     modeInstruction,
-    oneScene
+    scene
+      ? `ANALISE SOMENTE O TRECHO de ${mmss(scene.start)} a ${mmss(scene.end)} (cena "${scene.title}"), recortado dos cortes de cena definidos pela produção. Responda com exatamente UMA cena com start ${mmss(scene.start)} e end ${mmss(scene.end)}, com os itens visíveis nesse trecho. Use tempos absolutos do vídeo (MM:SS).`
+      : oneScene
       ? "Considere o vídeo inteiro como UMA cena só (start 00:00 e end no fim do vídeo)."
       : "Divida o vídeo em cenas pelos cortes de câmera ou mudanças claras de ambiente. As cenas devem ser contínuas, sem sobreposição, cobrindo o vídeo do início ao fim.",
     "Para cada item: dê nome comercial, categoria, descrição curta, marca/modelo somente quando sustentados visualmente, instante de melhor visibilidade e box_2d nesse instante. Se houver marca, preço ou tamanho escritos na tela, copie em visibleText.",
@@ -167,6 +169,7 @@ function buildPrompt({ work, products = [], assets = [], mode = "DISCOVERY", cat
   ].join("\n\n");
 }
 
+const mmss = (t) => `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 const toSec = (s) => {
   const parts = String(s || "0").trim().split(":").map(Number);
   if (parts.some((n) => !Number.isFinite(n))) return 0;
@@ -190,20 +193,36 @@ function normalize(raw, { work, products = [], assets = [] }) {
   scenes = scenes.filter((s) => s.end - s.start >= 0.5);
   return scenes.map((s, si) => ({
     id: `c${si + 1}`, title: s.title || `Cena ${si + 1}`, start: Math.round(s.start * 10) / 10, end: Math.round(s.end * 10) / 10,
-    items: s.items.slice(0, 20).map((it, ii) => {
-      const b = Array.isArray(it.box_2d) && it.box_2d.length === 4 ? it.box_2d.map((n) => clamp(Number(n) || 0, 0, 1000)) : null;
-      const box = b && b[2] > b[0] && b[3] > b[1]
-        ? { x: +(b[1] / 10).toFixed(1), y: +(b[0] / 10).toFixed(1), w: +((b[3] - b[1]) / 10).toFixed(1), h: +((b[2] - b[0]) / 10).toFixed(1) } : null;
-      const pid = ids.has(it.productId) ? it.productId : null;
-      const aid = assetIds.has(it.assetId) ? it.assetId : null;
-      return {
-        key: `${si}-${ii}`, name: String(it.name || "Item").slice(0, 80), assetId: aid, brand: String(it.brand || "").slice(0, 120) || null, model: String(it.model || "").slice(0, 120) || null, category: String(it.category || "Outros").slice(0, 30),
-        description: String(it.description || "").slice(0, 300), visibleText: String(it.visibleText || "").slice(0, 120),
-        t: clamp(toSec(it.bestTime), s.start, s.end), box, productId: pid,
-        confidence: pid ? clamp(Number(it.matchConfidence) || 0, 0, 1) : 0,
-      };
-    }),
+    items: s.items.slice(0, 20).map((it, ii) => normItem(it, `${si}-${ii}`, s, ids, assetIds)),
   }));
+}
+
+function normItem(it, key, s, ids, assetIds, relativeOk = false) {
+  const b = Array.isArray(it.box_2d) && it.box_2d.length === 4 ? it.box_2d.map((n) => clamp(Number(n) || 0, 0, 1000)) : null;
+  const box = b && b[2] > b[0] && b[3] > b[1]
+    ? { x: +(b[1] / 10).toFixed(1), y: +(b[0] / 10).toFixed(1), w: +((b[3] - b[1]) / 10).toFixed(1), h: +((b[2] - b[0]) / 10).toFixed(1) } : null;
+  const pid = ids.has(it.productId) ? it.productId : null;
+  const aid = assetIds.has(it.assetId) ? it.assetId : null;
+  let t = toSec(it.bestTime);
+  // análise de um trecho: o modelo pode responder com o tempo contado do início do trecho
+  if (relativeOk && t < s.start - 0.5 && t <= s.end - s.start + 0.5) t += s.start;
+  return {
+    key, name: String(it.name || "Item").slice(0, 80), assetId: aid, brand: String(it.brand || "").slice(0, 120) || null, model: String(it.model || "").slice(0, 120) || null, category: String(it.category || "Outros").slice(0, 30),
+    description: String(it.description || "").slice(0, 300), visibleText: String(it.visibleText || "").slice(0, 120),
+    t: clamp(t, s.start, s.end), box, productId: pid,
+    confidence: pid ? clamp(Number(it.matchConfidence) || 0, 0, 1) : 0,
+  };
+}
+
+// Uma cena (dos cortes do Editor de trilha): só os itens daquele trecho, na própria cena.
+function normalizeScene(raw, scene, si, { products = [], assets = [] }) {
+  const ids = new Set(products.map((p) => p.id));
+  const assetIds = new Set(assets.map((a) => a.id));
+  const seen = new Set();
+  const items = (raw.scenes || []).flatMap((x) => x.items || [])
+    .filter((it) => { const k = `${String(it.name || "").toLowerCase()}|${it.productId || ""}|${it.assetId || ""}`; if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 20).map((it, ii) => normItem(it, `${si}-${ii}`, scene, ids, assetIds, true));
+  return { id: scene.id, title: scene.title, start: scene.start, end: scene.end, items };
 }
 
 // ------------------------------------------------------------------ trabalhos (um por obra)
@@ -218,8 +237,56 @@ function getJob(workId) {
   try { return (jobs[workId] = JSON.parse(fs.readFileSync(jobFile(workId), "utf8"))); } catch (e) { return null; }
 }
 
-async function analyze({ work, products, assets = [], mode = "DISCOVERY", categories = [], oneScene, actor, organizationId, durableJobId }) {
-  const job = jobs[work.id] = { workId: work.id, durableJobId: durableJobId || null, mode, status: "rodando", step: "preparando", oneScene: !!oneScene, startedAt: store.now() };
+// Gera o conteúdo com o vídeo inteiro ou só um trecho dele (videoMetadata), sempre em JSON.
+async function generate(model, video, prompt, clip) {
+  const filePart = { file_data: { file_uri: video.uri, mime_type: video.mimeType } };
+  if (clip) filePart.video_metadata = { start_offset: `${clip.start}s`, end_offset: `${clip.end}s` };
+  const { data } = await api(`/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
+    method: "POST",
+    body: {
+      contents: [{ role: "user", parts: [filePart, { text: prompt }] }],
+      generationConfig: { responseMimeType: "application/json", responseSchema: SCHEMA, temperature: 0.2 },
+    },
+  });
+  const text = (((data.candidates || [])[0] || {}).content || { parts: [] }).parts.map((p) => p.text || "").join("");
+  try { return { raw: JSON.parse(text), usage: data.usageMetadata || null }; }
+  catch (e) { throw new Error("O Gemini respondeu em um formato inesperado. Tente de novo."); }
+}
+
+// Cortes do Editor: todas as cenas escolhidas são analisadas ao mesmo tempo (em paralelo,
+// limitado por GEMINI_SCENE_CONCURRENCY), cada uma como uma cena separada.
+async function analyzeScenes({ work, products, assets, mode, categories, scenes, model, video, step }) {
+  const limit = Math.max(1, Math.min(12, Number(process.env.GEMINI_SCENE_CONCURRENCY || 4)));
+  const out = new Array(scenes.length);
+  const usage = { promptTokenCount: 0, candidatesTokenCount: 0, totalTokenCount: 0 };
+  let next = 0, done = 0, failed = 0;
+  step(`analisando ${scenes.length} cena(s) em paralelo: 0/${scenes.length}`);
+  const worker = async () => {
+    while (next < scenes.length) {
+      const i = next++, sc = scenes[i];
+      const prompt = buildPrompt({ work, products, assets, mode, categories, scene: sc });
+      let res = null, error = null;
+      for (let attempt = 0; attempt < 2 && !res; attempt++) {
+        try { res = await generate(model, video, prompt, sc); } catch (e) { error = e; }
+      }
+      if (res) {
+        out[i] = normalizeScene(res.raw, sc, i, { products, assets });
+        for (const k of Object.keys(usage)) usage[k] += Number((res.usage || {})[k] || 0);
+      } else {
+        failed++;
+        out[i] = { id: sc.id, title: sc.title, start: sc.start, end: sc.end, items: [], error: String(error && error.message || "falha").slice(0, 200) };
+      }
+      done++;
+      step(`analisando ${scenes.length} cena(s) em paralelo: ${done}/${scenes.length}`);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, scenes.length) }, worker));
+  if (failed === scenes.length) throw new Error(`Nenhuma cena pôde ser analisada: ${out[0].error}`);
+  return { scenes: out, usage, failed };
+}
+
+async function analyze({ work, products, assets = [], mode = "DISCOVERY", categories = [], oneScene, scenes: trackScenes = null, actor, organizationId, durableJobId }) {
+  const job = jobs[work.id] = { workId: work.id, durableJobId: durableJobId || null, mode, status: "rodando", step: "preparando", oneScene: !!oneScene, sceneSource: trackScenes ? "TRACK" : oneScene ? "SINGLE" : "AI", startedAt: store.now() };
   if (durableJobId && organizationId) await Promise.resolve(aiPipeline.startJob(organizationId, durableJobId));
   const step = (s) => { job.step = s; };
   try {
@@ -227,19 +294,17 @@ async function analyze({ work, products, assets = [], mode = "DISCOVERY", catego
     if (!fs.existsSync(file)) throw new Error("Arquivo de vídeo da obra não encontrado.");
     job.model = await pickModel();
     const video = await uploadVideo(file, step);
-    step("o Gemini está assistindo ao vídeo e identificando os itens");
-    const { data } = await api(`/v1beta/models/${encodeURIComponent(job.model)}:generateContent`, {
-      method: "POST",
-      body: {
-        contents: [{ role: "user", parts: [{ file_data: { file_uri: video.uri, mime_type: video.mimeType } }, { text: buildPrompt({ work, products, assets, mode, categories, oneScene }) }] }],
-        generationConfig: { responseMimeType: "application/json", responseSchema: SCHEMA, temperature: 0.2 },
-      },
-    });
-    const text = (((data.candidates || [])[0] || {}).content || { parts: [] }).parts.map((p) => p.text || "").join("");
-    let raw;
-    try { raw = JSON.parse(text); } catch (e) { throw new Error("O Gemini respondeu em um formato inesperado. Tente de novo."); }
-    job.scenes = normalize(raw, { work, products, assets });
-    job.usage = data.usageMetadata || null;
+    if (trackScenes && trackScenes.length) {
+      const r = await analyzeScenes({ work, products, assets, mode, categories, scenes: trackScenes, model: job.model, video, step });
+      job.scenes = r.scenes;
+      job.usage = r.usage;
+      job.failedScenes = r.failed;
+    } else {
+      step("o Gemini está assistindo ao vídeo e identificando os itens");
+      const r = await generate(job.model, video, buildPrompt({ work, products, assets, mode, categories, oneScene }));
+      job.scenes = normalize(r.raw, { work, products, assets });
+      job.usage = r.usage;
+    }
     if (durableJobId && organizationId) {
       const candidateItems = job.scenes.flatMap((scene) => (scene.items || []).map((it) => ({
         assetId: it.assetId || null,
@@ -274,6 +339,74 @@ async function analyze({ work, products, assets = [], mode = "DISCOVERY", catego
   }
   saveJob(job);
   return job;
+}
+
+// ------------------------------------------------------------------ cenas, seleção para o app e publicação
+function cleanScenes(list, duration) {
+  const dur = Number(duration) || Infinity;
+  return (Array.isArray(list) ? list : []).slice(0, 400).map((x, i) => ({
+    id: String(x.id || `c${i + 1}`).slice(0, 40), title: String(x.title || `Cena ${i + 1}`).slice(0, 60),
+    start: Math.round(clamp(Number(x.start), 0, dur) * 10) / 10, end: Math.round(clamp(Number(x.end), 0, dur) * 10) / 10,
+  })).filter((x) => Number.isFinite(x.start) && Number.isFinite(x.end) && x.end - x.start >= 0.3).sort((a, b) => a.start - b.start);
+}
+const syncKey = (orgId, workId) => `${orgId}:${workId}`;
+function syncSelection(orgId, workId, jobs) {
+  const sel = (store.state.aiSyncSelection || {})[syncKey(orgId, workId)];
+  const valid = new Set(jobs.map((j) => j.id));
+  if (sel) return { jobIds: sel.jobIds.filter((id) => valid.has(id)), explicit: true, updatedAt: sel.updatedAt || null };
+  const latest = jobs.filter((j) => j.status === "COMPLETED").sort((a, b) => Number(b.createdAt) - Number(a.createdAt))[0];
+  return { jobIds: latest ? [latest.id] : [], explicit: false, updatedAt: null };
+}
+
+async function publishToApp({ orgId, work, jobIds, user, content }) {
+  const tracks = require("./tracks");
+  const allJobs = await Promise.resolve(aiPipeline.listJobs(orgId, work.id)) || [];
+  const chosen = Array.isArray(jobIds) ? jobIds.map(String) : syncSelection(orgId, work.id, allJobs).jobIds;
+  const jobs = allJobs.filter((j) => chosen.includes(j.id));
+  if (!jobs.length) return { error: "Marque ao menos uma análise para sincronizar com o app." };
+  const jobSet = new Set(jobs.map((j) => j.id));
+  const [cands, placements, assets] = await Promise.all([
+    Promise.resolve(aiPipeline.listCandidates(orgId, null)), Promise.resolve(aiPipeline.listPlacements(orgId, work.id)), Promise.resolve(aiPipeline.listAssets(orgId)),
+  ]);
+  const plByCand = new Map((placements || []).map((p) => [p.sourceCandidateId, p]));
+  const productOf = new Map((assets || []).map((a) => [a.id, a.productId || null]));
+  let skipped = 0;
+  const items = [];
+  for (const c of cands || []) {
+    if (!jobSet.has(c.analysisJobId) || c.reviewStatus !== "APPROVED") continue;
+    const pl = plByCand.get(c.id);
+    const productId = productOf.get((pl && pl.assetId) || c.resolvedAssetId || c.assetId) || null;
+    const product = productId ? await Promise.resolve(content.getProductForOrganizationAuthoritative(productId, orgId, { allowGlobal: true })) : null;
+    if (!product || product.archivedAt) { skipped++; continue; }
+    const start = pl ? Number(pl.displayStartSeconds) : Number(c.startSeconds), end = pl ? Number(pl.displayEndSeconds) : Number(c.endSeconds);
+    items.push({ productId, jobId: c.analysisJobId, sceneId: (c.primaryPayload || {}).sourceSceneId || null, start, end,
+      t: Number.isFinite(Number(c.bestSeconds)) ? Number(c.bestSeconds) : (start + end) / 2, box: c.box2d || null });
+  }
+  if (!items.length) return { error: skipped ? "Os itens aprovados não estão ligados a produtos cadastrados. Aprove-os escolhendo um produto da aba Produtos." : "Nenhum item aprovado nas análises marcadas. Aprove os itens na Fila de revisão." };
+  // trilha oficial mais recente da obra: mantém os cortes e os produtos colocados à mão
+  const list = (await Promise.resolve(content.listTracksByOrganizationAuthoritative(orgId, work.id))) || [];
+  const base = list.filter((t) => t.type === "official" && t.status === "ativa").sort((a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))[0] || null;
+  let scenes;
+  if (base) scenes = base.scenes.map((sc) => ({ ...sc, products: (sc.products || []).filter((p) => !String(p.source || "").startsWith("ai:")) }));
+  else {
+    const cfg = jobs.map((j) => (j.config || {}).scenes).find((x) => Array.isArray(x) && x.length);
+    const windows = cfg || [...new Map(items.map((i) => [`${i.start}:${i.end}`, { start: i.start, end: i.end }])).values()].sort((a, b) => a.start - b.start);
+    scenes = windows.map((x, i) => ({ id: x.id || `c${i + 1}`, title: x.title || `Cena ${i + 1}`, start: x.start, end: x.end, products: [] }));
+    if (scenes[0].start > 0.3) scenes.unshift({ id: "c0", title: "Abertura", start: 0, end: scenes[0].start, products: [] });
+  }
+  let added = 0;
+  for (const it of items) {
+    const target = scenes.find((s) => s.id === it.sceneId && it.t >= s.start - 0.5 && it.t <= s.end + 0.5)
+      || scenes.find((s) => it.t >= s.start && it.t < s.end) || scenes.find((s) => it.start < s.end && it.end > s.start) || scenes[scenes.length - 1];
+    if (target.products.some((p) => p.id === it.productId)) continue;
+    target.products.push({ id: it.productId, match: "exato", box: it.box, source: `ai:${it.jobId}` });
+    added++;
+  }
+  const r = await tracks.saveAuthoritative({ workId: work.id, title: base ? base.title : "Trilha oficial", offset: base ? base.offset : 0, scenes,
+    authorId: base ? base.authorId : user.authorId, organizationId: base ? (base.organizationId || orgId) : orgId }, base || undefined);
+  if (r.errors) return { error: r.errors.join(" ") };
+  return { ok: true, track: r.track, publication: r.publication || null, jobIds: jobs.map((j) => j.id), products: added, scenes: scenes.length,
+    scenesWithProducts: scenes.filter((s) => s.products.length).length, skipped };
 }
 
 // ------------------------------------------------------------------ rotas
@@ -385,6 +518,7 @@ function routes({ requireRole, actor, content }) {
     }
     res.json({
       workId,
+      sync: workId ? syncSelection(req.organization.id, workId, jobs || []) : null,
       assets: assets || [],
       jobs: jobs || [],
       candidates: scopedCandidates,
@@ -395,6 +529,48 @@ function routes({ requireRole, actor, content }) {
       generatedAt: Date.now(),
     });
   }));
+  // ---- exclusões pedidas pela produtora (análises e itens da fila de revisão)
+  r.delete("/api/ai/jobs/:id", requireRole(), orgAccess.requireCapability("AI_RUN"), asyncRoute(async (req,res) => {
+    const job=await Promise.resolve(aiPipeline.getJob(req.organization.id, req.params.id));
+    if(!job)return res.status(404).json({error:"Análise não encontrada."});
+    const out=await Promise.resolve(aiPipeline.deleteJob(req.organization.id, req.params.id));
+    if(out.error||out.errors)return res.status(out.code||400).json(out);
+    const key=syncKey(req.organization.id, job.workId), sel=(store.state.aiSyncSelection||{})[key];
+    if(sel){ sel.jobIds=sel.jobIds.filter((x)=>x!==job.id); store.save(); }
+    audit.log(actor(req), "ia_analise_excluida", { jobId: job.id, workId: job.workId, candidatos: out.candidates });
+    res.json(out);
+  }));
+  r.post("/api/ai/candidates/delete", requireRole(), orgAccess.requireCapability("AI_RUN"), asyncRoute(async (req,res) => {
+    const ids=Array.isArray((req.body||{}).ids)?req.body.ids.map(String).slice(0,2000):[];
+    if(!ids.length)return res.status(400).json({error:"Marque ao menos um item."});
+    const out=await Promise.resolve(aiPipeline.deleteCandidates(req.organization.id, ids));
+    audit.log(actor(req), "ia_itens_excluidos", { pedidos: ids.length, excluidos: out.deleted });
+    res.json(out);
+  }));
+
+  // ---- quais análises vão para o app: marcadas pela produtora (ou, sem marcação, a mais recente)
+  r.put("/api/ai/works/:id/sync", requireRole(), orgAccess.requireCapability("AI_RUN"), asyncRoute(async (req,res) => {
+    const w=await Promise.resolve(content.getWorkForOrganizationAuthoritative(req.params.id, req.organization.id));
+    if(!w)return res.status(404).json({error:"Obra não encontrada nesta organização."});
+    const jobs=await Promise.resolve(aiPipeline.listJobs(req.organization.id, w.id));
+    const valid=new Set((jobs||[]).map((j)=>j.id));
+    const jobIds=[...new Set(((req.body||{}).jobIds||[]).map(String))].filter((id)=>valid.has(id));
+    (store.state.aiSyncSelection ||= {})[syncKey(req.organization.id,w.id)]={ jobIds, updatedAt: store.now(), by: actor(req) };
+    store.save();
+    res.json(syncSelection(req.organization.id, w.id, jobs||[]));
+  }));
+
+  // ---- publicar no app: itens APROVADOS das análises marcadas, cada um na sua cena
+  r.post("/api/ai/works/:id/publish", requireRole(), orgAccess.requireCapability("AI_RUN"), orgAccess.requireCapability("CONTENT_WRITE"), asyncRoute(async (req,res) => {
+    const orgId=req.organization.id;
+    const w=await Promise.resolve(content.getWorkForOrganizationAuthoritative(req.params.id, orgId));
+    if(!w)return res.status(404).json({error:"Obra não encontrada nesta organização."});
+    const out=await publishToApp({ orgId, work:w, jobIds:(req.body||{}).jobIds, user:req.user, content });
+    if(out.error)return res.status(out.code||400).json(out);
+    audit.log(actor(req), "ia_publicada_no_app", { workId:w.id, jobs:out.jobIds, produtos:out.products, cenas:out.scenes });
+    res.json(out);
+  }));
+
   const ownWork = async (req, res) => {
     const w = content && req.organization
       ? await Promise.resolve(content.getWorkForOrganizationAuthoritative(req.params.id, req.organization.id))
@@ -425,13 +601,19 @@ function routes({ requireRole, actor, content }) {
     const mode=String(body.analysisMode||body.pipelineMode||"DISCOVERY").toUpperCase();
     const assetIds=Array.isArray(body.assetIds)?body.assetIds:[];
     const categories=Array.isArray(body.categories)?body.categories:[];
-    const created=await Promise.resolve(aiPipeline.createJob(req.organization.id,w,{mode,assetIds,categories,scanDepth:body.scanDepth||"STANDARD",minimumConfidence:body.minimumConfidence,includeBackground:body.includeBackground,minimumScreenSeconds:body.minimumScreenSeconds,primaryProvider:"SCENESHOP_GEMINI"},actor(req)));
+    const sceneSource=String(body.sceneSource||(body.oneScene?"SINGLE":"AI")).toUpperCase();
+    let scenes=null;
+    if(sceneSource==="TRACK"){
+      scenes=cleanScenes(body.scenes,w.duration);
+      if(!scenes.length)return res.status(400).json({error:"Escolha ao menos uma cena dos cortes do Editor de trilha (use Detectar cortes no Editor)."});
+    }
+    const created=await Promise.resolve(aiPipeline.createJob(req.organization.id,w,{mode,assetIds,categories,scanDepth:body.scanDepth||"STANDARD",minimumConfidence:body.minimumConfidence,includeBackground:body.includeBackground,minimumScreenSeconds:body.minimumScreenSeconds,primaryProvider:"SCENESHOP_GEMINI",sceneSource,scenes,trackId:body.trackId||null},actor(req)));
     if(created.error||created.errors)return res.status(created.code||400).json(created);
     const assets=(await Promise.resolve(aiPipeline.listAssets(req.organization.id))).filter(a=>assetIds.includes(a.id));
     const products = content
       ? await Promise.resolve(content.listProductsByOrganizationAuthoritative(req.organization.id))
       : Object.values(store.state.userProducts || {}).filter((p) => p.organizationId === req.organization.id);
-    analyze({ work: w, products, assets, mode, categories, oneScene: !!body.oneScene, actor: actor(req), organizationId:req.organization.id, durableJobId:created.job.id });
+    analyze({ work: w, products, assets, mode, categories, oneScene: sceneSource==="SINGLE", scenes, actor: actor(req), organizationId:req.organization.id, durableJobId:created.job.id });
     res.status(202).json({...jobs[w.id], analysisJob:created.job});
   }));
 
@@ -444,4 +626,4 @@ function routes({ requireRole, actor, content }) {
   return r;
 }
 
-module.exports = { routes, normalize, buildPrompt, pickModel, SCHEMA, _reset: () => { modelCache = null; for (const k in jobs) delete jobs[k]; } };
+module.exports = { routes, normalize, normalizeScene, buildPrompt, pickModel, SCHEMA, cleanScenes, _reset: () => { modelCache = null; for (const k in jobs) delete jobs[k]; } };

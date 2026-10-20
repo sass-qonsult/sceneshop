@@ -24,6 +24,14 @@ function normalizeCategories(v){
   const arr=Array.isArray(v)?v:[];
   return [...new Set(arr.map(x=>String(x||'').trim().toUpperCase()).filter(x=>CATEGORIES.has(x)))];
 }
+// Cenas da análise: "TRACK" = cortes do Editor de trilha (cada cena analisada separadamente),
+// "AI" = a IA divide, "SINGLE" = vídeo inteiro como uma cena.
+function sceneConfig(body){
+  const src=String(body.sceneSource||'').toUpperCase();
+  if(!['TRACK','AI','SINGLE'].includes(src))return{};
+  const scenes=src==='TRACK'&&Array.isArray(body.scenes)?body.scenes.slice(0,400).map((x,i)=>({id:String(x.id||`c${i+1}`).slice(0,40),title:String(x.title||`Cena ${i+1}`).slice(0,60),start:Math.round(Number(x.start)*10)/10,end:Math.round(Number(x.end)*10)/10})).filter(x=>Number.isFinite(x.start)&&Number.isFinite(x.end)&&x.end>x.start):[];
+  return{sceneSource:src,...(src==='TRACK'?{scenes,trackId:body.trackId?String(body.trackId).slice(0,120):null}:{})};
+}
 function publicAsset(a, refs=[]){ return {...clone(a), references: refs.map(clone)}; }
 
 class StateAiPipelineRepository {
@@ -44,7 +52,7 @@ class StateAiPipelineRepository {
     if(mode==='TARGETED'&&!assetIds.length)return{errors:['TARGETED exige ao menos um assetId.']};
     if(mode==='DISCOVERY'&&assetIds.length)return{errors:['DISCOVERY não recebe assetIds; use HYBRID.']};
     if(mode==='HYBRID'&&!assetIds.length)return{errors:['HYBRID exige ao menos um assetId.']};
-    const config={mode,scanDepth,categories,assetIds,minimumConfidence:Number(body.minimumConfidence??0.5),includeBackground:!!body.includeBackground,minimumScreenSeconds:Number(body.minimumScreenSeconds??0)};
+    const config={mode,scanDepth,categories,assetIds,minimumConfidence:Number(body.minimumConfidence??0.5),includeBackground:!!body.includeBackground,minimumScreenSeconds:Number(body.minimumScreenSeconds??0),...sceneConfig(body)};
     const row={id:uuid('aijob'),organizationId:orgId,workId:work.id,mode,requestedCategories:categories,scanDepth,status:'QUEUED',requestedBy:actor,config,configSha256:sha(config),primaryProvider:String(body.primaryProvider||'SCENESHOP_GEMINI').toUpperCase(),engineVersion:String(body.engineVersion||'v0.14-alpha.1'),createdAt:now(),startedAt:null,finishedAt:null,errorMessage:null};
     s.aiAnalysisJobs[row.id]=row;s.aiJobAssets[row.id]=assetIds.map(assetId=>({analysisJobId:row.id,assetId,required:true}));this.save();return{job:clone(row)};
   }
@@ -87,6 +95,25 @@ class StateAiPipelineRepository {
     this.save();return{candidate:clone(c),placement:clone(placement)};
   }
   resolveOperatorFlag(orgId,flagId,body,actor){const s=this.S(),f=s.aiOperatorFlags[flagId];if(!f||f.organizationId!==orgId)return{error:'Flag não encontrado.',code:404};if(f.status!=='OPEN')return{errors:['Flag já foi resolvido.']};const reviewed=this.reviewCandidate(orgId,f.candidateId,body,actor);if(reviewed.error||reviewed.errors)return reviewed;f.status='RESOLVED';f.resolvedAt=now();f.updatedAt=now();f.resolution={decision:String(body.decision||'').toUpperCase(),note:String(body.note||'').slice(0,1000)||null,assetId:reviewed.candidate.resolvedAssetId||null,placementId:reviewed.placement&&reviewed.placement.id||null,resolvedBy:actor};this.save();return{flag:clone(f),...reviewed};}
+  // Exclusão pedida pela produtora: candidatos (detectados, aceitos ou rejeitados) saem junto com
+  // as verificações, sinalizações e placements que nasceram deles.
+  deleteCandidates(orgId,ids){
+    const s=this.S();const want=new Set((ids||[]).map(String));const gone=[];
+    for(const c of Object.values(s.aiDetectionCandidates)){ if(c.organizationId!==orgId||!want.has(c.id))continue; gone.push(c.id); delete s.aiDetectionCandidates[c.id]; }
+    const set=new Set(gone);
+    for(const [k,v] of Object.entries(s.aiRedundantVerifications)) if(set.has(v.candidateId)) delete s.aiRedundantVerifications[k];
+    for(const [k,f] of Object.entries(s.aiOperatorFlags)) if(set.has(f.candidateId)) delete s.aiOperatorFlags[k];
+    let placements=0;for(const [k,pl] of Object.entries(s.aiPlacements)) if(set.has(pl.sourceCandidateId)){ delete s.aiPlacements[k]; placements++; }
+    this.save();return{deleted:gone.length,placements};
+  }
+  deleteJob(orgId,id){
+    const s=this.S(),j=s.aiAnalysisJobs[id];if(!j||j.organizationId!==orgId)return{error:'Job não encontrado.',code:404};
+    if(j.status==='RUNNING')return{errors:['A análise ainda está rodando. Espere terminar para excluir.']};
+    const ids=Object.values(s.aiDetectionCandidates).filter(c=>c.analysisJobId===id).map(c=>c.id);
+    const out=this.deleteCandidates(orgId,ids);
+    delete s.aiAnalysisJobs[id];delete s.aiJobAssets[id];this.save();
+    return{deleted:true,candidates:out.deleted,placements:out.placements};
+  }
   listPlacements(orgId,workId=null){return Object.values(this.S().aiPlacements).filter(p=>p.organizationId===orgId&&(!workId||p.workId===workId)).sort((a,b)=>a.displayStartSeconds-b.displayStartSeconds).map(clone);}
 }
-module.exports={StateAiPipelineRepository,normalizeMode,normalizeDepth,normalizeCategories,sha};
+module.exports={StateAiPipelineRepository,normalizeMode,normalizeDepth,normalizeCategories,sha,sceneConfig};

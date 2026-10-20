@@ -78,7 +78,7 @@ async function view(work, track) {
   const scenes = await Promise.all(track.scenes.map(async (s) => {
     const products = await Promise.all(s.products.map(async (it) => {
       const p = await Promise.resolve(content.getProductAuthoritative(it.id));
-      if (!p) return null;
+      if (!p || p.archivedAt) return null; // produto excluído pela produtora não aparece no app
       // vendedor oficial indicado pela produção vem sempre primeiro, com preço garantido
       const official = require("./official").asListedOffer(p.id);
       const list = await offers.offersFor(p);
@@ -177,7 +177,8 @@ function save(body, existing) {
   t.scenes = body.scenes.map((s, i) => ({
     id: s.id || `c${i + 1}`, title: String(s.title || `Cena ${i + 1}`).slice(0, 60),
     start: Number(s.start), end: Number(s.end),
-    products: (s.products || []).map((p) => ({ id: p.id, match: p.match === "parecido" ? "parecido" : "exato", box: p.box || null })),
+    products: (s.products || []).map((p) => ({ id: p.id, match: p.match === "parecido" ? "parecido" : "exato", box: p.box || null,
+      ...(typeof p.source === "string" && /^ai:[A-Za-z0-9_-]{1,80}$/.test(p.source) ? { source: p.source } : {}) })),
     // miniatura capturada no estúdio (piloto)
     thumb: require("./uploads").isUploadUrl(s.thumb) ? s.thumb : undefined,
   }));
@@ -261,6 +262,7 @@ async function validateAuthoritative(body, work) {
         ? await Promise.resolve(content.getProductForOrganizationAuthoritative(p.id, body.organizationId, { allowGlobal:true }))
         : await Promise.resolve(content.getProductAuthoritative(p.id));
       if (!product) errors.push(`Cena ${i + 1}: produto desconhecido ou de outra organização ${p.id}.`);
+      else if (product.archivedAt) errors.push(`Cena ${i + 1}: o produto "${product.name}" foi excluído. Remova-o da cena.`);
     }
   }
   return errors;
@@ -293,7 +295,8 @@ async function saveAuthoritative(body, existing) {
   t.scenes = body.scenes.map((s, i) => ({
     id: s.id || `c${i + 1}`, title: String(s.title || `Cena ${i + 1}`).slice(0, 60),
     start: Number(s.start), end: Number(s.end),
-    products: (s.products || []).map((p) => ({ id: p.id, match: p.match === "parecido" ? "parecido" : "exato", box: p.box || null })),
+    products: (s.products || []).map((p) => ({ id: p.id, match: p.match === "parecido" ? "parecido" : "exato", box: p.box || null,
+      ...(typeof p.source === "string" && /^ai:[A-Za-z0-9_-]{1,80}$/.test(p.source) ? { source: p.source } : {}) })),
     thumb: require("./uploads").isUploadUrl(s.thumb) ? s.thumb : undefined,
   }));
   t.updatedAt = store.now();

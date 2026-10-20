@@ -576,6 +576,98 @@
     renderSeal(); renderScenes(); renderSceneForm(); renderTimeline(); renderBoxes();
   }
 
+  // ================================================================ editor: produtos por cena
+  // Todas as cenas numa só tela: buscar e adicionar produtos em cada cena sem percorrer o vídeo.
+  const board = { sel: new Set(), products: [], thumbs: {}, token: 0 };
+  const boardRefresh = () => { renderScenes(); renderSceneForm(); renderTimeline(); renderBoxes(); };
+  async function openBoard() {
+    if (!st.track) return;
+    const r = await api("/api/me/products");
+    board.products = r.ok ? r.data || [] : [];
+    board.products.forEach((p) => (st.products[p.id] = st.products[p.id] || p));
+    $("boardProduct").innerHTML = `<option value="">${esc((window.t || String)("— escolha um produto —"))}</option>` + board.products.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+    board.sel = new Set(); $("boardAll").checked = false; $("boardFilter").value = "";
+    $("boardModal").hidden = false;
+    renderBoard();
+  }
+  function renderBoard() {
+    const tr = window.t || String, f = $("boardFilter").value.trim().toLowerCase();
+    $("boardSub").textContent = `${scenes().length} ${tr("cena(s)")} · ${tr("busque o produto dentro da cena; para repetir um produto em várias cenas, marque as cenas e use “Adicionar às cenas marcadas”.")}`;
+    $("boardBody").innerHTML = scenes().map((s, i) => (f && !String(s.title).toLowerCase().includes(f)) ? "" : `
+      <section class="board-scene ${board.sel.has(i) ? "is-picked" : ""}" data-bi="${i}">
+        <label class="pick"><input type="checkbox" data-bsel="${i}" ${board.sel.has(i) ? "checked" : ""} aria-label="${esc(tr("Marcar cena"))}"/></label>
+        <button type="button" class="board-thumb" data-bgo="${i}" title="${esc(tr("Abrir esta cena no vídeo"))}">${s.thumb ? `<img src="${esc(s.thumb)}" alt=""/>` : `<canvas width="192" height="108" data-bthumb="${i}"></canvas>`}<span>${fmtT(s.start)}</span></button>
+        <div class="board-main">
+          <div class="board-head"><b>${i + 1}.</b><input data-btitle="${i}" value="${esc(s.title)}" maxlength="60" aria-label="${esc(tr("Nome da cena"))}"/><small>${fmtT(s.start)}–${fmtT(s.end)} · ${s.products.length} ${tr("prod.")}</small></div>
+          <div class="board-chips">${s.products.length ? s.products.map((it, j) => { const p = st.products[it.id] || { name: it.id, image: "/media/products/placeholder.svg" }; return `<span class="chip"><img src="${esc(p.image)}" alt=""/>${esc(p.name)}<button type="button" data-brm="${i}:${j}" aria-label="${esc(tr("Remover"))}">×</button></span>`; }).join("") : `<span class="help">${esc(tr("Nenhum produto nesta cena ainda."))}</span>`}</div>
+          <div class="search board-search"><input data-bq="${i}" placeholder="${esc(tr("Buscar produto para esta cena…"))}" autocomplete="off"/><ul class="results" data-bres="${i}" hidden></ul></div>
+        </div>
+      </section>`).join("") || `<p class="help">${esc(tr("Nenhuma cena com esse nome."))}</p>`;
+    const body = $("boardBody");
+    body.querySelectorAll("[data-bsel]").forEach((cb) => (cb.onchange = () => { const i = Number(cb.dataset.bsel); cb.checked ? board.sel.add(i) : board.sel.delete(i); cb.closest(".board-scene").classList.toggle("is-picked", cb.checked); $("boardAll").checked = board.sel.size === scenes().length; }));
+    body.querySelectorAll("[data-btitle]").forEach((inp) => (inp.oninput = () => { scenes()[Number(inp.dataset.btitle)].title = inp.value; renderScenes(); renderTimeline(); }));
+    body.querySelectorAll("[data-brm]").forEach((b) => (b.onclick = () => { const [i, j] = b.dataset.brm.split(":").map(Number); scenes()[i].products.splice(j, 1); boardRefresh(); renderBoard(); }));
+    body.querySelectorAll("[data-bgo]").forEach((b) => (b.onclick = () => { $("boardModal").hidden = true; selectScene(Number(b.dataset.bgo), true); }));
+    body.querySelectorAll("[data-bq]").forEach((inp) => {
+      let tm;
+      inp.oninput = () => { clearTimeout(tm); tm = setTimeout(async () => {
+        const i = Number(inp.dataset.bq), res = body.querySelector(`[data-bres="${i}"]`), q = inp.value.trim();
+        if (!q) { res.hidden = true; return; }
+        const list = (await api(`/api/products?q=${encodeURIComponent(q)}`)).data || [];
+        res.innerHTML = list.length ? list.map((p) => `<li data-id="${esc(p.id)}"><img src="${esc(p.image)}" alt=""/><span><b>${esc(p.name)}</b> ${esc(p.brand || "")}</span><em>${brl(p.referencePrice)}</em></li>`).join("") : `<li class="none">${esc(tr("Nada encontrado. Cadastre na aba Produtos."))}</li>`;
+        res.hidden = false;
+        res.querySelectorAll("li[data-id]").forEach((li) => (li.onclick = () => {
+          const p = list.find((x) => x.id === li.dataset.id); st.products[p.id] = p;
+          const sc = scenes()[i];
+          if (sc.products.some((x) => x.id === p.id)) return toast(tr("Esse produto já está na cena."), true);
+          sc.products.push({ id: p.id, match: "exato", box: null });
+          boardRefresh(); renderBoard();
+          const again = $("boardBody").querySelector(`[data-bq="${i}"]`); if (again) again.focus();
+        }));
+      }, 180); };
+    });
+    drawBoardThumbs();
+  }
+  async function drawBoardThumbs() {
+    const token = ++board.token;
+    for (const cv of $("boardBody").querySelectorAll("canvas[data-bthumb]")) {
+      const s = scenes()[Number(cv.dataset.bthumb)], key = `${s.start}-${s.end}`;
+      try {
+        if (!board.thumbs[key]) {
+          const v = helperVideo(); await ready(v); await seekTo(v, Math.min(s.end - 0.05, (s.start + s.end) / 2) + (st.track.offset || 0));
+          const c = document.createElement("canvas"); c.width = 192; c.height = 108; c.getContext("2d").drawImage(v, 0, 0, 192, 108);
+          board.thumbs[key] = c;
+        }
+        if (token !== board.token || $("boardModal").hidden) return;
+        cv.getContext("2d").drawImage(board.thumbs[key], 0, 0);
+      } catch (e) { /* segue sem miniatura */ }
+    }
+  }
+  $("boardBtn").onclick = openBoard;
+  $("boardClose").onclick = () => ($("boardModal").hidden = true);
+  $("boardModal").onclick = (e) => { if (e.target === $("boardModal")) $("boardModal").hidden = true; };
+  $("boardFilter").oninput = () => renderBoard();
+  $("boardAll").onchange = () => { board.sel = new Set($("boardAll").checked ? scenes().map((_, i) => i) : []); renderBoard(); };
+  $("boardAdd").onclick = () => {
+    const pid = $("boardProduct").value, tr = window.t || String;
+    if (!pid) return toast(tr("Escolha o produto."), true);
+    if (!board.sel.size) return toast(tr("Marque as cenas."), true);
+    let n = 0;
+    board.sel.forEach((i) => { const sc = scenes()[i]; if (sc && !sc.products.some((x) => x.id === pid)) { sc.products.push({ id: pid, match: "exato", box: null }); n++; } });
+    boardRefresh(); renderBoard();
+    toast(`${n} ${tr("cena(s) receberam o produto.")}`);
+  };
+  $("boardRemove").onclick = () => {
+    const pid = $("boardProduct").value, tr = window.t || String;
+    if (!pid || !board.sel.size) return toast(tr("Escolha o produto e marque as cenas."), true);
+    let n = 0;
+    board.sel.forEach((i) => { const sc = scenes()[i]; const k = sc ? sc.products.findIndex((x) => x.id === pid) : -1; if (k >= 0) { sc.products.splice(k, 1); n++; } });
+    boardRefresh(); renderBoard();
+    toast(`${tr("Produto retirado de")} ${n} ${tr("cena(s).")}`);
+  };
+  $("boardPublish").onclick = () => { $("boardModal").hidden = true; $("saveBtn").click(); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("boardModal").hidden) $("boardModal").hidden = true; });
+
   // ================================================================ ganhos
   const STATUS = {
     custodia: ["Em custódia", "hold"], congelado: ["Congelado", "frozen"], aguardando_kyc: ["Aguardando verificação", "kyc"],
@@ -778,10 +870,11 @@
         <div class="head-row"><div><b>${esc(x.name)}</b> <span class="pill ${x.kind === "varejista" ? "hold" : "gold"}">${esc(SELLER_KIND[x.kind] || x.kind)}</span>
           <div class="help">${x.storeUrl ? `<a href="${esc(x.storeUrl)}" target="_blank" rel="noopener">${esc(x.storeUrl)}</a> · ` : ""}${x.cnpj ? "CNPJ " + esc(x.cnpj) + " · " : ""}${esc(x.integrationLabel || x.integration)} · ${x.orders || 0} pedido(s) confirmado(s)</div>
           <div class="help">${esc(a.notes || "")} Acordo válido até ${a.until ? new Date(a.until).toLocaleDateString("pt-BR") : "—"}.</div></div>
-          ${!x.active ? '<span class="pill rev">Desativada</span>' : a.valid ? '<span class="pill free">Acordo vigente</span>' : '<span class="pill rev">Acordo vencido</span>'}</div>
+          <div class="pills">${x.isDefault ? `<span class="pill hold">${tr("Padrão")}</span>` : ""}${!x.active ? `<span class="pill rev">${x.isDefault ? tr("Desabilitada nesta organização") : tr("Desativada")}</span>` : a.valid ? '<span class="pill free">Acordo vigente</span>' : '<span class="pill rev">Acordo vencido</span>'}</div></div>
         ${extra}
         ${mine ? connBlock(x) : ""}
-        ${mine ? `<div class="seller-actions"><button class="ghost small" data-edit>Editar</button><button class="ghost small" data-toggle>${x.active ? "Desativar" : "Reativar"}</button><button class="ghost small" data-secret>Integração automática (chave)</button></div>` : ""}
+        ${mine ? `<div class="seller-actions"><button class="ghost small" data-edit>Editar</button><button class="ghost small" data-toggle>${x.active ? "Desativar" : "Reativar"}</button><button class="ghost small" data-secret>Integração automática (chave)</button></div>`
+          : `<div class="seller-actions"><label class="switch"><input type="checkbox" data-toggle ${x.active ? "checked" : ""}/> ${x.active ? tr("Habilitada para os seus produtos") : tr("Desabilitada: não aparece para os seus produtos")}</label></div>`}
       </div>`;
     }).join("") || `<p class="help">${tr("Nenhuma loja cadastrada ainda.")}</p>`;
     $("sellersList").querySelectorAll(".codes-form").forEach((f) => (f.onsubmit = async (e) => {
@@ -818,7 +911,7 @@
       const x = offersSt.sellers.find((s) => s.id === el.dataset.sellerId);
       const ed = el.querySelector("[data-edit]"), tg = el.querySelector("[data-toggle]"), sc = el.querySelector("[data-secret]");
       if (ed) ed.onclick = () => openSellerForm(x);
-      if (tg) tg.onclick = async () => { const r = await api(`/api/me/sellers/${encodeURIComponent(x.id)}`, { method: "PUT", body: { active: !x.active } }); if (!r.ok) return toast(errText(r), true); loadOffers(); };
+      if (tg) tg.onclick = async () => { const r = await api(`/api/me/sellers/${encodeURIComponent(x.id)}/enabled`, { method: "PUT", body: { enabled: !x.active } }); if (!r.ok) return toast(errText(r), true); toast(x.active ? tr("Loja desabilitada.") : tr("Loja habilitada.")); loadOffers(); };
       if (sc) sc.onclick = async () => {
         if (!confirm(tr("Gerar uma nova chave de integração para esta loja? A chave anterior deixa de funcionar."))) return;
         const r = await api(`/api/me/sellers/${encodeURIComponent(x.id)}/secret`, { method: "POST", body: {} });
@@ -1319,7 +1412,7 @@
           <label>Comissão (%) <input name="commission" type="number" min="0" max="100" step="0.5" value="${o ? +(o.commission * 100).toFixed(1) : 10}" /></label>
           ${sellers.length ? "" : `<p class="help full">Para vender, cadastre a loja oficial na aba <b>Ofertas oficiais</b>.</p>`}
         </div>
-        <div class="foot"><span class="msg" data-msg></span>${p.id ? "" : `<button type="button" class="ghost small" data-discard>Descartar</button>`}<button class="primary">${p.id ? "Salvar alterações" : "Salvar produto"}</button></div>
+        <div class="foot"><span class="msg" data-msg></span>${p.id ? `<button type="button" class="ghost small danger" data-delete>Excluir produto</button>` : `<button type="button" class="ghost small" data-discard>Descartar</button>`}<button class="primary">${p.id ? "Salvar alterações" : "Salvar produto"}</button></div>
       </div>
     </form>`;
   }
@@ -1334,6 +1427,17 @@
     };
     const dis = form.querySelector("[data-discard]");
     if (dis) dis.onclick = () => { drafts.splice(Number(form.dataset.key.slice(1)), 1); renderDrafts(); };
+    const del = form.querySelector("[data-delete]");
+    if (del) del.onclick = async () => {
+      const tr = window.t || String;
+      if (!confirm(`${tr("Excluir o produto")} “${p.name}”? ${tr("Ele sai das cenas das trilhas (que são republicadas), da oferta oficial e do app.")}`)) return;
+      const r = await api(`/api/products/${encodeURIComponent(p.id)}`, { method: "DELETE" });
+      if (!r.ok) return toast((r.data.errors || [r.data.error]).join(" "), true);
+      delete st.products[p.id];
+      if (st.track) { let hit = false; st.track.scenes.forEach((sc) => { const n = sc.products.length; sc.products = sc.products.filter((x) => x.id !== p.id); hit = hit || n !== sc.products.length; }); if (hit) renderAll(); }
+      toast(`“${p.name}” ${tr("excluído.")}${r.data.tracksUpdated ? ` ${r.data.tracksUpdated} ${tr("trilha(s) republicada(s) sem ele.")}` : ""}`);
+      onSaved();
+    };
     form.onsubmit = async (e) => {
       e.preventDefault();
       const fd = Object.fromEntries(new FormData(form));
@@ -1459,9 +1563,53 @@
     if(aiOps.products.length&&!aiOps.synced){const sy=await api('/api/ai/assets/sync-products',{method:'POST',body:{}});if(sy.ok)aiOps.synced=true;}
     const [r,policyR]=await Promise.all([api(`/api/ai/workspace?workId=${encodeURIComponent(aiOps.workId)}`),api(`/api/distribution/works/${encodeURIComponent(aiOps.workId)}/timeline-policy`)]);
     if(!r.ok){$("aiOpsReview").innerHTML=`<div class="empty-state bad">${esc(r.data.error||'Falha ao carregar o workspace de IA.')}</div>`;return;}
-    aiOps.data={...r.data, timelinePolicy:policyR.ok?policyR.data:null}; renderAiOps();
+    aiOps.data={...r.data, timelinePolicy:policyR.ok?policyR.data:null};
+    await loadAiOpsSceneSources();
+    renderAiOps();
     if((r.data.jobs||[]).some(j=>['QUEUED','RUNNING'].includes(j.status))) aiOps.poll=setTimeout(loadAiOps,2500);
   }
+
+  // Cortes de cena para a descoberta: os do Editor (mesmo antes de publicar) ou de uma trilha salva
+  async function loadAiOpsSceneSources(){
+    const wid=aiOps.workId, tr=(window.t||String);
+    const opts=[];
+    if(st.workId===wid&&st.track&&st.track.scenes&&st.track.scenes.length>1) opts.push({value:'editor',label:tr('Editor de trilha (cortes atuais)'),scenes:st.track.scenes});
+    const tl=await api(`/api/me/tracks?work=${encodeURIComponent(wid)}`);
+    for(const t of (tl.ok?tl.data||[]:[]).filter(t=>t.status!=='removida'&&t.scenes>1)) opts.push({value:t.id,label:`${t.title} (${t.scenes} ${tr('cenas')})`,scenes:null});
+    aiOps.sceneOpts=opts;
+    const sel=$("aiOpsSceneTrack"), keep=sel.value;
+    sel.innerHTML=opts.map(o=>`<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('')||`<option value="">${esc(tr('Nenhum corte ainda'))}</option>`;
+    if(opts.some(o=>o.value===keep))sel.value=keep;
+    await loadAiOpsScenes();
+  }
+  async function loadAiOpsScenes(){
+    const o=(aiOps.sceneOpts||[]).find(x=>x.value===$("aiOpsSceneTrack").value);
+    if(o&&!o.scenes){const t=await api(`/api/tracks/${encodeURIComponent(o.value)}`);o.scenes=t.ok?t.data.scenes||[]:[];}
+    aiOps.scenes=o?o.scenes.map(sc=>({id:sc.id,title:sc.title,start:sc.start,end:sc.end})):[];
+    if(!aiOps.srcTouched)$("aiOpsSceneSource").value=aiOps.scenes.length?'TRACK':'AI';
+    aiOps.sceneSel=new Set(aiOps.scenes.map(sc=>sc.id));
+    renderAiOpsScenes();
+  }
+  function renderAiOpsScenes(){
+    const tr=(window.t||String), src=$("aiOpsSceneSource").value, list=aiOps.scenes||[];
+    $("aiOpsScenesBox").hidden=src!=='TRACK';
+    if(!list.length){
+      $("aiOpsSceneList").innerHTML=`<div class="empty-state">${esc(tr('Ainda não há cortes de cena para esta obra. No Editor de trilha, use Detectar cortes (ou Nova cena a partir daqui) e volte aqui: cada cena é analisada separadamente.'))} <button type="button" class="ghost small" data-go-editor>${esc(tr('Abrir o Editor'))}</button></div>`;
+      const b=$("aiOpsSceneList").querySelector('[data-go-editor]'); if(b)b.onclick=()=>$("aiOpsToEditor").click();
+      $("aiOpsScenesInfo").textContent=''; return;
+    }
+    $("aiOpsSceneList").innerHTML=list.map((sc,i)=>`<label><input type="checkbox" value="${esc(sc.id)}" ${aiOps.sceneSel.has(sc.id)?'checked':''}/> ${i+1}. ${esc(sc.title)} <small>${aiOpsFmt(sc.start)}–${aiOpsFmt(sc.end)}</small></label>`).join('');
+    $("aiOpsSceneList").querySelectorAll('input').forEach(cb=>cb.onchange=()=>{cb.checked?aiOps.sceneSel.add(cb.value):aiOps.sceneSel.delete(cb.value);renderAiOpsScenesInfo();});
+    renderAiOpsScenesInfo();
+  }
+  function renderAiOpsScenesInfo(){
+    const n=aiOps.sceneSel.size, tot=(aiOps.scenes||[]).length;
+    $("aiOpsScenesAll").checked=n===tot&&tot>0;
+    $("aiOpsScenesInfo").textContent=`· ${n}/${tot} ${(window.t||String)('marcadas, analisadas ao mesmo tempo')}`;
+  }
+  $("aiOpsSceneSource").onchange=()=>{aiOps.srcTouched=true;renderAiOpsScenes();};
+  $("aiOpsSceneTrack").onchange=()=>loadAiOpsScenes();
+  $("aiOpsScenesAll").onchange=()=>{aiOps.sceneSel=new Set($("aiOpsScenesAll").checked?(aiOps.scenes||[]).map(sc=>sc.id):[]);renderAiOpsScenes();};
 
   function renderAiOps(){
     const d=aiOps.data||{},assets=d.assets||[],jobs=d.jobs||[],cands=d.candidates||[],flags=d.flags||[],placements=d.placements||[];
@@ -1475,17 +1623,53 @@
 
     const mode=$("aiOpsMode").value;
     const prodImg=(a)=>{const pr=(aiOps.products||[]).find(p=>p.id===a.productId);return pr?pr.image:((a.references||[])[0]||{}).uri||'';};
+    const liveIds=new Set((aiOps.products||[]).map(p=>p.id));
+    const visibleAssets=assets.filter(a=>!a.productId||liveIds.has(a.productId));
     const checked=new Set([...$("aiOpsAssets").querySelectorAll('input:checked')].map(x=>x.value));
-    $("aiOpsAssets").innerHTML=assets.length?assets.map(a=>`<label class="asset-chip"><input type="checkbox" value="${esc(a.id)}" ${checked.has(a.id)?'checked':''} ${mode==='DISCOVERY'?'disabled':''}/>${prodImg(a)?`<img src="${esc(prodImg(a))}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover"/>`:''}<span><b>${esc(a.name)}</b><small>${esc([a.brand,a.model].filter(Boolean).join(' · ')||'produto cadastrado')}</small></span></label>`).join(''):'<div class="empty-state">Cadastre os produtos na aba Produtos: eles aparecem aqui para a IA procurar no vídeo.</div>';
+    $("aiOpsAssets").innerHTML=visibleAssets.length?visibleAssets.map(a=>`<label class="asset-chip"><input type="checkbox" value="${esc(a.id)}" ${checked.has(a.id)?'checked':''} ${mode==='DISCOVERY'?'disabled':''}/>${prodImg(a)?`<img src="${esc(prodImg(a))}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover"/>`:''}<span><b>${esc(a.name)}</b><small>${esc([a.brand,a.model].filter(Boolean).join(' · ')||'produto cadastrado')}</small></span></label>`).join(''):'<div class="empty-state">Cadastre os produtos na aba Produtos: eles aparecem aqui para a IA procurar no vídeo.</div>';
 
-    $("aiOpsJobs").innerHTML=jobs.length?jobs.slice(0,8).map(j=>`<div class="stack-row"><div><b>${esc(j.mode)}</b> · ${esc(j.scanDepth||'STANDARD')}<small>${new Date(j.createdAt).toLocaleString('pt-BR')} · ${esc(j.primaryProvider||'SceneShop')}</small></div><span class="status-pill ${String(j.status||'').toLowerCase()}">${esc(j.status)}</span></div>`).join(''):'<div class="empty-state">Nenhuma análise persistente desta obra.</div>';
+    const tr=(window.t||String);
+    const sync=d.sync||{jobIds:[],explicit:false}, syncSet=new Set(sync.jobIds||[]);
+    const byJob=new Map();cands.forEach(c=>{const x=byJob.get(c.analysisJobId)||{n:0,ok:0};x.n++;if(c.reviewStatus==='APPROVED')x.ok++;byJob.set(c.analysisJobId,x);});
+    const scenesOf=(j)=>{const c=j.config||{};return c.sceneSource==='TRACK'?`${(c.scenes||[]).length} ${tr('cenas do Editor')}`:c.sceneSource==='SINGLE'?tr('uma cena só'):tr('cenas da IA');};
+    $("aiOpsJobs").innerHTML=jobs.length?jobs.map(j=>{const k=byJob.get(j.id)||{n:0,ok:0};return `<div class="stack-row job-row ${syncSet.has(j.id)?'is-sync':''}" data-job="${esc(j.id)}">
+      <label class="sync-chk" title="${esc(tr('Enviar os itens aprovados desta análise para o app'))}"><input type="checkbox" data-sync-job="${esc(j.id)}" ${syncSet.has(j.id)?'checked':''} ${j.status==='COMPLETED'?'':'disabled'}/> App</label>
+      <div class="grow"><b>${esc(j.mode)}</b> · ${esc(j.scanDepth||'STANDARD')} · ${esc(scenesOf(j))}<small>${new Date(j.createdAt).toLocaleString('pt-BR')} · ${k.n} ${tr('itens')} · ${k.ok} ${tr('aprovados')}${j.errorMessage?` · ${esc(j.errorMessage)}`:''}</small></div>
+      <span class="status-pill ${String(j.status||'').toLowerCase()}">${esc(j.status)}</span>
+      <button class="ghost small danger" data-del-job="${esc(j.id)}" ${j.status==='RUNNING'?'disabled':''} title="${esc(tr('Excluir esta análise e os itens dela'))}">${esc(tr('Excluir'))}</button></div>`;}).join(''):'<div class="empty-state">Nenhuma análise persistente desta obra.</div>';
+    $("aiOpsSyncMsg").textContent=jobs.length&&!sync.explicit?tr('Nenhuma análise marcada: vale a mais recente concluída.'):'';
+    $("aiOpsJobs").querySelectorAll('[data-sync-job]').forEach(cb=>cb.onchange=async()=>{
+      const ids=[...$("aiOpsJobs").querySelectorAll('[data-sync-job]:checked')].map(x=>x.dataset.syncJob);
+      const r=await api(`/api/ai/works/${encodeURIComponent(aiOps.workId)}/sync`,{method:'PUT',body:{jobIds:ids}});
+      if(!r.ok)return toast(r.data.error||'Falha ao salvar a seleção.',true);
+      aiOps.data.sync=r.data;renderAiOps();
+    });
+    $("aiOpsJobs").querySelectorAll('[data-del-job]').forEach(b=>b.onclick=async()=>{
+      if(!confirm(tr('Excluir esta análise? Os itens descobertos, aceitos e rejeitados dela também são excluídos.')))return;
+      const r=await api(`/api/ai/jobs/${encodeURIComponent(b.dataset.delJob)}`,{method:'DELETE'});
+      if(!r.ok)return toast(r.data.error||(r.data.errors||[]).join(' ')||'Falha ao excluir.',true);
+      toast(`${tr('Análise excluída')} (${r.data.candidates||0} ${tr('itens')}).`);await loadAiOps();
+    });
 
     const verBy=new Map();(d.verifications||[]).forEach(v=>{if(!verBy.has(v.candidateId))verBy.set(v.candidateId,[]);verBy.get(v.candidateId).push(v);});
-    $("aiOpsReview").innerHTML=cands.length?cands.map(c=>{
+    const jf=$("aiOpsFilterJob"), jkeep=jf.value;
+    jf.innerHTML=`<option value="">${esc(tr('Todas'))}</option>`+jobs.map((j,i)=>`<option value="${esc(j.id)}">#${jobs.length-i} · ${esc(new Date(j.createdAt).toLocaleString('pt-BR'))}</option>`).join('');
+    if(jobs.some(j=>j.id===jkeep))jf.value=jkeep;
+    aiOps.sel=new Set([...(aiOps.sel||[])].filter(id=>cands.some(c=>c.id===id)));
+    const fs=$("aiOpsFilter").value, fj=jf.value;
+    const shown=cands.filter(c=>(!fs||c.reviewStatus===fs)&&(!fj||c.analysisJobId===fj));
+    aiOps.shown=shown;
+    const assetForProduct=(pid)=>(assets.find(a=>a.productId&&a.productId===pid)||{}).id||'';
+    const groups=[];const gk=(c)=>`${(c.primaryPayload||{}).sourceSceneId||''}|${c.startSeconds}|${c.endSeconds}`;
+    shown.forEach(c=>{let g=groups.find(x=>x.key===gk(c));if(!g){g={key:gk(c),title:(c.primaryPayload||{}).sourceSceneTitle||'',start:c.startSeconds,end:c.endSeconds,items:[]};groups.push(g);}g.items.push(c);});
+    groups.sort((a,b)=>a.start-b.start);
+    const card=(c)=>{
       const ver=(verBy.get(c.id)||[]).sort((a,b)=>Number(b.checkedAt||0)-Number(a.checkedAt||0))[0]||null;
       const flag=aiOpsOpenFlag(c.id); const locked=['APPROVED','REJECTED'].includes(c.reviewStatus);
-      const assetOptions=assets.map(a=>`<option value="${esc(a.id)}"${a.id===(c.resolvedAssetId||c.assetId)?' selected':''}>${esc(a.name)}</option>`).join('');
-      return `<article class="review-card ${flag?'has-flag':''}" data-candidate="${esc(c.id)}">
+      const pre=c.resolvedAssetId||c.assetId||assetForProduct((c.primaryPayload||{}).productId);
+      const assetOptions=visibleAssets.map(a=>`<option value="${esc(a.id)}"${a.id===pre?' selected':''}>${esc(a.name)}</option>`).join('');
+      return `<article class="review-card ${flag?'has-flag':''} ${aiOps.sel.has(c.id)?'is-picked':''}" data-candidate="${esc(c.id)}">
+        <label class="pick"><input type="checkbox" data-pick="${esc(c.id)}" ${aiOps.sel.has(c.id)?'checked':''} aria-label="${esc(tr('Selecionar'))}"/></label>
         <div class="review-time"><b>${aiOpsFmt(c.startSeconds)}–${aiOpsFmt(c.endSeconds)}</b><span>${Math.round(Number(c.primaryConfidence||0)*100)}%</span></div>
         <div class="review-main"><div class="review-title"><b>${esc(c.candidateName||aiOpsAssetName(c.assetId)||'Item detectado')}</b><span class="status-pill ${String(c.reviewStatus||'').toLowerCase()}">${esc(c.reviewStatus)}</span></div>
           <p>${esc(c.candidateDescription||[c.proposedBrand,c.proposedModel,c.category].filter(Boolean).join(' · ')||'Sem descrição adicional.')}</p>
@@ -1493,9 +1677,14 @@
         </div>
         <div class="review-actions"><select data-review-asset ${locked?'disabled':''}><option value="">Qual produto é este?</option>${assetOptions}</select><textarea data-review-note placeholder="Nota do operador" ${locked?'disabled':''}></textarea><div class="row"><button class="primary small" data-review="APPROVE" ${locked?'disabled':''}>Aprovar</button><button class="ghost small danger" data-review="REJECT" ${locked?'disabled':''}>Rejeitar</button></div></div>
       </article>`;
-    }).join(''):'<div class="empty-state">Nenhuma identificação para revisar nesta obra.</div>';
+    };
+    $("aiOpsReview").innerHTML=shown.length?groups.map((g,gi)=>`<section class="review-scene"><header><label class="chk"><input type="checkbox" data-pick-group="${gi}" ${g.items.every(c=>aiOps.sel.has(c.id))?'checked':''}/> <b>${esc(g.title||`${tr('Cena')} ${gi+1}`)}</b></label><small>${aiOpsFmt(g.start)}–${aiOpsFmt(g.end)} · ${g.items.length} ${tr('itens')}</small></header>${g.items.map(card).join('')}</section>`).join('')
+      :`<div class="empty-state">${cands.length?esc(tr('Nenhum item com esse filtro.')):'Nenhuma identificação para revisar nesta obra.'}</div>`;
 
     $("aiOpsReview").querySelectorAll('[data-review]').forEach(btn=>btn.onclick=()=>reviewAiOps(btn.closest('[data-candidate]'),btn.dataset.review));
+    $("aiOpsReview").querySelectorAll('[data-pick]').forEach(cb=>cb.onchange=()=>{cb.checked?aiOps.sel.add(cb.dataset.pick):aiOps.sel.delete(cb.dataset.pick);cb.closest('.review-card').classList.toggle('is-picked',cb.checked);renderAiOpsSel();});
+    $("aiOpsReview").querySelectorAll('[data-pick-group]').forEach(cb=>cb.onchange=()=>{groups[Number(cb.dataset.pickGroup)].items.forEach(c=>cb.checked?aiOps.sel.add(c.id):aiOps.sel.delete(c.id));renderAiOps();});
+    renderAiOpsSel();
 
     $("aiOpsPlacements").innerHTML=placements.length?placements.map(p=>`<div class="stack-row"><div><b>${esc(aiOpsAssetName(p.assetId))}</b><small>${aiOpsFmt(p.displayStartSeconds)}–${aiOpsFmt(p.displayEndSeconds)} · físico ${aiOpsFmt(p.physicalStartSeconds)}–${aiOpsFmt(p.physicalEndSeconds)}</small></div><span class="status-pill approved">APPROVED</span></div>`).join(''):'<div class="empty-state">Nenhum placement aprovado ainda.</div>';
 
@@ -1507,6 +1696,53 @@
     $("aiOpsMissed").checked=pol.missedItemsEnabled!==false;
     $("aiOpsSeek").checked=!!pol.allowSceneSeek;
   }
+
+  function renderAiOpsSel(){
+    const n=aiOps.sel?aiOps.sel.size:0, shown=aiOps.shown||[];
+    $("aiOpsSelCount").textContent=n?`${n} ${(window.t||String)('selecionado(s)')}`:'';
+    $("aiOpsSelAll").checked=shown.length>0&&shown.every(c=>aiOps.sel.has(c.id));
+    $("aiOpsApproveSel").disabled=$("aiOpsDeleteSel").disabled=!n;
+  }
+  $("aiOpsFilter").onchange=()=>renderAiOps();
+  $("aiOpsFilterJob").onchange=()=>renderAiOps();
+  $("aiOpsSelAll").onchange=()=>{(aiOps.shown||[]).forEach(c=>$("aiOpsSelAll").checked?aiOps.sel.add(c.id):aiOps.sel.delete(c.id));renderAiOps();};
+  $("aiOpsDeleteSel").onclick=async()=>{
+    const ids=[...(aiOps.sel||[])];if(!ids.length)return;
+    if(!confirm(`${(window.t||String)('Excluir os itens selecionados?')} (${ids.length})`))return;
+    const r=await api('/api/ai/candidates/delete',{method:'POST',body:{ids}});
+    if(!r.ok)return toast(r.data.error||'Falha ao excluir.',true);
+    aiOps.sel.clear();toast(`${r.data.deleted} ${(window.t||String)('item(ns) excluído(s).')}`);await loadAiOps();
+  };
+  $("aiOpsApproveSel").onclick=async()=>{
+    const d=aiOps.data||{}, assets=d.assets||[];
+    const todo=(d.candidates||[]).filter(c=>aiOps.sel.has(c.id)&&c.reviewStatus==='DETECTED');
+    let ok=0,skip=0;
+    $("aiOpsApproveSel").disabled=true;
+    for(const c of todo){
+      const cardEl=$("aiOpsReview").querySelector(`[data-candidate="${CSS.escape(c.id)}"]`);
+      const chosen=cardEl&&cardEl.querySelector('[data-review-asset]').value;
+      const assetId=chosen||c.assetId||(assets.find(a=>a.productId&&a.productId===(c.primaryPayload||{}).productId)||{}).id;
+      if(!assetId){skip++;continue;}
+      const flag=aiOpsOpenFlag(c.id);
+      const url=flag?`/api/ai/operator-flags/${encodeURIComponent(flag.id)}/resolve`:`/api/ai/candidates/${encodeURIComponent(c.id)}/review`;
+      const r=await api(url,{method:'POST',body:{decision:'APPROVE',assetId}});
+      r.ok?ok++:skip++;
+    }
+    aiOps.sel.clear();
+    toast(`${ok} ${(window.t||String)('aprovado(s).')}${skip?` ${skip} ${(window.t||String)('sem produto escolhido (escolha “Qual produto é este?”).')}`:''}`,!ok&&!!skip);
+    await loadAiOps();
+  };
+  $("aiOpsPublish").onclick=async()=>{
+    const wid=aiOps.workId;if(!wid)return;
+    $("aiOpsPublish").disabled=true;$("aiOpsSyncMsg").textContent=(window.t||String)('Publicando no app…');
+    const r=await api(`/api/ai/works/${encodeURIComponent(wid)}/publish`,{method:'POST',body:{}});
+    $("aiOpsPublish").disabled=false;
+    if(!r.ok){$("aiOpsSyncMsg").textContent=r.data.error||(r.data.errors||[]).join(' ')||'Falha ao publicar.';return;}
+    const tr=(window.t||String);
+    $("aiOpsSyncMsg").textContent=`${tr('Publicado no app')}: ${r.data.products} ${tr('produto(s) em')} ${r.data.scenesWithProducts} ${tr('de')} ${r.data.scenes} ${tr('cenas')}${r.data.skipped?` · ${r.data.skipped} ${tr('aprovado(s) sem produto cadastrado ficaram de fora')}`:''}.`;
+    if(st.workId===wid)await loadTrackList();
+    await loadAiOps();
+  };
 
   async function reviewAiOps(card,decision){
     const candidateId=card.dataset.candidate, assetId=card.querySelector('[data-review-asset]').value, note=card.querySelector('[data-review-note]').value.trim();
@@ -1528,12 +1764,18 @@
     const categories=[...$("aiOpsCategories").querySelectorAll('input:checked')].map(x=>x.value);
     if(mode==='TARGETED'&&!assetIds.length)return toast('Marque ao menos um produto para a IA procurar.',true);
     if(mode==='HYBRID'&&!assetIds.length)return toast('Marque ao menos um produto (ou use Descoberta aberta).',true);
-    const body={analysisMode:mode,assetIds,categories,scanDepth:$("aiOpsDepth").value,minimumConfidence:Number($("aiOpsConfidence").value||0.6),includeBackground:$("aiOpsBackground").checked};
+    const sceneSource=$("aiOpsSceneSource").value;
+    const body={analysisMode:mode,assetIds,categories,scanDepth:$("aiOpsDepth").value,minimumConfidence:Number($("aiOpsConfidence").value||0.6),includeBackground:$("aiOpsBackground").checked,sceneSource};
+    if(sceneSource==='TRACK'){
+      body.scenes=(aiOps.scenes||[]).filter(sc=>aiOps.sceneSel.has(sc.id));
+      if(!body.scenes.length)return toast('Marque ao menos uma cena (ou crie os cortes no Editor de trilha com Detectar cortes).',true);
+      const src=$("aiOpsSceneTrack").value; if(src&&src!=='editor')body.trackId=src;
+    }
     $("aiOpsRun").disabled=true;$("aiOpsRunMsg").textContent='Iniciando análise…';
     const r=await api(`/api/works/${encodeURIComponent(workId)}/ai`,{method:'POST',body});
     $("aiOpsRun").disabled=false;
     if(!r.ok){$("aiOpsRunMsg").textContent=r.data.error||(r.data.errors||[]).join(' ')||'Falha ao iniciar.';return;}
-    $("aiOpsRunMsg").textContent=`Job ${r.data.analysisJob&&r.data.analysisJob.id||''} iniciado.`; aiOps.poll=setTimeout(loadAiOps,1000);
+    $("aiOpsRunMsg").textContent=sceneSource==='TRACK'?`${(window.t||String)('Análise iniciada')}: ${body.scenes.length} ${(window.t||String)('cena(s) analisadas ao mesmo tempo, cada uma separada.')}`:`Job ${r.data.analysisJob&&r.data.analysisJob.id||''} iniciado.`; aiOps.poll=setTimeout(loadAiOps,1000);
   };
   $("aiOpsToEditor").onclick=async()=>{const wid=$("aiOpsWork").value;if(wid){st.workId=wid;await selectWork(wid);}showTab('editor');};
   $("aiOpsSavePolicy").onclick=async()=>{

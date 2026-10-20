@@ -419,6 +419,8 @@ app.post("/api/me/sellers", requireRole(), orgAccess.requireCapability("COMMERCE
   reply(res, official.createSeller(req.organization.id, req.body || {}, actor(req)), 201));
 app.put("/api/me/sellers/:id", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), (req, res) =>
   reply(res, official.updateSeller(req.organization.id, req.params.id, req.body || {}, actor(req))));
+app.put("/api/me/sellers/:id/enabled", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), (req, res) =>
+  reply(res, official.setSellerEnabled(req.organization.id, req.params.id, !!(req.body || {}).enabled, actor(req))));
 app.post("/api/me/sellers/:id/secret", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), (req, res) =>
   reply(res, official.rotateSellerSecret(req.organization.id, req.params.id, actor(req))));
 app.post("/api/me/sellers/:id/test", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), wrap(async (req, res) => {

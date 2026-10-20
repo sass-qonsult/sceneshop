@@ -68,7 +68,9 @@
     "rc:finalize": "node tools/v019-finalize.js --source=artifacts/external-evidence --apply",
     "test:i18n": "node test/i18n.e2e.mjs",
     "test:acr": "node test/acr.e2e.mjs",
-    "test:audio-id": "node test/audio-id.e2e.mjs"
+    "test:audio-id": "node test/audio-id.e2e.mjs",
+    "test:rc10": "node test/rcprep10.api.mjs",
+    "test:rc10:e2e": "node test/rcprep10.e2e.mjs"
   },
   "engines": {
     "node": ">=20"

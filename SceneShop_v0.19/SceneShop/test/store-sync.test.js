@@ -104,9 +104,9 @@ test("relatório do programa de afiliados (CSV)", async () => {
   catalog.addProduct({ id: "caixa", name: "Caixa JBL", brand: "JBL", referencePrice: 600, images: [] });
   official.setOffer("caixa", { sellerId: id, price: 599, commission: 0.095, url: "https://mercadolivre.com/sec/abc" }, "u", { organizationId: org });
   const link = official.buildRedirect({ productId: "caixa", click: null, workId: "w1" });
-  const now = new Date();
-  const dStr = [String(now.getDate()).padStart(2, "0"), String(now.getMonth() + 1).padStart(2, "0"), now.getFullYear()].join("/");
-  const csv = `Data;ID da venda;Produto;Valor;Comissão;Etiqueta\n${dStr};ML-1;Caixa JBL;"599,00";"56,90";${link.offerId}\n${dStr};ML-2;Outro;120,00;11,40;sceneshop\n${dStr};ML-2;Outro;120,00;11,40;sceneshop\n`;
+  // datas do relatório: o dia de hoje (a venda nunca é anterior ao clique que a originou)
+  const d = new Date(), hoje = `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  const csv = `Data;ID da venda;Produto;Valor;Comissão;Etiqueta\n${hoje};ML-1;Caixa JBL;"599,00";"56,90";${link.offerId}\n${hoje};ML-2;Outro;120,00;11,40;sceneshop\n${hoje};ML-2;Outro;120,00;11,40;sceneshop\n`;
   const out = await sync.importReport(org, id, csv, "u", deps);
   assert.equal(out.ok, true); assert.equal(out.vendas, 1); assert.equal(out.semReferencia, 1); assert.equal(out.duplicadas, 1);
   const perf = sync.performance(org)[0];

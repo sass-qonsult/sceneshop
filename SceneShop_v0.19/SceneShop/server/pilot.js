@@ -137,6 +137,31 @@ module.exports = function pilotRoutes({ requireRole, reply, actor }) {
     res.json(updated);
   }));
 
+  // Excluir produto: ele é arquivado (some das listas, das buscas, da IA e do app), sai das cenas
+  // das trilhas da organização (que são republicadas) e perde a oferta oficial. Vendas e
+  // publicações antigas continuam resolvendo o id.
+  r.delete("/api/products/:id", requireRole(), orgAccess.requireAnyCapability("CONTENT_WRITE","COMMERCE_WRITE"), safe(async (req, res) => {
+    const orgId = req.organization.id;
+    const cur = await Promise.resolve(content.getProductForOrganizationAuthoritative(req.params.id, orgId, { allowGlobal:false }));
+    if (!cur || cur.archivedAt) return res.status(404).json({ errors: ["Produto não encontrado nesta organização."] });
+    const who = actor(req);
+    let tracksUpdated = 0;
+    const list = await Promise.resolve(content.listTracksByOrganizationAuthoritative(orgId, null));
+    for (const t of list || []) {
+      if (t.status !== "ativa" || !(t.scenes || []).some((s) => (s.products || []).some((p) => p.id === cur.id))) continue;
+      const scenes = t.scenes.map((s) => ({ ...s, products: (s.products || []).filter((p) => p.id !== cur.id) }));
+      const out = await tracks.saveAuthoritative({ ...t, scenes, authorId: t.authorId, organizationId: t.organizationId || orgId }, t);
+      if (out.errors) return res.status(409).json({ errors: [`Não foi possível tirar o produto da trilha "${t.title}": ${out.errors.join(" ")}`] });
+      tracksUpdated++;
+    }
+    Object.assign(cur, { archivedAt: store.now(), archivedBy: who, updatedAt: store.now() });
+    await content.updateProductAuthoritative(cur);
+    if (S().officialOffers[cur.id]) { delete S().officialOffers[cur.id]; store.save(); }
+    await offers.invalidateProduct(cur.id, { action: "delete" });
+    audit.log(who, "produto_excluido", { productId: cur.id, organizationId: orgId, tracksUpdated });
+    res.json({ ok: true, id: cur.id, tracksUpdated });
+  }));
+
   r.get("/api/me/products", requireRole(), orgAccess.requireCapability("COMMERCE_READ"), safe(async (req, res) => {
     const products = await Promise.resolve(content.listProductsByOrganizationAuthoritative(req.organization.id));
     res.json(products.map((p) => ({ ...p, offer: S().officialOffers[p.id] || null }))

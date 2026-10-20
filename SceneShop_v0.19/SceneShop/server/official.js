@@ -48,11 +48,32 @@ function agreementValid(seller) {
   return !a || (a.until || Infinity) >= store.now();
 }
 
+// Loja habilitada para a organização: a própria loja pelo campo active; as lojas padrão
+// (marketplaces que não pertencem à organização) por uma preferência da organização.
+function sellerEnabledFor(seller, organizationId) {
+  if (!seller || seller.active === false) return false;
+  if (!organizationId || seller.organizationId) return true;
+  return ((S().orgSellerPrefs || {})[organizationId] || {})[seller.id] !== false;
+}
+
+function setSellerEnabled(organizationId, sellerId, enabled, actor) {
+  const s = S().sellers[sellerId];
+  const visible = s && (s.organizationId === organizationId || (!s.organizationId && sellersView(true, organizationId).some((x) => x.id === sellerId)));
+  if (!visible) return { error: "Loja não encontrada nesta organização.", code: 404 };
+  if (s.organizationId) s.active = !!enabled;
+  else ((S().orgSellerPrefs ||= {})[organizationId] ||= {})[sellerId] = !!enabled;
+  audit.log(actor, enabled ? "loja_habilitada" : "loja_desabilitada", { sellerId, organizationId, padrao: !s.organizationId });
+  store.save();
+  return { seller: sellersView(true, organizationId).find((x) => x.id === sellerId) };
+}
+
 function offerFor(productId) {
   const o = S().officialOffers[productId];
   if (!o) return null;
   const seller = S().sellers[o.sellerId];
   if (!seller || !seller.verified || !agreementValid(seller) || o.validUntil < store.now()) return null;
+  const orgId = o.organizationId || (catalog.getProduct(productId) || {}).organizationId || null;
+  if (!sellerEnabledFor(seller, orgId)) return null; // loja desabilitada: o produto deixa de ter compra garantida
   return { ...o, seller };
 }
 
@@ -84,7 +105,7 @@ function setOffer(productId, { sellerId, price, commission, validDays, url }, ac
   const errors = [];
   if (!seller || !seller.verified) errors.push("Loja não verificada.");
   else if (organizationId && seller.organizationId && seller.organizationId !== organizationId) errors.push("Essa loja pertence a outra organização.");
-  else if (seller.active === false) errors.push("Essa loja está desativada.");
+  else if (!sellerEnabledFor(seller, organizationId)) errors.push("Essa loja está desativada.");
   const link = String(url || "").trim();
   if (link && !validStoreUrl(link)) errors.push("Link do produto inválido: use o endereço completo, começando com https://");
   if (seller && seller.integration === "link_produto" && !link && !seller.storeUrl) errors.push("Informe o link do produto na loja.");
@@ -96,7 +117,7 @@ function setOffer(productId, { sellerId, price, commission, validDays, url }, ac
   }
   if (errors.length) return { errors };
   S().officialOffers[productId] = {
-    sellerId, price: round(pr), commission: cm, setBy: actor, url: link || null,
+    sellerId, price: round(pr), commission: cm, setBy: actor, url: link || null, organizationId: organizationId || null,
     validUntil: store.now() + Math.min(365, Math.max(1, Number(validDays) || 90)) * store.DAY,
   };
   audit.log(actor, "oferta_oficial_definida", { productId, sellerId, preco: round(pr), comissao: cm });
@@ -537,7 +558,7 @@ function sellersView(forProducer, organizationId) {
   return Object.values(S().sellers)
     .filter((s) => organizationId === undefined || s.organizationId === organizationId || (!s.organizationId && DEMO))
     .map((s) => ({
-    storeUrl: forProducer ? s.storeUrl || null : undefined, active: s.active !== false, organizationId: s.organizationId || null,
+    storeUrl: forProducer ? s.storeUrl || null : undefined, active: sellerEnabledFor(s, organizationId), organizationId: s.organizationId || null, isDefault: !s.organizationId,
     connection: forProducer && s.connection ? { platform: s.connection.platform, platformLabel: connectors.PLATFORMS[s.connection.platform], account: s.connection.account, advertiserId: s.connection.advertiserId || null, couponDiscountPct: s.connection.couponDiscountPct || 0,
       credentials: connectors.credentialStatus(s), lastSync: s.connection.lastSync || null, lastResult: s.connection.lastResult || null, lastError: s.connection.lastError || null } : forProducer ? null : undefined,
     webhook: forProducer ? { orders: `/api/sellers/${s.id}/orders`, report: `/api/sellers/${s.id}/report` } : undefined,
@@ -756,5 +777,5 @@ module.exports = {
   INTEGRATIONS, offerFor, asListedOffer, setOffer, issueToken, verifyToken, sign, buildRedirect,
   addCodes, assignCode, poolStatus, receiveOrder, receiveReport, processOrder, sellerSignature, sellersView, setCampaign,
   createSeller, updateSeller, rotateSellerSecret, referrals, registerManualOrder, validStoreUrl, SELLER_KINDS,
-  buildRedirectAsync, landing, newCouponCode, ownSeller,
+  buildRedirectAsync, landing, newCouponCode, ownSeller, sellerEnabledFor, setSellerEnabled,
 };

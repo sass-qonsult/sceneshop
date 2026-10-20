@@ -327,3 +327,51 @@ input[data-money] { text-align: right; font-variant-numeric: tabular-nums; }
 .conn { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; }
 .conn .bad, .help.bad { color: var(--bad); }
 .file-btn { display: inline-block; cursor: pointer; padding: 4px 9px; margin-left: 6px; }
+
+/* ---- produtos por cena (editor) */
+.board-sheet { width: min(1180px, 100%); }
+.board-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; padding: 12px 20px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.board-bar .grow { flex: 1; min-width: 200px; }
+.board-bar #boardFilter { width: 220px; }
+.board-scene { display: grid; grid-template-columns: 28px 192px minmax(0, 1fr); gap: 14px; align-items: start; padding: 12px; border: 1px solid var(--line); border-radius: 12px; margin-bottom: 10px; background: var(--surface-2); }
+.board-scene.is-picked { border-color: var(--accent-2); }
+.board-scene .pick { padding-top: 6px; }
+.board-scene .pick input { width: 18px; height: 18px; }
+.board-thumb { position: relative; padding: 0; width: 192px; height: 108px; border-radius: 8px; overflow: hidden; background: #000; }
+.board-thumb canvas, .board-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.board-thumb span { position: absolute; left: 6px; bottom: 6px; font: 11px ui-monospace, monospace; background: rgba(0,0,0,.7); padding: 1px 5px; border-radius: 4px; }
+.board-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.board-head { display: flex; align-items: center; gap: 8px; }
+.board-head input { flex: 1; font-weight: 700; padding: 5px 8px; }
+.board-head small { color: var(--muted); font-family: ui-monospace, monospace; white-space: nowrap; }
+.board-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.board-chips .chip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 4px 3px 4px; font-size: 12px; }
+.board-chips .chip img { width: 22px; height: 22px; border-radius: 50%; object-fit: cover; }
+.board-chips .chip button { padding: 0 7px; border: 0; background: transparent; color: var(--muted); font-size: 15px; line-height: 1; }
+.board-chips .chip button:hover { color: var(--bad); }
+.board-search { position: relative; }
+.board-search input { width: 100%; }
+.board-search .results { position: absolute; left: 0; right: 0; top: 100%; z-index: 5; }
+@media (max-width: 800px) { .board-scene { grid-template-columns: 24px 1fr; } .board-thumb { width: 100%; height: auto; aspect-ratio: 16/9; grid-column: 2; } .board-main { grid-column: 1 / -1; } }
+
+/* ---- IA & Publicação: cenas da análise, jobs sincronizados e seleção na fila */
+.scene-picks { max-height: 210px; overflow: auto; }
+.scene-picks label { flex-direction: row; align-items: center; gap: 6px; }
+.scene-picks small { color: var(--muted); font-family: ui-monospace, monospace; }
+.job-row { display: flex; align-items: center; gap: 10px; }
+.job-row .grow { flex: 1; min-width: 0; }
+.job-row.is-sync { border-color: rgba(61,220,151,.45); box-shadow: inset 3px 0 0 rgba(61,220,151,.7); }
+.sync-chk { flex-direction: row; align-items: center; gap: 5px; font-weight: 700; color: var(--ok); white-space: nowrap; }
+#aiOpsJobs { max-height: 420px; overflow: auto; }
+.review-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 12px; }
+.review-bar .spacer { flex: 1; }
+.review-bar .chk, .chk { flex-direction: row; align-items: center; gap: 6px; }
+.review-scene { margin-bottom: 16px; }
+.review-scene > header { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; }
+.review-scene > header small { color: var(--muted); font-family: ui-monospace, monospace; }
+.review-card { grid-template-columns: 26px 110px minmax(0,1fr) minmax(260px,340px); }
+.review-card.is-picked { border-color: var(--accent-2); }
+.review-card .pick input { width: 18px; height: 18px; margin-top: 4px; }
+@media (max-width:1000px){ .review-card{grid-template-columns:26px 90px 1fr} .review-actions{grid-column:1/-1} }
+.seller-actions .switch { flex-direction: row; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
+.agreement .pills { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }

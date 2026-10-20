@@ -98,7 +98,7 @@
         </div>
 
         <div class="card">
-          <h3>Cenas</h3>
+          <div class="head-row"><h3>Cenas</h3><button class="small primary" id="boardBtn" type="button" title="Todas as cenas numa só tela: busque e adicione os produtos de cada cena sem percorrer o vídeo">Produtos por cena</button></div>
           <ol class="scenes" id="sceneList"></ol>
         </div>
 
@@ -164,6 +164,13 @@
         <div class="card aiops-panel">
           <div class="head-row"><div><h3>Nova análise</h3><p class="help">A identificação primária é congelada antes de qualquer redundância externa.</p></div><span class="ai-badge">Governed AI</span></div>
           <div class="aiops-form-grid">
+            <label>Cenas
+              <select id="aiOpsSceneSource">
+                <option value="TRACK">Cortes do Editor de trilha (cada cena analisada separadamente, em paralelo)</option>
+                <option value="AI">Deixar a IA dividir as cenas</option>
+                <option value="SINGLE">Vídeo inteiro como uma cena só</option>
+              </select>
+            </label>
             <label>Modo
               <select id="aiOpsMode">
                 <option value="HYBRID">Meus produtos + descoberta aberta</option>
@@ -174,6 +181,11 @@
             <label>Profundidade
               <select id="aiOpsDepth"><option>FAST</option><option selected>STANDARD</option><option>DEEP</option></select>
             </label>
+          </div>
+          <div id="aiOpsScenesBox">
+            <div class="section-label">Cenas a analisar <span class="help" id="aiOpsScenesInfo"></span></div>
+            <div class="row"><label class="grow">Cortes de <select id="aiOpsSceneTrack"></select></label><label class="chk"><input type="checkbox" id="aiOpsScenesAll" checked /> Todas</label></div>
+            <div id="aiOpsSceneList" class="choice-cloud scene-picks"></div>
           </div>
           <div>
             <div class="section-label">Tipos de item na descoberta aberta</div>
@@ -201,7 +213,9 @@
         </div>
 
         <div class="card aiops-panel">
-          <div class="head-row"><div><h3>Jobs recentes</h3><p class="help">Configuração, execução e status do motor primário.</p></div></div>
+          <div class="head-row"><div><h3>Jobs recentes</h3><p class="help">Marque as análises que vão para o app (sem marcação, vale a mais recente). Só entram os itens aprovados, cada um na sua cena.</p></div>
+            <button id="aiOpsPublish" class="primary small" type="button">Publicar no app</button></div>
+          <div id="aiOpsSyncMsg" class="msg"></div>
           <div id="aiOpsJobs" class="stack-list"></div>
         </div>
       </div>
@@ -210,6 +224,15 @@
         <div class="head-row">
           <div><h3>Fila de revisão</h3><p class="help">Reconhecer não é publicar. Conflitos e ausência de confirmação ficam explícitos para o operador.</p></div>
           <div class="legend-inline"><span class="state-dot primary-state"></span> primário <span class="state-dot redundant-state"></span> redundância <span class="state-dot review-state"></span> operador</div>
+        </div>
+        <div class="review-bar" id="aiOpsReviewBar">
+          <label class="chk"><input type="checkbox" id="aiOpsSelAll" /> Selecionar todos</label>
+          <label>Mostrar <select id="aiOpsFilter"><option value="">Todos</option><option value="DETECTED">Descobertos</option><option value="APPROVED">Aceitos</option><option value="REJECTED">Rejeitados</option></select></label>
+          <label>Análise <select id="aiOpsFilterJob"><option value="">Todas</option></select></label>
+          <span class="spacer"></span>
+          <span class="help" id="aiOpsSelCount"></span>
+          <button class="small" id="aiOpsApproveSel" type="button">Aprovar selecionados</button>
+          <button class="small ghost danger" id="aiOpsDeleteSel" type="button">Excluir selecionados</button>
         </div>
         <div id="aiOpsReview" class="review-board"></div>
       </div>
@@ -497,6 +520,24 @@
         <label class="chk"><input type="checkbox" id="aiUseScenes" checked /> Usar as cenas sugeridas (substitui as cenas atuais)</label>
         <span class="spacer"></span>
         <button class="primary" id="aiApply">Aplicar selecionados</button>
+      </footer>
+    </div>
+  </div>
+  <div class="ai-modal" id="boardModal" hidden>
+    <div class="ai-sheet board-sheet" role="dialog" aria-labelledby="boardTitle">
+      <header><div><h2 id="boardTitle">Produtos por cena</h2><p class="help" id="boardSub">Cada cena dos cortes do vídeo, numa só tela. Busque o produto na cena e ele entra só nela; para repetir um produto em várias cenas, marque as cenas e use “Adicionar às cenas marcadas”.</p></div><button class="ghost small" id="boardClose">Fechar</button></header>
+      <div class="board-bar">
+        <label class="chk"><input type="checkbox" id="boardAll" /> Marcar todas</label>
+        <label class="grow">Produto <select id="boardProduct"></select></label>
+        <button class="small" id="boardAdd" type="button">Adicionar às cenas marcadas</button>
+        <button class="small ghost danger" id="boardRemove" type="button">Tirar das cenas marcadas</button>
+        <input id="boardFilter" placeholder="Filtrar cenas pelo nome…" autocomplete="off" />
+      </div>
+      <div class="ai-body" id="boardBody"></div>
+      <footer>
+        <span class="help">As mudanças valem no app depois de publicar a trilha.</span>
+        <span class="spacer"></span>
+        <button class="primary" id="boardPublish" type="button">Publicar trilha</button>
       </footer>
     </div>
   </div>
