@@ -54,19 +54,27 @@ await page.waitForSelector("#aiCard:not([hidden])");
 check(!(await page.isVisible("#aiKeyBox")), "Studio não pede nem armazena chave de IA no navegador");
 await page.waitForSelector("#aiRun:not([hidden])");
 
-// ---------------------------------------------------------------- análise com cortes
-await page.selectOption("#aiMode", "cenas");
+// ---------------------------------------------------------------- cortes no Editor e análise de cada cena (rcprep.12: a IA usa as cenas da trilha)
+await page.waitForFunction(() => document.getElementById("video").readyState >= 1, null, { timeout: 15000 });
+for (const t of [9, 19, 26, 33, 37, 58]) {
+  await page.evaluate((t) => { document.getElementById("video").currentTime = t; }, t);
+  await page.waitForFunction((t) => Math.abs(document.getElementById("video").currentTime - t) < 0.2, t);
+  await page.click("#splitBtn");
+}
+check((await page.locator("#sceneList li").count()) === 7, "Editor com 7 cenas");
+await page.uncheck("#aiAuto"); // nesta parte, a produtora confirma cada sugestão
 await page.click("#aiGo");
 await page.waitForSelector("#aiStatus .spin");
 check(true, "Análise em andamento: " + (await page.textContent("#aiStatus")));
 await page.waitForSelector("#aiOpen", { timeout: 30000 });
 log("status:", await page.textContent("#aiStatus"));
-check(/7 cena\(s\) · 15 item\(ns\) · 13 com produto/.test(await page.textContent("#aiStatus")), "Gemini devolveu 7 cenas, 15 itens, 13 associados ao catálogo");
+check(/7 cena\(s\) analisadas · 15 item\(ns\)/.test(await page.textContent("#aiStatus")), "Gemini analisou as 7 cenas da trilha: 15 itens");
+check((await page.locator("#sceneList li").count()) === 7, "As cenas do Editor continuam as mesmas (a IA não troca os cortes)");
 await page.click("#aiOpen");
 await page.waitForSelector("#aiModal:not([hidden]) .ai-item");
 await page.waitForTimeout(2500);
 const rows = page.locator(".ai-item");
-check((await rows.count()) === 15, "Revisão lista os 15 itens");
+check((await rows.count()) === 15, "Revisão lista os 15 itens, agrupados pelas cenas da trilha");
 check((await page.locator(".ai-item input[type=checkbox]:checked").count()) === 13, "Itens com produto e confiança ≥ 50% vêm marcados; sem produto vêm desmarcados");
 check(await page.locator(".ai-item", { hasText: "Kimono Maria Filó · Tam: G" }).count() === 1, "Texto da etiqueta na tela (marca, tamanho, preço) aparece na sugestão");
 check(await page.locator(".conf.mid").count() === 1, "Associação incerta (calça marrom → Iorane, 58%) aparece em amarelo para revisão");
@@ -74,9 +82,6 @@ const drawn = await page.evaluate(() => [...document.querySelectorAll(".ai-item 
 check(drawn >= 12, `Miniaturas recortadas do vídeo na posição do item (${drawn}/15)`);
 await page.screenshot({ path: `${OUT}/ai-1-revisao.png` });
 
-// a pessoa corrige: a calça marrom do look 1 não é a Iorane -> desmarca
-const calca = page.locator(".ai-item", { hasText: "Calça pantalona marrom" });
-await calca.locator("input[type=checkbox]").uncheck();
 // o cinto não está no catálogo -> cria um rascunho de produto com a imagem do vídeo
 await page.locator(".ai-item", { hasText: "Cinto de elos dourados" }).locator("[data-create]").click();
 await page.waitForSelector("#tab-produtos:not([hidden]) #drafts form.pedit");
@@ -88,7 +93,7 @@ await page.fill("#drafts form.pedit [name=brand]", "Casa Bossa");
 await page.click("#drafts form.pedit button.primary");
 await page.waitForFunction(() => !document.querySelector("#drafts form.pedit"));
 
-// volta ao editor, reabre as sugestões e associa o cinto ao produto recém-criado
+// volta ao editor, reabre as sugestões, associa o cinto ao produto recém-criado e desmarca a calça incerta
 await page.click(".tabs button[data-tab=editor]");
 await page.click("#aiOpen");
 await page.waitForSelector("#aiModal:not([hidden]) .ai-item");
@@ -98,28 +103,27 @@ await cinto.locator("select").selectOption(cintoId);
 await page.locator(".ai-item", { hasText: "Calça pantalona marrom" }).locator("input[type=checkbox]").uncheck();
 check(await cinto.locator("input[type=checkbox]").isChecked(), "Escolher o produto marca a sugestão");
 await page.click("#aiApply");
-await page.waitForTimeout(500);
-check((await page.locator("#sceneList li").count()) === 7, "Cenas sugeridas aplicadas (7)");
+// aprovados vão sozinhos para a trilha e para o app; o Editor recarrega a trilha
+await page.waitForFunction(() => [...document.querySelectorAll("#sceneList li .c")].filter((c) => !/^0 /.test(c.textContent)).length >= 5, null, { timeout: 20000 });
 const sc = await page.evaluate(() => [...document.querySelectorAll("#sceneList li")].map((li) => li.textContent.replace(/\s+/g, " ").trim()));
 log("cenas:", sc);
 await page.locator("#sceneList li").nth(1).click();
 await page.waitForTimeout(300);
 check((await page.locator("#boxes .bx").count()) === 2, "Look 1: kimono e top com a posição marcada pelo Gemini (calça desmarcada ficou de fora)");
 await page.screenshot({ path: `${OUT}/ai-2-aplicado.png` });
-await page.click("#saveBtn");
-await page.waitForFunction(() => /publicada/.test(document.getElementById("msg").textContent));
 const pub = await (await fetch(`${BASE}/api/works/${work.id}`)).json();
 const total = pub.scenes.reduce((a, s) => a + s.products.length, 0);
-check(pub.scenes.length === 7 && total === 13, `Trilha publicada com 7 cenas e 13 produtos (${total})`);
+check(pub.scenes.length === 7 && total === 13, `App com 7 cenas e 13 produtos, sem clicar em publicar (${total})`);
 check(pub.scenes[1].products.every((p) => p.box && p.box.w > 0), "Produtos publicados com a posição na imagem");
 check(pub.scenes[2].products.some((p) => p.name === "Cinto de elos dourados"), "Cinto criado a partir do vídeo publicado no look 2");
 
-// ---------------------------------------------------------------- análise em cena única
-await page.selectOption("#aiMode", "unica");
+// ---------------------------------------------------------------- uma cena só: a análise usa a cena única da trilha
+await page.click("#oneSceneBtn");
+check((await page.locator("#sceneList li").count()) === 1, "Uma cena só: os produtos ficam todos na cena única");
+await page.check("#aiAuto");
 await page.click("#aiGo");
-await page.waitForSelector("#aiStatus .spin");
-await page.waitForSelector("#aiOpen", { timeout: 30000 });
-check(/1 cena\(s\) · 7 item\(ns\)/.test(await page.textContent("#aiStatus")), "Modo cena única: 1 cena e itens sem repetição (" + (await page.textContent("#aiStatus")) + ")");
+await page.waitForFunction(() => /1 cena\(s\) analisadas/.test(document.getElementById("aiStatus").textContent), null, { timeout: 30000 });
+check(true, "Cena única: a IA analisou 1 cena (" + (await page.textContent("#aiStatus")) + ")");
 
 // o trabalho fica salvo e a chave nunca volta para o navegador
 const st = await call("/api/ai/status");

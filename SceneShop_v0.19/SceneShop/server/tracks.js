@@ -240,7 +240,8 @@ async function rankedAuthoritative(workId) {
     .sort((a, b) =>
       (b.type === "official") - (a.type === "official") ||
       (a.status === "em_revisao") - (b.status === "em_revisao") ||
-      b.score - a.score);
+      b.score - a.score ||
+      Number(b.updatedAt || 0) - Number(a.updatedAt || 0)); // empate: a trilha editada mais recente, não a original
 }
 
 // Id da trilha que está publicada para o app (Commerce Timeline em vigor).
@@ -264,9 +265,10 @@ async function pickAuthoritative(workId, trackId) {
 
 // ---------------------------------------------------------------------------
 // Produtos colocados pela IA x edição no Editor.
-// O Editor envia a versão que abriu (baseUpdatedAt) e os produtos da IA que a produtora tirou (aiRemoved).
-// Se a trilha mudou depois (a IA publicou novas aprovações), os produtos novos da IA entram na
-// versão salva, cada um na cena certa; os que a produtora tirou ficam fora e não voltam sozinhos.
+// O Editor envia os produtos da IA que a produtora tirou de propósito (aiRemoved, pelo ×).
+// Qualquer outro produto da IA que não veio na edição (Editor aberto antes da aprovação, cenas
+// recortadas com Detectar cortes ou juntadas em uma só) continua na trilha, na cena que contém o
+// seu tempo; logo depois a sincronização da IA recoloca cada um pelo segundo exato do item.
 const aiKey = (sceneId, p) => `${sceneId}|${p.id}|${p.source}`;
 function mergeAiEdits(existing, body) {
   const removed = new Set((Array.isArray(body.aiRemoved) ? body.aiRemoved : []).map(String).slice(0, 2000));
@@ -282,7 +284,7 @@ function mergeAiEdits(existing, body) {
   const suppress = new Set(removed);
   for (const { scene, product } of missing) {
     const k = aiKey(scene.id, product);
-    if (!stale || removed.has(k)) { suppress.add(k); continue; } // a produtora tirou: fica fora
+    if (removed.has(k)) { suppress.add(k); continue; } // a produtora tirou: fica fora
     const mid = (Number(scene.start) + Number(scene.end)) / 2;
     const target = (body.scenes || []).find((x) => x.id === scene.id && mid >= Number(x.start) - 0.5 && mid <= Number(x.end) + 0.5)
       || (body.scenes || []).find((x) => mid >= Number(x.start) && mid < Number(x.end)) || (body.scenes || [])[body.scenes.length - 1];

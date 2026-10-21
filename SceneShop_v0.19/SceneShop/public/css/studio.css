@@ -380,3 +380,10 @@ input[data-money] { text-align: right; font-variant-numeric: tabular-nums; }
 .ai-tag { font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #fff; background: var(--accent, #6d5efc); border-radius: 6px; padding: 1px 5px; margin-left: 4px; vertical-align: 1px; }
 .board-chips .chip.is-ai { outline: 1px solid var(--accent, #6d5efc); }
 #trackDel { align-self: end; }
+
+/* rcprep.12: trilhas na aba Obras */
+.work-tracks { list-style: none; margin: 6px 0 8px; padding: 0; display: grid; gap: 4px; }
+.work-tracks li { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 8px; border: 1px solid var(--line, #2a2b33); border-radius: 8px; font-size: 13px; }
+.work-tracks li.is-live { border-color: var(--accent, #6d5efc); }
+.work-tracks small { color: var(--muted, #8a8d99); }
+#trackDel:disabled { opacity: .45; cursor: not-allowed; }

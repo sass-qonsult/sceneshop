@@ -172,7 +172,7 @@ const content = {
   getPublishedTimeline: (workId) => contentImpl() ? contentImpl().getPublishedTimeline(workId) : (() => {
     const t=Object.values(store.state.tracks||{}).filter((x)=>x.workId===workId&&x.type==='official'&&x.status==='ativa').sort((a,b)=>Number(b.updatedAt||b.createdAt||0)-Number(a.updatedAt||a.createdAt||0))[0];
     if(!t)return null;
-    return {workId,publicationId:`state:${t.id}`,revision:1,organizationId:t.organizationId||null,publishedAt:t.updatedAt||t.createdAt||null,manifest:{sourceTrackId:t.id},policy:{visibility:'PAST_AND_CURRENT',thumbnailsEnabled:true,missedItemsEnabled:true,allowSceneSeek:false,metadata:{}},scenes:(t.scenes||[]).map((sc)=>({sceneId:sc.id,start:Number(sc.start||0),end:Number(sc.end||0),thumbnail:sc.thumb||null,products:(sc.products||[]).map((p)=>({placementId:`${t.id}:${sc.id}:${p.id}`,assetId:null,productId:p.id,name:(catalog.getProduct(p.id)||{}).name||p.id,brand:(catalog.getProduct(p.id)||{}).brand||null,priority:0,policy:{}}))}))};
+    return {workId,publicationId:`state:${t.id}`,revision:1,organizationId:t.organizationId||null,publishedAt:t.updatedAt||t.createdAt||null,manifest:{sourceTrackId:t.id},policy:{visibility:'PAST_AND_CURRENT',thumbnailsEnabled:true,missedItemsEnabled:true,allowSceneSeek:false,metadata:{}},scenes:(t.scenes||[]).map((sc)=>({sceneId:sc.id,start:Number(sc.start||0)+Number(t.offset||0),end:Number(sc.end||0)+Number(t.offset||0),thumbnail:sc.thumb||null,products:(sc.products||[]).map((p)=>({placementId:`${t.id}:${sc.id}:${p.id}`,assetId:null,productId:p.id,name:(catalog.getProduct(p.id)||{}).name||p.id,brand:(catalog.getProduct(p.id)||{}).brand||null,priority:0,policy:{}}))}))};
   })(),
 };
 

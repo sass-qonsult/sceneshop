@@ -414,6 +414,8 @@ function migrate(st) {
     if (st[k] == null) st[k] = fresh[k];
   });
   if (!st.sellers["loja-piloto"] && fresh.sellers["loja-piloto"]) st.sellers["loja-piloto"] = fresh.sellers["loja-piloto"];
+  // rcprep.12: as lojas fictícias da demonstração saem dos dados já em uso (fica só o Marketplace Piloto)
+  if (!(st.migrations && st.migrations.rc12DemoStoresRemoved)) removeDemoStores(st);
   for (const k of Object.keys(st.sellers || {})) if (!st.sellers[k]) delete st.sellers[k]; // limpa entradas vazias de versões anteriores
   // v7: cristaliza a economia das vendas antigas uma única vez.
   (st.sales || []).forEach((sale) => {
@@ -437,11 +439,20 @@ function migrate(st) {
   st.version = VERSION;
 }
 
+const DEMO_STORES = ["urbano-oficial", "lar-design-oficial", "atelier-rosa-oficial", "megaloja", "shopcenter"];
+function removeDemoStores(st) {
+  const at = Date.now();
+  DEMO_STORES.forEach((id) => { const s = st.sellers && st.sellers[id]; if (s && !s.organizationId && !s.removedAt) { s.removedAt = at; s.active = false; } });
+  Object.entries(st.officialOffers || {}).forEach(([pid, o]) => { if (DEMO_STORES.includes(o.sellerId)) delete st.officialOffers[pid]; });
+  st.migrations = { ...(st.migrations || {}), rc12DemoStoresRemoved: at };
+}
+
 function reset({ keepPilot = true } = {}) {
   const secret = state && state.secret; // mantém a chave: quem está logado continua logado
   const old = state;
   state = seed();
   if (secret) state.secret = secret;
+  if (old && old.migrations && old.migrations.rc12DemoStoresRemoved) removeDemoStores(state); // "restaurar demo" não traz as lojas fictícias de volta
   // o material do piloto (obras, produtos, trilhas e ofertas) sobrevive a "restaurar demo"
   if (old && !keepPilot) catalog.forget({ works: Object.keys(old.userWorks || {}), products: Object.keys(old.userProducts || {}) });
   if (old && keepPilot) {
@@ -482,4 +493,4 @@ if (process.env.SCENESHOP_MEMORY) {
   // Estado provisório até init(); o servidor não começa a escutar antes do bootstrap assíncrono.
   state = seed();
 }
-module.exports = { syncInto, demoSeed, productionSeed, get state() { return state; }, init, save, flush, atomicDomain, readDomain, writeDomain, backendKind, health, close, reset, onReset, useMemory, now, DAY };
+module.exports = { _migrate: (st) => migrate(st), syncInto, demoSeed, productionSeed, get state() { return state; }, init, save, flush, atomicDomain, readDomain, writeDomain, backendKind, health, close, reset, onReset, useMemory, now, DAY };

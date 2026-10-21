@@ -358,10 +358,12 @@ function syncSelection(orgId, workId, jobs) {
   return { jobIds: latest ? [latest.id] : [], explicit: false, updatedAt: null };
 }
 
-// Trilha que o app mostra para a obra: a da publicação comercial em vigor; sem ela, a oficial ativa mais recente.
-async function liveTrackFor(orgId, workId, content) {
+// Trilha que recebe os produtos da IA: a primeira das preferidas que ainda está ativa; senão a da
+// publicação comercial em vigor (a que o app mostra); senão a oficial ativa mais recente.
+async function liveTrackFor(orgId, workId, content, preferIds = []) {
   const list = ((await Promise.resolve(content.listTracksByOrganizationAuthoritative(orgId, workId))) || [])
     .filter((x) => x.type === "official" && x.status === "ativa");
+  for (const id of preferIds) { const hit = list.find((x) => x.id === id); if (hit) return hit; }
   const tl = content.getPublishedTimeline ? await Promise.resolve(content.getPublishedTimeline(workId)).catch(() => null) : null;
   const liveId = tl && tl.manifest && tl.manifest.sourceTrackId;
   return list.find((x) => x.id === liveId) || list.sort((a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))[0] || null;
@@ -399,7 +401,10 @@ async function publishToApp({ orgId, work, jobIds, user, content, auto = false }
       t: Number.isFinite(Number(c.bestSeconds)) ? Number(c.bestSeconds) : (start + end) / 2, box: c.box2d || null });
   }
   // trilha que o app mostra (a mesma que o Editor abre): mantém os cortes e os produtos colocados à mão
-  const base = await liveTrackFor(orgId, work.id, content);
+  // a trilha do app (a mesma que o Editor abre; salvar no Editor a publica). Sem trilha do app, a do Editor em que a análise foi pedida.
+  const tl = content.getPublishedTimeline ? await Promise.resolve(content.getPublishedTimeline(work.id)).catch(() => null) : null;
+  const preferIds = [tl && tl.manifest && tl.manifest.sourceTrackId, ...[...jobs].sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0)).map((j) => (j.config || {}).trackId)].filter(Boolean);
+  const base = await liveTrackFor(orgId, work.id, content, preferIds);
   if (!items.length && (!auto || !base)) {
     if (auto) return { ok: true, auto, unchanged: true, products: 0, scenes: base ? base.scenes.length : 0, scenesWithProducts: 0, skipped };
     return { error: skipped ? "Os itens aprovados não estão ligados a produtos cadastrados. Aprove-os escolhendo um produto da aba Produtos." : "Nenhum item aprovado nas análises marcadas. Aprove os itens na Fila de revisão." };
@@ -460,6 +465,30 @@ async function runAutoSync(orgId, workId, user, content) {
   if (!out.error && !out.unchanged) audit.log(user && user.username ? `${user.username} (auto)` : "ia-auto", "ia_sincronizada_auto", { organizationId: orgId, workId, produtos: out.products, cenas: out.scenes });
   return out;
 }
+// Aprovação automática pedida no Editor: itens que a IA ligou a um produto do catálogo, com confiança
+// mínima e sem alerta para o operador, são aprovados com esse produto. O resto fica para revisão.
+async function autoApproveJob(orgId, jobId, minConfidence, actorName) {
+  const [cands, assets, flags] = await Promise.all([
+    Promise.resolve(aiPipeline.listCandidates(orgId, null)), Promise.resolve(aiPipeline.listAssets(orgId)), Promise.resolve(aiPipeline.listOperatorFlags(orgId, "OPEN")),
+  ]);
+  const flagged = new Set((flags || []).map((f) => f.candidateId));
+  let approved = 0, pending = 0;
+  for (const c of cands || []) {
+    if (c.analysisJobId !== jobId || c.reviewStatus !== "DETECTED") continue;
+    const pid = (c.primaryPayload || {}).productId;
+    const assetId = c.assetId || ((assets || []).find((a) => a.productId && a.productId === pid) || {}).id;
+    if (!assetId || flagged.has(c.id) || Number(c.primaryConfidence || 0) < minConfidence) { pending++; continue; }
+    const out = await Promise.resolve(aiPipeline.reviewCandidate(orgId, c.id, { decision: "APPROVE", assetId, note: "Aprovado automaticamente (produto do catálogo)" }, actorName));
+    if (out && !out.error && !out.errors) approved++; else pending++;
+  }
+  return { approved, pending };
+}
+// Análise nova entra na seleção do app (se a produtora marcou análises à mão, a nova é somada).
+function includeInSync(orgId, workId, jobId) {
+  const sel = (store.state.aiSyncSelection || {})[syncKey(orgId, workId)];
+  if (sel && !sel.jobIds.includes(jobId)) { sel.jobIds.push(jobId); sel.updatedAt = store.now(); store.save(); }
+}
+
 async function workOfCandidates(orgId, candidates) {
   const works = new Set();
   for (const c of candidates || []) {
@@ -682,7 +711,15 @@ function routes({ requireRole, actor, content }) {
     const products = content
       ? await Promise.resolve(content.listProductsByOrganizationAuthoritative(req.organization.id))
       : Object.values(store.state.userProducts || {}).filter((p) => p.organizationId === req.organization.id);
-    analyze({ work: w, products, assets, mode, categories, oneScene: sceneSource==="SINGLE", scenes, actor: actor(req), organizationId:req.organization.id, durableJobId:created.job.id });
+    const orgId=req.organization.id, who=actor(req), user=req.user;
+    const autoApprove=!!body.autoApprove, minAuto=Math.max(0.3,Math.min(1,Number(body.autoApproveMin)||0.7));
+    analyze({ work: w, products, assets, mode, categories, oneScene: sceneSource==="SINGLE", scenes, actor: who, organizationId:orgId, durableJobId:created.job.id })
+      .then(async (job) => {
+        if (!job || job.status !== "pronto") return;
+        includeInSync(orgId, w.id, created.job.id);
+        if (autoApprove) { job.autoApproved = await autoApproveJob(orgId, created.job.id, minAuto, `${who} (auto)`); saveJob(job); }
+        scheduleAutoSync(orgId, w.id, user, content);
+      }).catch((e) => console.error("[ai] pós-análise:", e.message));
     res.status(202).json({...jobs[w.id], analysisJob:created.job});
   }));
 
@@ -695,4 +732,4 @@ function routes({ requireRole, actor, content }) {
   return r;
 }
 
-module.exports = { routes, normalize, normalizeScene, buildPrompt, pickModel, SCHEMA, cleanScenes, _reset: () => { modelCache = null; for (const k in jobs) delete jobs[k]; } };
+module.exports = { scheduleAutoSync, routes, normalize, normalizeScene, buildPrompt, pickModel, SCHEMA, cleanScenes, _reset: () => { modelCache = null; for (const k in jobs) delete jobs[k]; } };

@@ -419,6 +419,8 @@ app.post("/api/me/sellers", requireRole(), orgAccess.requireCapability("COMMERCE
   reply(res, official.createSeller(req.organization.id, req.body || {}, actor(req)), 201));
 app.put("/api/me/sellers/:id", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), (req, res) =>
   reply(res, official.updateSeller(req.organization.id, req.params.id, req.body || {}, actor(req))));
+app.delete("/api/me/sellers/:id", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), (req, res) =>
+  reply(res, official.removeSeller(req.organization.id, req.params.id, actor(req))));
 app.put("/api/me/sellers/:id/enabled", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), (req, res) =>
   reply(res, official.setSellerEnabled(req.organization.id, req.params.id, !!(req.body || {}).enabled, actor(req))));
 app.post("/api/me/sellers/:id/secret", requireRole(), orgAccess.requireCapability("COMMERCE_WRITE"), (req, res) =>
@@ -544,6 +546,7 @@ app.put("/api/tracks/:id", requireRole(), wrap(async (req, res) => {
     if (orgAccess.organizationRequiresMfa(req.organization) && !(req.user._auth && req.user._auth.mfa)) return res.status(403).json({error:'MFA_REQUIRED',message:'Esta ação exige autenticação multifator.'});
   } else if (t.authorId !== req.user.authorId) return res.status(403).json({ errors: ["Só o autor pode editar a trilha legada."] });
   if (t.status !== "ativa") return res.status(409).json({ errors: ["Trilha em revisão ou removida não pode ser editada."] });
+  if ((req.body || {}).workId && req.body.workId !== t.workId) return res.status(400).json({ errors: ["Esta trilha é de outra obra. Abra a trilha certa no Editor."] });
   const body = { ...(req.body || {}) };
   body.scenes = Array.isArray(body.scenes) ? JSON.parse(JSON.stringify(body.scenes)) : body.scenes;
   // produtos aprovados na IA depois que o Editor abriu a trilha entram junto (não se perdem ao salvar)
@@ -551,6 +554,8 @@ app.put("/api/tracks/:id", requireRole(), wrap(async (req, res) => {
   const r = await tracks.saveAuthoritative({ ...body, authorId:t.authorId, organizationId:t.organizationId || req.organization?.id || null }, t);
   if (r.track) audit.log(actor(req), "trilha_editada", { trackId: t.id, organizationId:t.organizationId || null, iaMesclados: merge.merged || 0 });
   if (r.track) r.aiMerged = merge.merged || 0;
+  // depois de editar as cenas, a IA recoloca os produtos aprovados pelo segundo exato de cada item
+  if (r.track && t.organizationId && t.type === "official") require("./ai").scheduleAutoSync(t.organizationId, t.workId, req.user, content);
   reply(res, r);
 }));
 

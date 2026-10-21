@@ -51,9 +51,30 @@ function agreementValid(seller) {
 // Loja habilitada para a organização: a própria loja pelo campo active; as lojas padrão
 // (marketplaces que não pertencem à organização) por uma preferência da organização.
 function sellerEnabledFor(seller, organizationId) {
-  if (!seller || seller.active === false) return false;
+  if (!seller || seller.active === false || seller.removedAt) return false;
   if (!organizationId || seller.organizationId) return true;
-  return ((S().orgSellerPrefs || {})[organizationId] || {})[seller.id] !== false;
+  const pref = ((S().orgSellerPrefs || {})[organizationId] || {})[seller.id];
+  return pref !== false && pref !== "removed";
+}
+const sellerRemovedFor = (s, organizationId) => !!s.removedAt || (!s.organizationId && organizationId && ((S().orgSellerPrefs || {})[organizationId] || {})[s.id] === "removed");
+
+// Excluir loja: a loja própria some para todos (fica guardada como removida, com o histórico de vendas);
+// uma loja padrão some só para esta organização. Produtos com oferta nela deixam de ter compra garantida.
+function removeSeller(organizationId, sellerId, actor) {
+  const s = S().sellers[sellerId];
+  const visible = s && !sellerRemovedFor(s, organizationId) && (s.organizationId === organizationId || (!s.organizationId && sellersView(true, organizationId).some((x) => x.id === sellerId)));
+  if (!visible) return { error: "Loja não encontrada nesta organização.", code: 404 };
+  if (s.organizationId) { s.removedAt = store.now(); s.active = false; }
+  else ((S().orgSellerPrefs ||= {})[organizationId] ||= {})[sellerId] = "removed";
+  let offers = 0;
+  for (const [pid, o] of Object.entries(S().officialOffers || {})) {
+    if (o.sellerId !== sellerId) continue;
+    const orgOfProduct = o.organizationId || (catalog.getProduct(pid) || {}).organizationId || null;
+    if (s.organizationId || orgOfProduct === organizationId) { delete S().officialOffers[pid]; offers++; }
+  }
+  audit.log(actor, "loja_excluida", { sellerId, organizationId, padrao: !s.organizationId, ofertasRemovidas: offers });
+  store.save();
+  return { ok: true, id: sellerId, offersRemoved: offers };
 }
 
 function setSellerEnabled(organizationId, sellerId, enabled, actor) {
@@ -556,6 +577,7 @@ function receiveReport(sellerId, body, headers, rawBody, deps) {
 function sellersView(forProducer, organizationId) {
   const { DEMO } = require("./config");
   return Object.values(S().sellers)
+    .filter((s) => !sellerRemovedFor(s, organizationId))
     .filter((s) => organizationId === undefined || s.organizationId === organizationId || (!s.organizationId && DEMO))
     .map((s) => ({
     storeUrl: forProducer ? s.storeUrl || null : undefined, active: sellerEnabledFor(s, organizationId), organizationId: s.organizationId || null, isDefault: !s.organizationId,
@@ -646,7 +668,7 @@ function createSeller(organizationId, body, actor) {
 
 function ownSeller(organizationId, sellerId) {
   const s = S().sellers[sellerId];
-  return s && s.organizationId && s.organizationId === organizationId ? s : null;
+  return s && !s.removedAt && s.organizationId && s.organizationId === organizationId ? s : null;
 }
 
 function updateSeller(organizationId, sellerId, body, actor) {
@@ -774,6 +796,7 @@ function landing(offerId) {
 }
 
 module.exports = {
+  removeSeller,
   INTEGRATIONS, offerFor, asListedOffer, setOffer, issueToken, verifyToken, sign, buildRedirect,
   addCodes, assignCode, poolStatus, receiveOrder, receiveReport, processOrder, sellerSignature, sellersView, setCampaign,
   createSeller, updateSeller, rotateSellerSecret, referrals, registerManualOrder, validStoreUrl, SELLER_KINDS,

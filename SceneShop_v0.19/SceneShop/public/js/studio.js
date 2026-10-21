@@ -209,13 +209,15 @@
   // ================================================================ editor: trilha
   async function loadTrackList() {
     if (!st.workId) { $("trackSel").innerHTML = `<option value="">+ Nova trilha</option>`; return; }
-    const list = ((await api(`/api/me/tracks?work=${st.workId}`)).data || []).filter((t) => t.status !== "removida");
+    const wid = st.workId;
+    const list = ((await api(`/api/me/tracks?work=${wid}`)).data || []).filter((t) => t.status !== "removida" && t.workId === wid);
+    if (st.workId !== wid) return st.trackList || []; // resposta atrasada de outra obra
     st.trackList = list;
     $("trackSel").innerHTML = `<option value="">+ Nova trilha</option>` +
       // texto em português: o tradutor da página reconhece os padrões "{1} ({2} cenas…)" e "● {1} · no app"
       list.map((t) => `<option value="${t.id}">${t.live ? "● " : ""}${esc(t.title)} (${t.scenes} cenas${t.aiProducts ? ` · ${t.aiProducts} da IA` : ""})${t.live ? " · no app" : ""}</option>`).join("");
     if (st.track && st.track.id) $("trackSel").value = st.track.id;
-    $("trackDel").hidden = !(st.track && st.track.id);
+    $("trackDel").disabled = !(st.track && st.track.id);
     return list;
   }
   const liveTrack = () => (st.trackList || []).find((x) => x.live) || null;
@@ -228,7 +230,7 @@
     const r = await api(`/api/tracks/${encodeURIComponent(t.id)}`, { method: "DELETE" });
     if (!r.ok) return toast(r.data.error || (r.data.errors || []).join(" ") || tr("Falha ao excluir."), true);
     toast(tr("Trilha excluída.") + (r.data.republished ? " " + tr("O app passou a usar outra trilha oficial.") : r.data.retired ? " " + tr("A obra ficou sem trilha no app.") : ""));
-    st.track = null;
+    newTrack();
     await loadTrackList();
     const live = liveTrack();
     if (live) await loadTrack(live.id); else newTrack();
@@ -249,8 +251,10 @@
     if (video.getAttribute("src") !== w.video) { video.src = w.video; video.load(); }
     store.set("ss-studio-work", w.id);
     if (st.user && !isMod()) {
-      st.track = null;
+      const tok = (st.selTok = (st.selTok || 0) + 1);
+      newTrack(); // trilha em branco enquanto carrega (nunca fica sem trilha aberta)
       await loadTrackList();
+      if (tok !== st.selTok || st.workId !== w.id) return; // trocou de obra no meio: vale a última escolha
       // abre a trilha que está no app (com os produtos aprovados na IA); sem ela, uma trilha nova
       const live = liveTrack();
       if (live) await loadTrack(live.id); else newTrack();
@@ -275,6 +279,7 @@
     st.track = { id: null, title: "", offset: 0, scenes: [{ id: "c1", title: (window.t || String)("Cena {0#}", 1), start: 0, end: st.duration, products: [] }] };
     st.sel = 0;
     $("trackSel").value = "";
+    $("trackDel").disabled = true;
     snapshotTrack(null);
     renderAll();
     setLinks();
@@ -286,20 +291,26 @@
   const trackJson = () => JSON.stringify({ title: st.track.title, offset: st.track.offset, scenes: st.track.scenes });
   function snapshotTrack(t) {
     st.loaded = { updatedAt: t ? Number(t.updatedAt || 0) : 0, aiKeys: new Set(t ? t.scenes.flatMap((s) => s.products.filter(isAi).map((p) => aiKeyOf(s, p))) : []), at: Date.now() };
+    st.aiRemovedSet = new Set();
     st.loadedJson = trackJson();
   }
+  // produto da IA tirado de propósito (pelo ×): não volta na próxima sincronização
+  function noteRemoved(scene, p) { if (scene && p && isAi(p)) st.aiRemovedSet.add(aiKeyOf(scene, p)); }
   const editorDirty = () => !!st.track && st.loadedJson !== trackJson();
   function aiRemovedKeys() {
     const now = new Set(st.track.scenes.flatMap((s) => s.products.filter(isAi).map((p) => aiKeyOf(s, p))));
-    return [...(st.loaded ? st.loaded.aiKeys : [])].filter((k) => !now.has(k));
+    return [...(st.aiRemovedSet || [])].filter((k) => !now.has(k));
   }
   // Ao voltar para o Editor: se a IA atualizou a trilha, recarrega (ou avisa que vai mesclar ao salvar)
   async function refreshEditorTrack() {
     if (!st.user || isMod() || !st.workId || !st.track) return;
     await loadTrackList();
     const tr = window.t || String;
+    if (!st.track) return;
     if (st.track.id) {
-      const r = await api(`/api/tracks/${st.track.id}`);
+      const id = st.track.id;
+      const r = await api(`/api/tracks/${id}`);
+      if (!st.track || st.track.id !== id) return; // a trilha aberta mudou enquanto consultava
       if (!r.ok || r.data.status === "removida") { toast(tr("Esta trilha foi excluída."), true); const live = liveTrack(); return live ? loadTrack(live.id) : newTrack(); }
       if (Number(r.data.updatedAt || 0) > (st.loaded ? st.loaded.updatedAt : 0)) {
         if (!editorDirty()) { const sel = st.sel; await loadTrack(st.track.id); st.sel = Math.min(sel, scenes().length - 1); renderAll(); setLinks(); flashMsg(tr("Trilha atualizada com os produtos aprovados na IA.")); }
@@ -314,13 +325,14 @@
 
   async function loadTrack(id) {
     const t = (await api(`/api/tracks/${id}`)).data;
+    if (!t || !t.id || (st.workId && t.workId !== st.workId)) return; // resposta atrasada de outra obra
     st.track = JSON.parse(JSON.stringify({ id: t.id, title: t.title, offset: t.offset, scenes: t.scenes }));
     const ids = [...new Set(t.scenes.flatMap((s) => s.products.map((p) => p.id)))];
     await Promise.all(ids.filter((i) => !st.products[i]).map(async (i) => (st.products[i] = (await api(`/api/products/${i}`)).data)));
     st.sel = 0;
     snapshotTrack(t);
     $("trackSel").value = t.id;
-    $("trackDel").hidden = false;
+    $("trackDel").disabled = false;
     renderAll();
     setLinks();
   }
@@ -478,7 +490,7 @@
       const i = Number(li.dataset.i);
       li.querySelector("[data-match]").onchange = (e) => (cur().products[i].match = e.target.value);
       li.querySelector("[data-draw]").onclick = () => startDraw(i);
-      li.querySelector("[data-del]").onclick = () => { cur().products.splice(i, 1); renderProducts(); renderScenes(); renderTimeline(); renderBoxes(); };
+      li.querySelector("[data-del]").onclick = () => { noteRemoved(cur(), cur().products[i]); cur().products.splice(i, 1); renderProducts(); renderScenes(); renderTimeline(); renderBoxes(); };
       li.onmouseenter = () => highlightBox(i);
       li.onmouseleave = () => highlightBox(-1);
     });
@@ -606,7 +618,8 @@
     $("saveBtn").textContent = id ? "Salvar alterações" : "Publicar trilha";
   }
 
-  $("saveBtn").onclick = async () => {
+  $("saveBtn").onclick = () => saveTrack();
+  async function saveTrack() {
     const t = st.track;
     const empty = t.scenes.filter((s) => !s.products.length).length;
     const noBox = t.scenes.reduce((n, s) => n + s.products.filter((p) => !p.box).length, 0);
@@ -630,7 +643,7 @@
     const body = { workId: st.workId, title: t.title || "Minha trilha", offset: t.offset, scenes: t.scenes };
     if (t.id) { body.baseUpdatedAt = st.loaded ? st.loaded.updatedAt : 0; body.aiRemoved = aiRemovedKeys(); }
     const r = t.id ? await api(`/api/tracks/${t.id}`, { method: "PUT", body }) : await api("/api/tracks", { method: "POST", body });
-    if (!r.ok) { $("msg").className = "msg bad"; $("msg").textContent = (r.data.errors || [r.data.error || "Erro"]).join(" "); return; }
+    if (!r.ok) { $("msg").className = "msg bad"; $("msg").textContent = (r.data.errors || [r.data.error || "Erro"]).join(" "); return false; }
     t.id = r.data.track.id;
     const merged = r.data.aiMerged || 0;
     await loadTrack(t.id); // recarrega a versão salva (inclui os produtos da IA mesclados)
@@ -640,7 +653,10 @@
     $("msg").textContent = `Trilha publicada como ${r.data.track.type === "official" ? "Oficial" : "Comunidade"}.` +
       (merged ? ` ${merged} ${tr("produto(s) aprovado(s) na IA entraram junto.")}` : "") +
       (empty ? ` ${empty} cena(s) sem produto.` : "") + (noBox ? ` ${noBox} produto(s) sem posição marcada.` : "");
-  };
+    // a IA recoloca os produtos aprovados pelo segundo de cada item nas cenas salvas
+    if (t.id) setTimeout(() => refreshEditorTrack(), 2200);
+    return true;
+  }
 
   function renderAll() {
     $("trackTitle").value = st.track.title;
@@ -679,7 +695,7 @@
     const body = $("boardBody");
     body.querySelectorAll("[data-bsel]").forEach((cb) => (cb.onchange = () => { const i = Number(cb.dataset.bsel); cb.checked ? board.sel.add(i) : board.sel.delete(i); cb.closest(".board-scene").classList.toggle("is-picked", cb.checked); $("boardAll").checked = board.sel.size === scenes().length; }));
     body.querySelectorAll("[data-btitle]").forEach((inp) => (inp.oninput = () => { scenes()[Number(inp.dataset.btitle)].title = inp.value; renderScenes(); renderTimeline(); }));
-    body.querySelectorAll("[data-brm]").forEach((b) => (b.onclick = () => { const [i, j] = b.dataset.brm.split(":").map(Number); scenes()[i].products.splice(j, 1); boardRefresh(); renderBoard(); }));
+    body.querySelectorAll("[data-brm]").forEach((b) => (b.onclick = () => { const [i, j] = b.dataset.brm.split(":").map(Number); noteRemoved(scenes()[i], scenes()[i].products[j]); scenes()[i].products.splice(j, 1); boardRefresh(); renderBoard(); }));
     body.querySelectorAll("[data-bgo]").forEach((b) => (b.onclick = () => { $("boardModal").hidden = true; selectScene(Number(b.dataset.bgo), true); }));
     body.querySelectorAll("[data-bq]").forEach((inp) => {
       let tm;
@@ -734,7 +750,7 @@
     const pid = $("boardProduct").value, tr = window.t || String;
     if (!pid || !board.sel.size) return toast(tr("Escolha o produto e marque as cenas."), true);
     let n = 0;
-    board.sel.forEach((i) => { const sc = scenes()[i]; const k = sc ? sc.products.findIndex((x) => x.id === pid) : -1; if (k >= 0) { sc.products.splice(k, 1); n++; } });
+    board.sel.forEach((i) => { const sc = scenes()[i]; const k = sc ? sc.products.findIndex((x) => x.id === pid) : -1; if (k >= 0) { noteRemoved(sc, sc.products[k]); sc.products.splice(k, 1); n++; } });
     boardRefresh(); renderBoard();
     toast(`${tr("Produto retirado de")} ${n} ${tr("cena(s).")}`);
   };
@@ -946,8 +962,8 @@
           <div class="pills">${x.isDefault ? `<span class="pill hold">${tr("Padrão")}</span>` : ""}${!x.active ? `<span class="pill rev">${x.isDefault ? tr("Desabilitada nesta organização") : tr("Desativada")}</span>` : a.valid ? '<span class="pill free">Acordo vigente</span>' : '<span class="pill rev">Acordo vencido</span>'}</div></div>
         ${extra}
         ${mine ? connBlock(x) : ""}
-        ${mine ? `<div class="seller-actions"><button class="ghost small" data-edit>Editar</button><button class="ghost small" data-toggle>${x.active ? "Desativar" : "Reativar"}</button><button class="ghost small" data-secret>Integração automática (chave)</button></div>`
-          : `<div class="seller-actions"><label class="switch"><input type="checkbox" data-toggle ${x.active ? "checked" : ""}/> ${x.active ? tr("Habilitada para os seus produtos") : tr("Desabilitada: não aparece para os seus produtos")}</label></div>`}
+        ${mine ? `<div class="seller-actions"><button class="ghost small" data-edit>Editar</button><button class="ghost small" data-toggle>${x.active ? "Desativar" : "Reativar"}</button><button class="ghost small" data-secret>Integração automática (chave)</button><button class="ghost small danger" data-del-seller>${tr("Excluir loja")}</button></div>`
+          : `<div class="seller-actions"><label class="switch"><input type="checkbox" data-toggle ${x.active ? "checked" : ""}/> ${x.active ? tr("Habilitada para os seus produtos") : tr("Desabilitada: não aparece para os seus produtos")}</label><button class="ghost small danger" data-del-seller>${tr("Excluir loja")}</button></div>`}
       </div>`;
     }).join("") || `<p class="help">${tr("Nenhuma loja cadastrada ainda.")}</p>`;
     $("sellersList").querySelectorAll(".codes-form").forEach((f) => (f.onsubmit = async (e) => {
@@ -982,7 +998,14 @@
     }));
     $("sellersList").querySelectorAll("[data-seller-id]").forEach((el) => {
       const x = offersSt.sellers.find((s) => s.id === el.dataset.sellerId);
-      const ed = el.querySelector("[data-edit]"), tg = el.querySelector("[data-toggle]"), sc = el.querySelector("[data-secret]");
+      const ed = el.querySelector("[data-edit]"), tg = el.querySelector("[data-toggle]"), sc = el.querySelector("[data-secret]"), dl = el.querySelector("[data-del-seller]");
+      if (dl) dl.onclick = async () => {
+        if (!confirm(tr("Excluir a loja “{0}”? Ela sai da lista e os produtos com oferta nela deixam de ter compra garantida.").replace("{0}", x.name))) return;
+        const r = await api(`/api/me/sellers/${encodeURIComponent(x.id)}`, { method: "DELETE" });
+        if (!r.ok) return toast(errText(r), true);
+        toast(tr("Loja excluída.") + (r.data.offersRemoved ? ` ${r.data.offersRemoved} ${tr("oferta(s) removida(s).")}` : ""));
+        loadOffers();
+      };
       if (ed) ed.onclick = () => openSellerForm(x);
       if (tg) tg.onclick = async () => { const r = await api(`/api/me/sellers/${encodeURIComponent(x.id)}/enabled`, { method: "PUT", body: { enabled: !x.active } }); if (!r.ok) return toast(errText(r), true); toast(x.active ? tr("Loja desabilitada.") : tr("Loja habilitada.")); loadOffers(); };
       if (sc) sc.onclick = async () => {
@@ -1212,11 +1235,19 @@
 
   // Detecção de cortes: compara quadros em sequência; mudança brusca = corte de cena
   let detectArmed = false;
+  // Cortes refeitos: cada produto vai para a cena nova que contém o meio da cena antiga (nada se perde)
+  function carryProducts(oldScenes, newScenes) {
+    for (const s of oldScenes || []) {
+      const mid = (Number(s.start) + Number(s.end)) / 2;
+      const target = newScenes.find((x) => mid >= x.start && mid < x.end) || newScenes[newScenes.length - 1];
+      for (const p of s.products || []) if (target && !target.products.some((x) => x.id === p.id)) target.products.push(p);
+    }
+  }
   $("detectBtn").onclick = async () => {
     const hasProducts = st.track.scenes.some((s) => s.products.length);
     if (hasProducts && !detectArmed) {
       detectArmed = true;
-      $("detectBtn").textContent = "Substituir as cenas atuais? Clique de novo";
+      $("detectBtn").textContent = (window.t || String)("Refazer os cortes? Os produtos passam para as cenas novas. Clique de novo");
       setTimeout(() => { detectArmed = false; $("detectBtn").textContent = "Detectar cortes"; }, 5000);
       return;
     }
@@ -1252,7 +1283,9 @@
         if (d.v > 0.12 && d.v > avg * 2.5 && isPeak && (!cuts.length || d.t - cuts[cuts.length - 1] >= 1.5) && d.t > 1 && dur - d.t > 1) cuts.push(Math.round(d.t * 10) / 10);
       });
       const bounds = [0, ...cuts, Math.round(dur * 10) / 10];
+      const old = st.track.scenes;
       st.track.scenes = bounds.slice(0, -1).map((b, i) => ({ id: `c${i + 1}`, title: (window.t || String)("Cena {0#}", i + 1), start: b, end: bounds[i + 1], products: [] }));
+      carryProducts(old, st.track.scenes);
       st.sel = 0;
       renderAll();
       toast(`${st.track.scenes.length} cena(s) encontradas. Confira os cortes e dê nome às cenas.`);
@@ -1338,7 +1371,8 @@
     const list = (await api("/api/me/works")).data || [];
     $("myWorks").innerHTML = list.length ? list.map((w) => `<div class="work">
         <img src="${esc(w.poster || "/media/products/placeholder.svg")}" alt=""/>
-        <div class="wi"><b>${esc(w.title)}</b><span class="help">${fmtDur(w.duration)} · ${w.tracks.length} trilha(s)${w.tracks[0] ? ` · ${w.tracks[0].scenes} cenas · ${w.tracks[0].products} produtos` : ""}</span>
+        <div class="wi"><b>${esc(w.title)}</b><span class="help">${fmtDur(w.duration)} · ${w.tracks.length} trilha(s)</span>
+          ${w.tracks.length ? `<ul class="work-tracks">${w.tracks.map((t) => `<li${t.live ? ' class="is-live"' : ""}><span>${t.live ? "● " : ""}${esc(t.title)} <small>${t.scenes} cenas · ${t.products} produtos${t.live ? " · no app" : ""}</small></span><button class="ghost small danger" data-del-track="${esc(t.id)}" data-work="${esc(w.id)}" data-title="${esc(t.title)}">${esc((window.t || String)("Excluir"))}</button></li>`).join("")}</ul>` : ""}
           <div class="wa"><button class="small primary" data-inv="${w.id}">Inventariar</button>
             <a class="ghost small" href="/assistir/${encodeURIComponent(w.id)}" target="_blank">Assistir</a>
             <button class="small" data-pil="${w.id}">Painel</button>
@@ -1355,6 +1389,18 @@
       : `<p class="help">Nenhuma obra ainda. Envie o primeiro vídeo acima.</p>`;
     $("myWorks").querySelectorAll("[data-inv]").forEach((b) => (b.onclick = async () => { await selectWork(b.dataset.inv); showTab("editor"); }));
     $("myWorks").querySelectorAll("[data-pil]").forEach((b) => (b.onclick = () => { st.pilotWork = b.dataset.pil; showTab("piloto"); }));
+    $("myWorks").querySelectorAll("[data-del-track]").forEach((b) => (b.onclick = async () => {
+      const tr = window.t || String;
+      if (!confirm(tr("Excluir a trilha “{0}”? Ela sai do Editor, do player e do app.").replace("{0}", b.dataset.title))) return;
+      const r = await api(`/api/tracks/${encodeURIComponent(b.dataset.delTrack)}`, { method: "DELETE" });
+      if (!r.ok) return toast(r.data.error || (r.data.errors || []).join(" ") || tr("Falha ao excluir."), true);
+      toast(tr("Trilha excluída.") + (r.data.republished ? " " + tr("O app passou a usar outra trilha oficial.") : r.data.retired ? " " + tr("A obra ficou sem trilha no app.") : ""));
+      if (st.workId === b.dataset.work) {
+        await loadTrackList();
+        if (st.track && st.track.id === b.dataset.delTrack) { newTrack(); const live = liveTrack(); if (live) await loadTrack(live.id); else newTrack(); }
+      }
+      loadWorks();
+    }));
     $("myWorks").querySelectorAll("[data-aid]").forEach((el) => aidStatus(el.dataset.aid));
     $("myWorks").querySelectorAll("[data-brand]").forEach((b) => (b.onclick = () => {
       const box = $("myWorks").querySelector(`[data-brand-box="${CSS.escape(b.dataset.brand)}"]`);
@@ -1888,9 +1934,10 @@
     clearTimeout(ai.poll);
     if (j && j.workId && j.workId !== st.workId) return;
     ai.job = j;
-    const box = $("aiStatus");
+    const box = $("aiStatus"), tr = window.t || String;
     box.className = "ai-status";
     $("aiGo").disabled = !!(j && j.status === "rodando");
+    $("aiScenesInfo").textContent = st.track ? `${st.track.scenes.length} ${tr("cena(s) nesta trilha")}` : "";
     if (!j || j.status === "nenhum") { box.innerHTML = ""; return; }
     if (j.status === "rodando") {
       box.innerHTML = `<span class="spin"></span><span>${esc(j.step || "analisando")}…</span>`;
@@ -1899,13 +1946,42 @@
     }
     if (j.status === "erro") { box.className = "ai-status bad"; box.textContent = j.error; return; }
     const n = j.scenes.reduce((a, s) => a + s.items.length, 0);
-    const m = j.scenes.reduce((a, s) => a + s.items.filter((i) => i.productId).length, 0);
-    box.innerHTML = `<span>${j.scenes.length} cena(s) · ${n} item(ns) · ${m} com produto do catálogo${j.model ? ` · ${esc(j.model)}` : ""}</span><button class="small primary" id="aiOpen">Revisar sugestões</button>`;
+    const auto = j.autoApproved || null;
+    box.innerHTML = `<span>${j.scenes.length} ${esc(tr("cena(s) analisadas"))} · ${n} ${esc(tr("item(ns)"))}${auto ? ` · ${auto.approved} ${esc(tr("aprovado(s) sozinho(s)"))}` : ""}${j.model ? ` · ${esc(j.model)}` : ""}</span><button class="small primary" id="aiOpen">${esc(tr("Revisar sugestões"))}</button>`;
     $("aiOpen").onclick = openAi;
+    // o que foi aprovado entra na trilha pela sincronização automática: recarrega a trilha quando terminar
+    if (ai.reloadedFor !== j.finishedAt) { ai.reloadedFor = j.finishedAt; afterSync(); }
+  }
+
+  // espera a sincronização da IA com a trilha e recarrega o Editor (se não houver edição por salvar)
+  async function afterSync() {
+    for (let i = 0; i < 40; i++) {
+      await new Promise((r) => setTimeout(r, 600));
+      const ws = await api(`/api/ai/workspace?workId=${encodeURIComponent(st.workId)}`);
+      if (ws.ok && ws.data.sync && !ws.data.sync.pending) break;
+    }
+    await refreshEditorTrack();
+    if (!$("boardModal").hidden) { boardRefresh(); renderBoard(); }
   }
 
   $("aiGo").onclick = async () => {
-    const r = await api(workUrl(st.workId), { method: "POST", body: { oneScene: $("aiMode").value === "unica" } });
+    const tr = window.t || String;
+    if (!st.track || !st.track.scenes.length) return toast(tr("Crie as cenas primeiro (Detectar cortes ou Nova cena a partir daqui)."), true);
+    // a análise usa exatamente as cenas salvas desta trilha
+    if (!st.track.id || editorDirty()) {
+      $("aiStatus").innerHTML = `<span class="spin"></span><span>${esc(tr("Salvando a trilha…"))}</span>`;
+      if (!(await saveTrack())) { $("aiStatus").textContent = ""; return; }
+    }
+    await api("/api/ai/assets/sync-products", { method: "POST", body: {} });
+    const assets = ((await api("/api/ai/assets")).data || []).filter((a) => a.productId);
+    const body = {
+      analysisMode: assets.length ? "HYBRID" : "DISCOVERY", assetIds: assets.map((a) => a.id),
+      categories: ["APPAREL", "WATCHES", "JEWELRY", "VEHICLES", "ELECTRONICS", "FURNITURE", "HOME_DECOR", "FOOD_BEVERAGE"],
+      sceneSource: "TRACK", trackId: st.track.id,
+      scenes: st.track.scenes.map((s) => ({ id: s.id, title: s.title, start: s.start, end: s.end })),
+      autoApprove: $("aiAuto").checked, autoApproveMin: 0.7,
+    };
+    const r = await api(workUrl(st.workId), { method: "POST", body });
     if (!r.ok) return toast(r.data.error || "Não foi possível iniciar a análise.", true);
     showJob(r.data);
   };
@@ -1913,28 +1989,42 @@
   const confClass = (c) => (c >= 0.75 ? "hi" : c >= 0.5 ? "mid" : "lo");
   const fmtS = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 
+  // Sugestões ainda não decididas (fila de revisão da IA), agrupadas pelas cenas desta trilha
   async function openAi() {
-    const j = ai.job;
+    const tr = window.t || String;
+    const ws = (await api(`/api/ai/workspace?workId=${encodeURIComponent(st.workId)}`)).data || {};
+    ai.ws = ws;
     ai.products = (await api("/api/me/products")).data || [];
     ai.products.forEach((p) => (st.products[p.id] = st.products[p.id] || p));
-    ai.items = [];
-    const opts = (sel) => `<option value="">— sem produto —</option>` + ai.products.map((p) => `<option value="${esc(p.id)}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}</option>`).join("");
-    $("aiSub").textContent = `${j.scenes.length} cena(s) · marque o que está certo, troque o produto quando precisar e aplique. Nada vai ao ar antes de você publicar a trilha.`;
-    $("aiBody").innerHTML = j.scenes.map((s, si) => `<section class="ai-scene"><h4>${esc(s.title)} <small>${fmtS(s.start)}–${fmtS(s.end)}</small></h4>${
-      s.items.length ? s.items.map((it) => {
-        ai.items.push({ ...it, si });
-        const p = ai.products.find((x) => x.id === it.productId);
+    const assetByProduct = new Map((ws.assets || []).filter((a) => a.productId).map((a) => [a.productId, a.id]));
+    const productByAsset = new Map((ws.assets || []).filter((a) => a.productId).map((a) => [a.id, a.productId]));
+    ai.assetByProduct = assetByProduct;
+    const pending = (ws.candidates || []).filter((c) => c.reviewStatus === "DETECTED");
+    ai.items = pending.map((c) => {
+      const pid = productByAsset.get(c.assetId) || (c.primaryPayload || {}).productId || null;
+      const t = Number.isFinite(Number(c.bestSeconds)) ? Number(c.bestSeconds) : (Number(c.startSeconds) + Number(c.endSeconds)) / 2;
+      const sc = st.track.scenes.find((s) => s.id === (c.primaryPayload || {}).sourceSceneId && t >= s.start - 0.5 && t <= s.end + 0.5) || st.track.scenes.find((s) => t >= s.start && t < s.end) || st.track.scenes[st.track.scenes.length - 1];
+      return { key: c.id, candidateId: c.id, productId: ws.assets && pid && assetByProduct.has(pid) ? pid : null, name: c.candidateName || tr("Item detectado"), category: c.category || "", description: c.candidateDescription || "",
+        visibleText: (c.primaryPayload || {}).visibleText || "", t, box: c.box2d || null, confidence: Number(c.primaryConfidence || 0), sceneId: sc ? sc.id : null };
+    });
+    const opts = (sel) => `<option value="">— ${esc(tr("sem produto"))} —</option>` + ai.products.map((p) => `<option value="${esc(p.id)}" ${p.id === sel ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+    $("aiSub").textContent = pending.length ? `${pending.length} ${tr("sugestão(ões) para confirmar. Marque as certas, troque o produto se precisar e aprove: elas entram na trilha e no app, cada uma na sua cena.")}` : tr("Nada pendente: tudo o que a IA encontrou já foi decidido.");
+    $("aiBody").innerHTML = st.track.scenes.map((s) => {
+      const list = ai.items.filter((it) => it.sceneId === s.id);
+      if (!list.length) return "";
+      return `<section class="ai-scene"><h4>${esc(s.title)} <small>${fmtS(s.start)}–${fmtS(s.end)}</small></h4>${list.map((it) => {
         const on = !!it.productId && it.confidence >= 0.5;
-        return `<div class="ai-item ${on ? "" : "off"}" data-k="${it.key}">
-          <input type="checkbox" ${on ? "checked" : ""} aria-label="Usar esta sugestão" />
+        return `<div class="ai-item ${on ? "" : "off"}" data-k="${esc(it.key)}">
+          <input type="checkbox" ${on ? "checked" : ""} aria-label="${esc(tr("Usar esta sugestão"))}" />
           <canvas width="264" height="264"></canvas>
-          <div><div class="nm">${esc(it.name)}</div><div class="ds">${esc(it.category)} · aparece em ${fmtS(it.t)}${it.description ? ` · ${esc(it.description)}` : ""}</div>${it.visibleText ? `<span class="vt">Na tela: ${esc(it.visibleText)}</span>` : ""}</div>
+          <div><div class="nm">${esc(it.name)}</div><div class="ds">${esc(it.category)} · ${esc(tr("aparece em"))} ${fmtS(it.t)}${it.description ? ` · ${esc(it.description)}` : ""}</div>${it.visibleText ? `<span class="vt">Na tela: ${esc(it.visibleText)}</span>` : ""}</div>
           <div class="ai-match">
-            ${p ? `<span class="conf ${confClass(it.confidence)}">${Math.round(it.confidence * 100)}% de certeza</span>` : `<span class="conf lo">Sem produto no catálogo</span>`}
+            ${it.productId ? `<span class="conf ${confClass(it.confidence)}">${Math.round(it.confidence * 100)}% de certeza</span>` : `<span class="conf lo">Sem produto no catálogo</span>`}
             <select aria-label="Produto">${opts(it.productId)}</select>
             <button type="button" class="ghost small" data-create>Criar produto com esta imagem</button>
           </div></div>`;
-      }).join("") : `<p class="help">Nenhum item encontrado nesta cena.</p>`}</section>`).join("");
+      }).join("")}</section>`;
+    }).join("") || `<p class="help">${esc(tr("Nada pendente nesta trilha."))}</p>`;
     $("aiBody").querySelectorAll(".ai-item").forEach((row) => {
       const it = ai.items.find((x) => x.key === row.dataset.k);
       const cb = row.querySelector("input[type=checkbox]"), sel = row.querySelector("select");
@@ -1942,7 +2032,8 @@
       sel.onchange = () => { it.productId = sel.value || null; cb.checked = !!sel.value; row.classList.toggle("off", !cb.checked); };
       row.querySelector("[data-create]").onclick = () => createFromItem(it, row.querySelector("canvas"));
     });
-    $("aiUseScenes").checked = true;
+    $("aiRejectRest").checked = false;
+    $("aiApply").disabled = !ai.items.length;
     $("aiModal").hidden = false;
     // miniaturas: o quadro do instante sugerido, recortado na caixa do item
     for (const row of $("aiBody").querySelectorAll(".ai-item")) {
@@ -1984,25 +2075,32 @@
 
   $("aiClose").onclick = () => ($("aiModal").hidden = true);
   $("aiModal").onclick = (e) => { if (e.target === $("aiModal")) $("aiModal").hidden = true; };
+  // aprovar os marcados (com produto) e, se pedido, rejeitar os desmarcados: vão para a trilha e o app sozinhos
   $("aiApply").onclick = async () => {
-    const j = ai.job;
-    const useScenes = $("aiUseScenes").checked;
-    const scenes = useScenes ? j.scenes.map((s) => ({ id: s.id, title: s.title, start: s.start, end: s.end, products: [] })) : st.track.scenes;
-    let n = 0;
+    const tr = window.t || String, ws = ai.ws || {};
+    const openFlag = (cid) => (ws.flags || []).find((f) => f.candidateId === cid && f.status === "OPEN");
+    const rejectRest = $("aiRejectRest").checked;
+    let ok = 0, rej = 0, skip = 0;
+    $("aiApply").disabled = true;
     for (const row of $("aiBody").querySelectorAll(".ai-item")) {
       const it = ai.items.find((x) => x.key === row.dataset.k);
-      if (!row.querySelector("input[type=checkbox]").checked || !it.productId) continue;
-      const target = useScenes ? scenes[it.si] : scenes.find((s) => it.t >= s.start && it.t < s.end) || scenes[scenes.length - 1];
-      if (!target || target.products.some((p) => p.id === it.productId)) continue;
-      if (!st.products[it.productId]) st.products[it.productId] = (await api(`/api/products/${encodeURIComponent(it.productId)}`)).data;
-      target.products.push({ id: it.productId, match: "exato", box: it.box });
-      n++;
+      const checked = row.querySelector("input[type=checkbox]").checked;
+      let decision = null, assetId;
+      if (checked && it.productId) {
+        assetId = ai.assetByProduct.get(it.productId);
+        if (!assetId) { await api("/api/ai/assets/sync-products", { method: "POST", body: {} }); const a = ((await api("/api/ai/assets")).data || []).find((x) => x.productId === it.productId); assetId = a && a.id; }
+        if (assetId) decision = "APPROVE"; else skip++;
+      } else if (checked) skip++;
+      else if (rejectRest) decision = "REJECT";
+      if (!decision) continue;
+      const f = openFlag(it.candidateId);
+      const url = f ? `/api/ai/operator-flags/${encodeURIComponent(f.id)}/resolve` : `/api/ai/candidates/${encodeURIComponent(it.candidateId)}/review`;
+      const r = await api(url, { method: "POST", body: { decision, assetId } });
+      if (r.ok) decision === "APPROVE" ? ok++ : rej++; else skip++;
     }
-    st.track.scenes = scenes;
-    st.sel = 0;
-    renderAll();
     $("aiModal").hidden = true;
-    toast(`${n} produto(s) aplicados${useScenes ? ` em ${scenes.length} cena(s)` : ""}. Confira as posições e publique a trilha.`);
+    toast(`${ok} ${tr("aprovado(s): entram na trilha e no app.")}${rej ? ` ${rej} ${tr("rejeitado(s).")}` : ""}${skip ? ` ${skip} ${tr("sem produto escolhido.")}` : ""}`, !ok && !!skip);
+    afterSync();
   };
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("aiModal").hidden) $("aiModal").hidden = true; });
 

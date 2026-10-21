@@ -72,7 +72,9 @@
     "test:rc10": "node test/rcprep10.api.mjs",
     "test:rc10:e2e": "node test/rcprep10.e2e.mjs",
     "test:rc11": "node test/rcprep11.api.mjs",
-    "test:rc11:e2e": "node test/rcprep11.e2e.mjs"
+    "test:rc11:e2e": "node test/rcprep11.e2e.mjs",
+    "test:rc12": "node test/rcprep12.api.mjs",
+    "test:rc12:e2e": "node test/rcprep12.e2e.mjs"
   },
   "engines": {
     "node": ">=20"

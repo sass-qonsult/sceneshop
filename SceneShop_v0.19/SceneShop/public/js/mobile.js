@@ -384,7 +384,9 @@
     const sRes = await fetch(`/api/sessions/${state.code}?deviceId=${encodeURIComponent(state.deviceId)}`);
     if (!sRes.ok) return showJoin("Esse código expirou. Gere um novo QR code na TV.");
     const session = await sRes.json();
-    if (!new URLSearchParams(location.search).has("t")) state.time = session.mode === "COMPANION" ? companionNow(session) : session.time;
+    // sincronizado pelo som: a posição do servidor (+ o tempo que passou) vale mais que o ?t= arredondado da URL
+    if (session.mode === "COMPANION") state.time = companionNow(session);
+    else if (!new URLSearchParams(location.search).has("t")) state.time = session.time;
 
     state.workId = session.workId;
     state.mode = session.mode || "PARTNER_NATIVE";

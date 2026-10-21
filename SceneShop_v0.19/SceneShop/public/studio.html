@@ -75,7 +75,7 @@
           <div class="row">
             <label>Obra <select id="work"></select></label>
             <label>Trilha <select id="trackSel"></select></label>
-            <button id="trackDel" class="ghost small danger" type="button" hidden title="Excluir esta trilha: ela sai do Editor, do player e do app">Excluir trilha</button>
+            <button id="trackDel" class="ghost small danger" type="button" disabled title="Excluir esta trilha: ela sai do Editor, do player e do app">Excluir trilha</button>
           </div>
           <div class="row">
             <label class="grow">Título da trilha <input id="trackTitle" maxlength="60" placeholder="Ex.: Figurino completo" /></label>
@@ -85,14 +85,15 @@
         </div>
 
         <div class="card ai-card" id="aiCard" hidden>
-          <div class="head-row"><h3>Marcação com IA <span class="ai-badge">Gemini</span></h3></div>
+          <div class="head-row"><h3>Produtos com IA <span class="ai-badge">Gemini</span></h3></div>
           <div id="aiConnect" hidden><p class="help">A IA está desativada neste ambiente. Um administrador deve configurar <code>GEMINI_API_KEY</code> no ambiente seguro/secret manager do SceneShop.</p></div>
           <div id="aiKeyBox" hidden></div>
           <div id="aiRun" hidden>
-            <p class="help">O Gemini assiste ao vídeo, encontra roupas, joias e objetos, marca onde aparecem e sugere o produto do seu catálogo. Você confirma cada sugestão.</p>
+            <p class="help">O Gemini analisa cada cena desta trilha separadamente, todas ao mesmo tempo, procura os produtos do seu catálogo e outros itens, e coloca cada produto na cena certa. A trilha é salva antes, para a análise usar exatamente estas cenas.</p>
+            <label class="chk"><input type="checkbox" id="aiAuto" checked /> Aprovar sozinho os produtos do meu catálogo reconhecidos com 70% de certeza ou mais (o resto fica para você confirmar)</label>
             <div class="row">
-              <label>Cenas <select id="aiMode"><option value="cenas">Dividir pelos cortes</option><option value="unica">Uma cena só</option></select></label>
-              <button class="primary" id="aiGo">Analisar com Gemini</button>
+              <button class="primary" id="aiGo">Buscar produtos nas cenas</button>
+              <span class="help" id="aiScenesInfo"></span>
             </div>
             <div class="ai-status" id="aiStatus"></div>
           </div>
@@ -518,9 +519,9 @@
       <header><div><h2 id="aiTitle">Sugestões do Gemini</h2><p class="help" id="aiSub"></p></div><button class="ghost small" id="aiClose">Fechar</button></header>
       <div class="ai-body" id="aiBody"></div>
       <footer>
-        <label class="chk"><input type="checkbox" id="aiUseScenes" checked /> Usar as cenas sugeridas (substitui as cenas atuais)</label>
+        <label class="chk"><input type="checkbox" id="aiRejectRest" /> Rejeitar os desmarcados</label>
         <span class="spacer"></span>
-        <button class="primary" id="aiApply">Aplicar selecionados</button>
+        <button class="primary" id="aiApply">Aprovar os marcados</button>
       </footer>
     </div>
   </div>

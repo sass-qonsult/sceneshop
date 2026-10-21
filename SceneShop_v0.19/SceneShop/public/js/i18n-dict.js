@@ -1,5 +1,113 @@
 /* Dicionário da interface: "texto em português": ["English", "español"]. Gerado a partir das telas; revise aqui. */
 globalThis.SceneShopI18nDict = {
+"{1} cenas · {2} produtos": [
+"{1} scenes · {2} products",
+"{1} escenas · {2} productos"
+],
+"{1} cenas · {2} produtos · no app": [
+"{1} scenes · {2} products · in the app",
+"{1} escenas · {2} productos · en la app"
+],
+"Refazer os cortes? Os produtos passam para as cenas novas. Clique de novo": [
+"Redo the cuts? Products move to the new scenes. Click again",
+"¿Rehacer los cortes? Los productos pasan a las escenas nuevas. Haga clic de nuevo"
+],
+"Produtos com IA": [
+"Products with AI",
+"Productos con IA"
+],
+"O Gemini analisa cada cena desta trilha separadamente, todas ao mesmo tempo, procura os produtos do seu catálogo e outros itens, e coloca cada produto na cena certa. A trilha é salva antes, para a análise usar exatamente estas cenas.": [
+"Gemini analyzes each scene of this track separately, all at the same time, looks for your catalog products and other items, and puts each product in the right scene. The track is saved first, so the analysis uses exactly these scenes.",
+"Gemini analiza cada escena de esta pista por separado, todas al mismo tiempo, busca los productos de su catálogo y otros ítems, y coloca cada producto en la escena correcta. La pista se guarda antes, para que el análisis use exactamente estas escenas."
+],
+"Aprovar sozinho os produtos do meu catálogo reconhecidos com 70% de certeza ou mais (o resto fica para você confirmar)": [
+"Approve by itself my catalog products recognized with 70% certainty or more (the rest waits for your confirmation)",
+"Aprobar solo los productos de mi catálogo reconocidos con 70% de certeza o más (el resto queda para que usted confirme)"
+],
+"Buscar produtos nas cenas": [
+"Find products in the scenes",
+"Buscar productos en las escenas"
+],
+"Rejeitar os desmarcados": [
+"Reject the unticked ones",
+"Rechazar los no marcados"
+],
+"Aprovar os marcados": [
+"Approve the ticked ones",
+"Aprobar los marcados"
+],
+"cena(s) nesta trilha": [
+"scene(s) in this track",
+"escena(s) en esta pista"
+],
+"cena(s) analisadas": [
+"scene(s) analyzed",
+"escena(s) analizadas"
+],
+"item(ns)": [
+"item(s)",
+"ítem(s)"
+],
+"aprovado(s) sozinho(s)": [
+"approved automatically",
+"aprobado(s) automáticamente"
+],
+"Crie as cenas primeiro (Detectar cortes ou Nova cena a partir daqui).": [
+"Create the scenes first (Detect cuts or New scene from here).",
+"Cree las escenas primero (Detectar cortes o Nueva escena desde aquí)."
+],
+"Salvando a trilha…": [
+"Saving the track…",
+"Guardando la pista…"
+],
+"sem produto": [
+"no product",
+"sin producto"
+],
+"sugestão(ões) para confirmar. Marque as certas, troque o produto se precisar e aprove: elas entram na trilha e no app, cada uma na sua cena.": [
+"suggestion(s) to confirm. Tick the right ones, change the product if needed and approve: they go into the track and the app, each in its scene.",
+"sugerencia(s) para confirmar. Marque las correctas, cambie el producto si hace falta y apruebe: entran en la pista y en la app, cada una en su escena."
+],
+"Nada pendente: tudo o que a IA encontrou já foi decidido.": [
+"Nothing pending: everything the AI found has been decided.",
+"Nada pendiente: todo lo que encontró la IA ya fue decidido."
+],
+"aparece em": [
+"appears at",
+"aparece en"
+],
+"Nada pendente nesta trilha.": [
+"Nothing pending in this track.",
+"Nada pendiente en esta pista."
+],
+"aprovado(s): entram na trilha e no app.": [
+"approved: they go into the track and the app.",
+"aprobado(s): entran en la pista y en la app."
+],
+"rejeitado(s).": [
+"rejected.",
+"rechazado(s)."
+],
+"sem produto escolhido.": [
+"without a chosen product.",
+"sin producto elegido."
+],
+"Excluir loja": [
+"Delete store",
+"Eliminar tienda"
+],
+"Excluir a loja “{0}”? Ela sai da lista e os produtos com oferta nela deixam de ter compra garantida.": [
+"Delete the store “{0}”? It leaves the list and products with an offer in it lose the guaranteed purchase.",
+"¿Eliminar la tienda “{0}”? Sale de la lista y los productos con oferta en ella pierden la compra garantizada."
+],
+"Loja excluída.": [
+"Store deleted.",
+"Tienda eliminada."
+],
+"oferta(s) removida(s).": [
+"offer(s) removed.",
+"oferta(s) eliminada(s)."
+],
 "● {1} · no app": [
 "● {1} · in the app",
 "● {1} · en la app"

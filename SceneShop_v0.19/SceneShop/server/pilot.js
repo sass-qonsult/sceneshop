@@ -86,7 +86,7 @@ module.exports = function pilotRoutes({ requireRole, reply, actor }) {
   r.get("/api/me/works", requireRole(), orgAccess.requireCapability("CONTENT_READ"), safe(async (req, res) => {
     const works = await Promise.resolve(content.listWorksByOrganizationAuthoritative(req.organization.id));
     const enriched = [];
-    for (const w of works) enriched.push({ ...w, tracks: (await tracks.rankedAuthoritative(w.id)).filter((t) => t.status !== "removida") });
+    for (const w of works) { const live = await tracks.liveTrackId(w.id); enriched.push({ ...w, tracks: (await tracks.rankedAuthoritative(w.id)).filter((t) => t.status !== "removida").map((t) => ({ ...t, live: t.id === live })) }); }
     res.json(enriched.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
   }));
 
