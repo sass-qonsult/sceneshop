@@ -1,5 +1,117 @@
 /* Dicionário da interface: "texto em português": ["English", "español"]. Gerado a partir das telas; revise aqui. */
 globalThis.SceneShopI18nDict = {
+"● {1} · no app": [
+"● {1} · in the app",
+"● {1} · en la app"
+],
+"{1} ({2} cenas · {3} da IA)": [
+"{1} ({2} scenes · {3} from AI)",
+"{1} ({2} escenas · {3} de la IA)"
+],
+"da IA": [
+"from AI",
+"de la IA"
+],
+"no app": [
+"in the app",
+"en la app"
+],
+"Excluir trilha": [
+"Delete track",
+"Eliminar pista"
+],
+"Excluir esta trilha: ela sai do Editor, do player e do app": [
+"Delete this track: it leaves the Editor, the player and the app",
+"Eliminar esta pista: sale del Editor, del reproductor y de la app"
+],
+"Esta trilha foi excluída.": [
+"This track was deleted.",
+"Esta pista fue eliminada."
+],
+"Trilha atualizada com os produtos aprovados na IA.": [
+"Track updated with the products approved in AI.",
+"Pista actualizada con los productos aprobados en la IA."
+],
+"A IA atualizou esta trilha. Os produtos novos entram junto quando você salvar.": [
+"AI updated this track. The new products are added when you save.",
+"La IA actualizó esta pista. Los productos nuevos se agregan al guardar."
+],
+"Aberta a trilha que está no app, com os produtos aprovados na IA.": [
+"Opened the track that is in the app, with the products approved in AI.",
+"Se abrió la pista que está en la app, con los productos aprobados en la IA."
+],
+"Colocado pela IA (aprovado na Fila de revisão)": [
+"Placed by AI (approved in the review queue)",
+"Colocado por la IA (aprobado en la cola de revisión)"
+],
+"A IA já publicou no app a trilha “{0}”, com os produtos aprovados. Salvar suas cenas e produtos nela? (Cancelar cria uma trilha separada.)": [
+"AI already published the track “{0}” to the app, with the approved products. Save your scenes and products into it? (Cancel creates a separate track.)",
+"La IA ya publicó en la app la pista “{0}”, con los productos aprobados. ¿Guardar sus escenas y productos en ella? (Cancelar crea una pista separada.)"
+],
+"produto(s) aprovado(s) na IA entraram junto.": [
+"product(s) approved in AI were added too.",
+"producto(s) aprobado(s) en la IA se agregaron también."
+],
+"Excluir a trilha “{0}”? Ela sai do Editor, do player e do app.": [
+"Delete the track “{0}”? It leaves the Editor, the player and the app.",
+"¿Eliminar la pista “{0}”? Sale del Editor, del reproductor y de la app."
+],
+"É a trilha que está no app: a próxima trilha oficial mais recente passa a ser usada.": [
+"It is the track in the app: the next most recent official track will be used.",
+"Es la pista que está en la app: se usará la siguiente pista oficial más reciente."
+],
+"Trilha excluída.": [
+"Track deleted.",
+"Pista eliminada."
+],
+"O app passou a usar outra trilha oficial.": [
+"The app now uses another official track.",
+"La app pasó a usar otra pista oficial."
+],
+"A obra ficou sem trilha no app.": [
+"The title no longer has a track in the app.",
+"La obra quedó sin pista en la app."
+],
+"Sincronizando com a trilha e o app…": [
+"Syncing with the track and the app…",
+"Sincronizando con la pista y la app…"
+],
+"Trilha do Editor e app sincronizados": [
+"Editor track and app in sync",
+"Pista del Editor y app sincronizadas"
+],
+"produto(s) da IA em": [
+"AI product(s) in",
+"producto(s) de la IA en"
+],
+"há {0}": [
+"{0} ago",
+"hace {0}"
+],
+"Falha na sincronização": [
+"Sync failed",
+"Falló la sincronización"
+],
+"Os itens aprovados vão sozinhos para a trilha do Editor e para o app.": [
+"Approved items go to the Editor track and the app automatically.",
+"Los ítems aprobados van solos a la pista del Editor y a la app."
+],
+"Aprovado: vai para a trilha do Editor e para o app.": [
+"Approved: it goes to the Editor track and the app.",
+"Aprobado: va a la pista del Editor y a la app."
+],
+"Sincronizar agora": [
+"Sync now",
+"Sincronizar ahora"
+],
+"Refaz a sincronização com a trilha do Editor e o app agora": [
+"Sync with the Editor track and the app now",
+"Sincroniza ahora con la pista del Editor y la app"
+],
+"Marque as análises que vão para o app (sem marcação, vale a mais recente). Cada item aprovado vai sozinho para a trilha do Editor e para o app, na sua cena; rejeitar ou excluir tira.": [
+"Tick the analyses that go to the app (with none ticked, the latest is used). Each approved item goes to the Editor track and the app by itself, in its scene; rejecting or deleting removes it.",
+"Marque los análisis que van a la app (sin marcar, vale el más reciente). Cada ítem aprobado va solo a la pista del Editor y a la app, en su escena; rechazar o eliminar lo quita."
+],
 "(piloto)": [
 "(pilot)",
 "(piloto)"

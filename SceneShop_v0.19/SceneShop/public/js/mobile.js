@@ -317,7 +317,8 @@
       const response = await fetch(`/api/sessions/${state.code}?deviceId=${encodeURIComponent(state.deviceId)}`, { cache: "no-store" });
       if (!response.ok) return;
       const session = await response.json();
-      state.time = Number(session.time || state.time || 0);
+      state.time = session.mode === "COMPANION" ? Math.min(Number(state.work && state.work.duration) || Infinity, companionNow(session)) : Number(session.time || state.time || 0);
+      if (session.mode === "COMPANION") state.playing = true;
       state.anchor = { time: state.time, at: performance.now() };
       if (state.core) {
         state.core.tick(state.time, state.timeline);
@@ -383,13 +384,20 @@
     const sRes = await fetch(`/api/sessions/${state.code}?deviceId=${encodeURIComponent(state.deviceId)}`);
     if (!sRes.ok) return showJoin("Esse código expirou. Gere um novo QR code na TV.");
     const session = await sRes.json();
-    if (!new URLSearchParams(location.search).has("t")) state.time = session.time;
+    if (!new URLSearchParams(location.search).has("t")) state.time = session.mode === "COMPANION" ? companionNow(session) : session.time;
 
     state.workId = session.workId;
     state.mode = session.mode || "PARTNER_NATIVE";
     const reSyncBtn=$("reSync"); if(reSyncBtn) reSyncBtn.hidden = state.mode !== "COMPANION";
     await loadWork(session.trackId);
     $("workTitle").textContent = state.work.title;
+    if (state.mode === "COMPANION") {
+      // sincronizado pelo som de outra tela (TV aberta, streaming, YouTube): o filme continua andando
+      // a partir do ponto reconhecido, então as cenas seguintes aparecem sozinhas.
+      state.time = Math.min(Number(state.work.duration) || Infinity, state.time);
+      state.playing = true;
+      state.anchor = { time: state.time, at: performance.now() };
+    }
     const stored=loadCoreSnapshot();
     state.core=new SceneShopMobileCore.CompanionState({ ...stored, mode:session.viewer&&session.viewer.state||stored.mode||'LIVE', playbackPosition:state.time, browsePosition:session.viewer&&session.viewer.browsePosition||stored.browsePosition||state.time, browseSceneId:session.viewer&&session.viewer.browseSceneId||stored.browseSceneId||null, syncConfidence:session.syncConfidence||stored.syncConfidence||0 });
     state.core.tick(state.time,state.timeline);
@@ -411,7 +419,7 @@
     // pelo relógio local, então a troca de cena aparece sem esperar o próximo aviso.
     socket.on("player:tick", ({ time, playing }) => {
       state.anchor = { time, at: performance.now() };
-      state.playing = playing;
+      state.playing = state.mode === "COMPANION" ? true : playing;
       tick();
     });
     socket.on("scene:change", ({ sceneId }) => {
@@ -429,9 +437,17 @@
     });
   }
 
+  // posição atual no modo COMPANION: a última posição conhecida + o tempo que passou desde ela
+  function companionNow(session) {
+    return Math.max(0, Number(session.playbackPosition ?? session.time ?? 0) + Math.min(6 * 3600, Number(session.observedAgoSeconds) || 0));
+  }
+
   function estimatedTime() {
     if (!state.anchor) return state.time;
-    const drift = state.playing ? Math.min(2.5, (performance.now() - state.anchor.at) / 1000) : 0;
+    // com o player do SceneShop, a TV avisa o tempo 1x por segundo (o celular só estima entre avisos);
+    // sincronizado pelo som de outra tela, não há avisos: o relógio do celular conduz até a próxima sincronização
+    const cap = state.mode === "COMPANION" ? Infinity : 2.5;
+    const drift = state.playing ? Math.min(cap, (performance.now() - state.anchor.at) / 1000) : 0;
     return Math.min(state.work.duration, state.anchor.time + drift);
   }
 
@@ -444,7 +460,7 @@
     renderStatus();
     renderMissed();
   }
-  setInterval(() => { if (state.foreground && state.playing && state.connected) tick(); }, 250);
+  setInterval(() => { if (state.foreground && state.playing && (state.connected || state.mode === "COMPANION")) tick(); }, 250);
 
   async function loadWork(trackId) {
     // a sessão da TV autoriza o celular (inclusive em canais de parceiros)
@@ -507,6 +523,7 @@
     try {
       const out=await SceneShopCompanionSync.recognize({workId:state.workId,seconds:5});
       if(state.core){state.core.applySync({position:out.position,confidence:out.confidence});persistCore();renderStatus();}
+      state.anchor={time:Number(out.position)||0,at:performance.now()}; state.playing=true; tick();
       state.socket.emit("sync:resync",{position:out.position,confidence:out.confidence,recognizedSyncId:out.work.syncId},(ack)=>{
         btn.disabled=false;btn.textContent=before; if(ack&&ack.error) notice(ack.error);
       });

@@ -32,6 +32,9 @@ function publicView(s) {
     sceneId: s.sceneId || null,
     syncConfidence: s.syncConfidence == null ? null : Number(s.syncConfidence),
     lastSyncAt: s.lastSyncAt || null,
+    // segundos desde a última posição conhecida (medidos no servidor: sem depender do relógio do celular).
+    // No modo COMPANION (sincronizado pelo som de outra tela) o filme continua andando depois da sincronização.
+    observedAgoSeconds: (() => { const at = Number(s.playbackObservedAt || s.lastSyncAt || 0); return at ? Math.max(0, (Date.now() - at) / 1000) : 0; })(),
     phones: Number(s.phones || 0),
   };
 }

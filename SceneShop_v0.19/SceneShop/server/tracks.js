@@ -49,7 +49,9 @@ function summary(t) {
     approval: n ? Math.round((votes.up / n) * 100) : null,
     score: Math.round((wilson(votes.up, votes.down) - reportWeight(t.id) * 0.05) * 1000) / 1000,
     products: new Set(t.scenes.flatMap((s) => s.products.map((p) => p.id))).size,
+    aiProducts: t.scenes.reduce((n, s) => n + s.products.filter((p) => String(p.source || "").startsWith("ai:")).length, 0),
     scenes: t.scenes.length,
+    createdAt: t.createdAt || null, updatedAt: t.updatedAt || t.createdAt || null,
   };
 }
 
@@ -241,13 +243,90 @@ async function rankedAuthoritative(workId) {
       b.score - a.score);
 }
 
+// Id da trilha que está publicada para o app (Commerce Timeline em vigor).
+async function liveTrackId(workId) {
+  const tl = await Promise.resolve(content.getPublishedTimeline(workId)).catch(() => null);
+  return (tl && tl.manifest && tl.manifest.sourceTrackId) || null;
+}
+
 async function pickAuthoritative(workId, trackId) {
   if (trackId) {
     const requested = await getAuthoritative(trackId);
     if (requested && requested.workId === workId && requested.status !== "removida") return requested;
   }
   const rankedRows = await rankedAuthoritative(workId);
-  return rankedRows.length ? await getAuthoritative(rankedRows[0].id) : null;
+  if (!rankedRows.length) return null;
+  // entre as oficiais, a que está publicada no app vem primeiro (a mesma que o Editor abre)
+  const live = await liveTrackId(workId);
+  const liveRow = live && rankedRows.find((r) => r.id === live && r.type === "official" && r.status === "ativa");
+  return await getAuthoritative((liveRow || rankedRows[0]).id);
+}
+
+// ---------------------------------------------------------------------------
+// Produtos colocados pela IA x edição no Editor.
+// O Editor envia a versão que abriu (baseUpdatedAt) e os produtos da IA que a produtora tirou (aiRemoved).
+// Se a trilha mudou depois (a IA publicou novas aprovações), os produtos novos da IA entram na
+// versão salva, cada um na cena certa; os que a produtora tirou ficam fora e não voltam sozinhos.
+const aiKey = (sceneId, p) => `${sceneId}|${p.id}|${p.source}`;
+function mergeAiEdits(existing, body) {
+  const removed = new Set((Array.isArray(body.aiRemoved) ? body.aiRemoved : []).map(String).slice(0, 2000));
+  const incomingKeys = new Set();
+  (body.scenes || []).forEach((s) => (s.products || []).forEach((p) => { if (String(p.source || "").startsWith("ai:")) incomingKeys.add(aiKey(s.id, p)); }));
+  const stale = Number(body.baseUpdatedAt) > 0 && Number(existing.updatedAt || 0) > Number(body.baseUpdatedAt);
+  const missing = [];
+  (existing.scenes || []).forEach((s) => (s.products || []).forEach((p) => {
+    if (!String(p.source || "").startsWith("ai:") || incomingKeys.has(aiKey(s.id, p))) return;
+    missing.push({ scene: s, product: p });
+  }));
+  let merged = 0;
+  const suppress = new Set(removed);
+  for (const { scene, product } of missing) {
+    const k = aiKey(scene.id, product);
+    if (!stale || removed.has(k)) { suppress.add(k); continue; } // a produtora tirou: fica fora
+    const mid = (Number(scene.start) + Number(scene.end)) / 2;
+    const target = (body.scenes || []).find((x) => x.id === scene.id && mid >= Number(x.start) - 0.5 && mid <= Number(x.end) + 0.5)
+      || (body.scenes || []).find((x) => mid >= Number(x.start) && mid < Number(x.end)) || (body.scenes || [])[body.scenes.length - 1];
+    if (!target) continue;
+    target.products = target.products || [];
+    if (target.products.some((x) => x.id === product.id)) continue;
+    target.products.push({ ...product });
+    merged++;
+  }
+  if (suppress.size) {
+    const all = (S().aiSuppressed ||= {});
+    all[existing.id] = [...new Set([...(all[existing.id] || []), ...suppress])].slice(-2000);
+    store.save();
+  }
+  return { merged, suppressed: suppress.size, stale };
+}
+
+// Excluir trilha: sai do Editor, do player e do app. Fica guardada como "removida"
+// (vendas e auditoria continuam apontando para ela). Se era a trilha do app, a próxima
+// oficial ativa mais recente é publicada; sem nenhuma, a publicação do app é encerrada.
+async function removeAuthoritative(existing, actorName) {
+  const wasLive = (await liveTrackId(existing.workId)) === existing.id;
+  const t = JSON.parse(JSON.stringify(existing));
+  t.status = "removida";
+  t.removedAt = store.now();
+  t.removedBy = actorName || null;
+  t.updatedAt = store.now();
+  await content.saveTrackAuthoritative(t, "content.track.removed");
+  if (S().tracks && S().tracks[t.id] && S().tracks[t.id] !== t) { S().tracks[t.id].status = "removida"; store.save(); }
+  if (S().aiSuppressed && S().aiSuppressed[t.id]) { delete S().aiSuppressed[t.id]; store.save(); }
+  let republished = null, retired = false;
+  if (wasLive && existing.type === "official") {
+    const rows = ((await Promise.resolve(content.listTracksByWorkAuthoritative(existing.workId))) || [])
+      .filter((x) => x && x.id !== t.id && x.type === "official" && x.status === "ativa")
+      .sort((a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0));
+    if (rows[0]) {
+      republished = rows[0].id;
+      await Promise.resolve(content.publishTrackAsCommerceTrack(rows[0].id, actorName || "system", rows[0].organizationId || null));
+    } else if (content.retirePublishedTimeline) {
+      await Promise.resolve(content.retirePublishedTimeline(existing.workId));
+      retired = true;
+    }
+  }
+  return { track: summary(t), republished, retired };
 }
 
 async function validateAuthoritative(body, work) {
@@ -313,4 +392,4 @@ async function listByAuthorAuthoritative(authorId, workId) {
   return (rows || []).map(summary);
 }
 
-module.exports = { review, forModeration, ranked, get, pick, view, vtt, vote, report, save, summary, reportsOf, getAuthoritative, rankedAuthoritative, pickAuthoritative, saveAuthoritative, listByAuthorAuthoritative };
+module.exports = { mergeAiEdits, removeAuthoritative, liveTrackId, review, forModeration, ranked, get, pick, view, vtt, vote, report, save, summary, reportsOf, getAuthoritative, rankedAuthoritative, pickAuthoritative, saveAuthoritative, listByAuthorAuthoritative };

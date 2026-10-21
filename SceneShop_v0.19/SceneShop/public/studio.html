@@ -75,6 +75,7 @@
           <div class="row">
             <label>Obra <select id="work"></select></label>
             <label>Trilha <select id="trackSel"></select></label>
+            <button id="trackDel" class="ghost small danger" type="button" hidden title="Excluir esta trilha: ela sai do Editor, do player e do app">Excluir trilha</button>
           </div>
           <div class="row">
             <label class="grow">Título da trilha <input id="trackTitle" maxlength="60" placeholder="Ex.: Figurino completo" /></label>
@@ -213,8 +214,8 @@
         </div>
 
         <div class="card aiops-panel">
-          <div class="head-row"><div><h3>Jobs recentes</h3><p class="help">Marque as análises que vão para o app (sem marcação, vale a mais recente). Só entram os itens aprovados, cada um na sua cena.</p></div>
-            <button id="aiOpsPublish" class="primary small" type="button">Publicar no app</button></div>
+          <div class="head-row"><div><h3>Jobs recentes</h3><p class="help">Marque as análises que vão para o app (sem marcação, vale a mais recente). Cada item aprovado vai sozinho para a trilha do Editor e para o app, na sua cena; rejeitar ou excluir tira.</p></div>
+            <button id="aiOpsPublish" class="ghost small" type="button" title="Refaz a sincronização com a trilha do Editor e o app agora">Sincronizar agora</button></div>
           <div id="aiOpsSyncMsg" class="msg"></div>
           <div id="aiOpsJobs" class="stack-list"></div>
         </div>

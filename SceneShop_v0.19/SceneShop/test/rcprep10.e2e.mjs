@@ -116,7 +116,7 @@ await p.selectOption("#aiOpsFilter", "");
 
 // publicar no app
 await p.click("#aiOpsPublish");
-await p.waitForFunction(() => /Publicado no app/.test(document.getElementById("aiOpsSyncMsg").textContent), null, { timeout: 15000 });
+await p.waitForFunction(() => /sincronizados.*em 3 de 3 cenas/.test(document.getElementById("aiOpsSyncMsg").textContent), null, { timeout: 15000 });
 const pubMsg = await p.locator("#aiOpsSyncMsg").innerText();
 check(/em 3 de 3 cenas/.test(pubMsg), `publicado por cena: ${pubMsg}`);
 const tl = await (await fetch(`${BASE}/api/works/${work.id}/commerce-timeline`)).json();

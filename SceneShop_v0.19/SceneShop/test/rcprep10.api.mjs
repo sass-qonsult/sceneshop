@@ -44,6 +44,7 @@ try {
   await bootstrap();
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   base = `http://127.0.0.1:${server.address().port}`;
+  server.keepAliveTimeout = 65000; // o ffmpeg demora: a conexão do login não pode cair antes do envio
   await req("/api/dev/reset", { method: "POST", body: {} });
   const login = await req("/api/auth/login", { method: "POST", body: { username: "produtora", password: "demo1234" } });
   token = login.data.token;

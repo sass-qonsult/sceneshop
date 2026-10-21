@@ -168,6 +168,7 @@ const content = {
     store.state.tracks[track.id]=track; store.save(); return track;
   },
   publishTrackAsCommerceTrack: (trackId, actor, organizationId=null) => contentImpl() ? contentImpl().publishTrackAsCommerceTrack(trackId, actor, organizationId) : null,
+  retirePublishedTimeline: (workId) => contentImpl() ? contentImpl().retirePublishedTimeline(workId) : null,
   getPublishedTimeline: (workId) => contentImpl() ? contentImpl().getPublishedTimeline(workId) : (() => {
     const t=Object.values(store.state.tracks||{}).filter((x)=>x.workId===workId&&x.type==='official'&&x.status==='ativa').sort((a,b)=>Number(b.updatedAt||b.createdAt||0)-Number(a.updatedAt||a.createdAt||0))[0];
     if(!t)return null;

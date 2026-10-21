@@ -1,4 +1,4 @@
-const CACHE='sceneshop-app-v019-rc1-r7';
+const CACHE='sceneshop-app-v019-rc1-r8';
 const CORE=[
   '/app','/desktop','/mobile','/app.html','/desktop.html','/mobile.html','/offline.html',
   '/css/mobile.css','/css/app-shell.css',

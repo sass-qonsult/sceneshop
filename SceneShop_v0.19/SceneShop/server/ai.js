@@ -358,12 +358,28 @@ function syncSelection(orgId, workId, jobs) {
   return { jobIds: latest ? [latest.id] : [], explicit: false, updatedAt: null };
 }
 
-async function publishToApp({ orgId, work, jobIds, user, content }) {
+// Trilha que o app mostra para a obra: a da publicação comercial em vigor; sem ela, a oficial ativa mais recente.
+async function liveTrackFor(orgId, workId, content) {
+  const list = ((await Promise.resolve(content.listTracksByOrganizationAuthoritative(orgId, workId))) || [])
+    .filter((x) => x.type === "official" && x.status === "ativa");
+  const tl = content.getPublishedTimeline ? await Promise.resolve(content.getPublishedTimeline(workId)).catch(() => null) : null;
+  const liveId = tl && tl.manifest && tl.manifest.sourceTrackId;
+  return list.find((x) => x.id === liveId) || list.sort((a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))[0] || null;
+}
+const sigOf = (scenes) => JSON.stringify((scenes || []).map((s) => [s.id, s.start, s.end, (s.products || []).map((p) => [p.id, p.source || ""])]));
+function recordSync(orgId, workId, out) {
+  (store.state.aiLastSync ||= {})[syncKey(orgId, workId)] = { at: store.now(), ok: !out.error, error: out.error || null, trackId: out.track ? out.track.id : null,
+    trackTitle: out.track ? out.track.title : null, products: out.products || 0, scenes: out.scenes || 0, scenesWithProducts: out.scenesWithProducts || 0,
+    skipped: out.skipped || 0, auto: !!out.auto };
+  store.save();
+}
+
+async function publishToApp({ orgId, work, jobIds, user, content, auto = false }) {
   const tracks = require("./tracks");
   const allJobs = await Promise.resolve(aiPipeline.listJobs(orgId, work.id)) || [];
   const chosen = Array.isArray(jobIds) ? jobIds.map(String) : syncSelection(orgId, work.id, allJobs).jobIds;
   const jobs = allJobs.filter((j) => chosen.includes(j.id));
-  if (!jobs.length) return { error: "Marque ao menos uma análise para sincronizar com o app." };
+  if (!jobs.length && !auto) return { error: "Marque ao menos uma análise para sincronizar com o app." };
   const jobSet = new Set(jobs.map((j) => j.id));
   const [cands, placements, assets] = await Promise.all([
     Promise.resolve(aiPipeline.listCandidates(orgId, null)), Promise.resolve(aiPipeline.listPlacements(orgId, work.id)), Promise.resolve(aiPipeline.listAssets(orgId)),
@@ -382,10 +398,14 @@ async function publishToApp({ orgId, work, jobIds, user, content }) {
     items.push({ productId, jobId: c.analysisJobId, sceneId: (c.primaryPayload || {}).sourceSceneId || null, start, end,
       t: Number.isFinite(Number(c.bestSeconds)) ? Number(c.bestSeconds) : (start + end) / 2, box: c.box2d || null });
   }
-  if (!items.length) return { error: skipped ? "Os itens aprovados não estão ligados a produtos cadastrados. Aprove-os escolhendo um produto da aba Produtos." : "Nenhum item aprovado nas análises marcadas. Aprove os itens na Fila de revisão." };
-  // trilha oficial mais recente da obra: mantém os cortes e os produtos colocados à mão
-  const list = (await Promise.resolve(content.listTracksByOrganizationAuthoritative(orgId, work.id))) || [];
-  const base = list.filter((t) => t.type === "official" && t.status === "ativa").sort((a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))[0] || null;
+  // trilha que o app mostra (a mesma que o Editor abre): mantém os cortes e os produtos colocados à mão
+  const base = await liveTrackFor(orgId, work.id, content);
+  if (!items.length && (!auto || !base)) {
+    if (auto) return { ok: true, auto, unchanged: true, products: 0, scenes: base ? base.scenes.length : 0, scenesWithProducts: 0, skipped };
+    return { error: skipped ? "Os itens aprovados não estão ligados a produtos cadastrados. Aprove-os escolhendo um produto da aba Produtos." : "Nenhum item aprovado nas análises marcadas. Aprove os itens na Fila de revisão." };
+  }
+  // produtos da IA que a produtora tirou no Editor não voltam sozinhos
+  const suppressed = new Set(base ? ((store.state.aiSuppressed || {})[base.id] || []) : []);
   let scenes;
   if (base) scenes = base.scenes.map((sc) => ({ ...sc, products: (sc.products || []).filter((p) => !String(p.source || "").startsWith("ai:")) }));
   else {
@@ -398,15 +418,55 @@ async function publishToApp({ orgId, work, jobIds, user, content }) {
   for (const it of items) {
     const target = scenes.find((s) => s.id === it.sceneId && it.t >= s.start - 0.5 && it.t <= s.end + 0.5)
       || scenes.find((s) => it.t >= s.start && it.t < s.end) || scenes.find((s) => it.start < s.end && it.end > s.start) || scenes[scenes.length - 1];
+    if (suppressed.has(`${target.id}|${it.productId}|ai:${it.jobId}`)) continue; // a produtora tirou no Editor
     if (target.products.some((p) => p.id === it.productId)) continue;
     target.products.push({ id: it.productId, match: "exato", box: it.box, source: `ai:${it.jobId}` });
     added++;
   }
+  const summary = { jobIds: jobs.map((j) => j.id), products: added, scenes: scenes.length,
+    scenesWithProducts: scenes.filter((s) => s.products.length).length, skipped, auto };
+  if (base && sigOf(base.scenes) === sigOf(scenes)) return { ok: true, unchanged: true, track: tracks.summary(base), publication: null, ...summary };
   const r = await tracks.saveAuthoritative({ workId: work.id, title: base ? base.title : "Trilha oficial", offset: base ? base.offset : 0, scenes,
     authorId: base ? base.authorId : user.authorId, organizationId: base ? (base.organizationId || orgId) : orgId }, base || undefined);
   if (r.errors) return { error: r.errors.join(" ") };
-  return { ok: true, track: r.track, publication: r.publication || null, jobIds: jobs.map((j) => j.id), products: added, scenes: scenes.length,
-    scenesWithProducts: scenes.filter((s) => s.products.length).length, skipped };
+  return { ok: true, track: r.track, publication: r.publication || null, ...summary };
+}
+
+// ------------------------------------------------------------------ sincronização automática
+// Toda aprovação, rejeição ou exclusão na Fila de revisão atualiza a trilha do Editor e o app.
+// Várias ações seguidas (aprovar em lote) viram uma só publicação.
+const autoTimers = new Map();
+const autoRuns = new Map(); // uma sincronização por obra de cada vez (a próxima espera a anterior)
+const AUTO_MS = () => Math.max(0, Number(process.env.SCENESHOP_AI_AUTOSYNC_MS ?? 800));
+const syncPending = (key) => autoTimers.has(key) || autoRuns.has(key);
+function scheduleAutoSync(orgId, workId, user, content) {
+  if (!orgId || !workId || !content) return;
+  const key = syncKey(orgId, workId);
+  clearTimeout(autoTimers.get(key));
+  autoTimers.set(key, setTimeout(() => {
+    autoTimers.delete(key);
+    const prev = autoRuns.get(key) || Promise.resolve();
+    const run = prev.then(() => runAutoSync(orgId, workId, user, content))
+      .catch((e) => recordSync(orgId, workId, { error: e.message, auto: true }))
+      .finally(() => { if (autoRuns.get(key) === run) autoRuns.delete(key); });
+    autoRuns.set(key, run);
+  }, AUTO_MS()));
+}
+async function runAutoSync(orgId, workId, user, content) {
+  const work = await Promise.resolve(content.getWorkForOrganizationAuthoritative(workId, orgId));
+  if (!work) return null;
+  const out = await publishToApp({ orgId, work, user, content, auto: true });
+  recordSync(orgId, workId, out);
+  if (!out.error && !out.unchanged) audit.log(user && user.username ? `${user.username} (auto)` : "ia-auto", "ia_sincronizada_auto", { organizationId: orgId, workId, produtos: out.products, cenas: out.scenes });
+  return out;
+}
+async function workOfCandidates(orgId, candidates) {
+  const works = new Set();
+  for (const c of candidates || []) {
+    const j = c && c.analysisJobId ? await Promise.resolve(aiPipeline.getJob(orgId, c.analysisJobId)) : null;
+    if (j && j.workId) works.add(j.workId);
+  }
+  return [...works];
 }
 
 // ------------------------------------------------------------------ rotas
@@ -477,7 +537,8 @@ function routes({ requireRole, actor, content }) {
   r.post("/api/ai/candidates/:id/review", requireRole(), orgAccess.requireCapability("AI_RUN"), asyncRoute(async (req,res) => {
     const out=await Promise.resolve(aiPipeline.reviewCandidate(req.organization.id, req.params.id, req.body||{}, actor(req)));
     if(out.error||out.errors)return res.status(out.code||400).json(out);
-    res.json(out);
+    for (const wid of await workOfCandidates(req.organization.id, [out.candidate])) scheduleAutoSync(req.organization.id, wid, req.user, content);
+    res.json({ ...out, autoSync: true });
   }));
   r.get("/api/ai/operator-flags", requireRole(), orgAccess.requireCapability("CONTENT_READ"), asyncRoute(async (req,res) => {
     res.json(await Promise.resolve(aiPipeline.listOperatorFlags(req.organization.id, req.query.status||'OPEN')));
@@ -485,7 +546,8 @@ function routes({ requireRole, actor, content }) {
   r.post("/api/ai/operator-flags/:id/resolve", requireRole(), orgAccess.requireCapability("AI_RUN"), asyncRoute(async (req,res) => {
     const out=await Promise.resolve(aiPipeline.resolveOperatorFlag(req.organization.id, req.params.id, req.body||{}, actor(req)));
     if(out.error||out.errors)return res.status(out.code||400).json(out);
-    res.json(out);
+    for (const wid of await workOfCandidates(req.organization.id, [out.candidate])) scheduleAutoSync(req.organization.id, wid, req.user, content);
+    res.json({ ...out, autoSync: true });
   }));
   r.get("/api/ai/placements", requireRole(), orgAccess.requireCapability("CONTENT_READ"), asyncRoute(async (req,res) => {
     res.json(await Promise.resolve(aiPipeline.listPlacements(req.organization.id, req.query.workId||null)));
@@ -518,7 +580,7 @@ function routes({ requireRole, actor, content }) {
     }
     res.json({
       workId,
-      sync: workId ? syncSelection(req.organization.id, workId, jobs || []) : null,
+      sync: workId ? { ...syncSelection(req.organization.id, workId, jobs || []), last: (store.state.aiLastSync || {})[syncKey(req.organization.id, workId)] || null, pending: syncPending(syncKey(req.organization.id, workId)) } : null,
       assets: assets || [],
       jobs: jobs || [],
       candidates: scopedCandidates,
@@ -538,13 +600,18 @@ function routes({ requireRole, actor, content }) {
     const key=syncKey(req.organization.id, job.workId), sel=(store.state.aiSyncSelection||{})[key];
     if(sel){ sel.jobIds=sel.jobIds.filter((x)=>x!==job.id); store.save(); }
     audit.log(actor(req), "ia_analise_excluida", { jobId: job.id, workId: job.workId, candidatos: out.candidates });
+    scheduleAutoSync(req.organization.id, job.workId, req.user, content);
     res.json(out);
   }));
   r.post("/api/ai/candidates/delete", requireRole(), orgAccess.requireCapability("AI_RUN"), asyncRoute(async (req,res) => {
     const ids=Array.isArray((req.body||{}).ids)?req.body.ids.map(String).slice(0,2000):[];
     if(!ids.length)return res.status(400).json({error:"Marque ao menos um item."});
+    const idSet=new Set(ids);
+    const before=((await Promise.resolve(aiPipeline.listCandidates(req.organization.id, null)))||[]).filter((c)=>idSet.has(c.id));
+    const works=await workOfCandidates(req.organization.id, before);
     const out=await Promise.resolve(aiPipeline.deleteCandidates(req.organization.id, ids));
     audit.log(actor(req), "ia_itens_excluidos", { pedidos: ids.length, excluidos: out.deleted });
+    for (const wid of works) scheduleAutoSync(req.organization.id, wid, req.user, content);
     res.json(out);
   }));
 
@@ -557,6 +624,7 @@ function routes({ requireRole, actor, content }) {
     const jobIds=[...new Set(((req.body||{}).jobIds||[]).map(String))].filter((id)=>valid.has(id));
     (store.state.aiSyncSelection ||= {})[syncKey(req.organization.id,w.id)]={ jobIds, updatedAt: store.now(), by: actor(req) };
     store.save();
+    scheduleAutoSync(req.organization.id, w.id, req.user, content);
     res.json(syncSelection(req.organization.id, w.id, jobs||[]));
   }));
 
@@ -566,6 +634,7 @@ function routes({ requireRole, actor, content }) {
     const w=await Promise.resolve(content.getWorkForOrganizationAuthoritative(req.params.id, orgId));
     if(!w)return res.status(404).json({error:"Obra não encontrada nesta organização."});
     const out=await publishToApp({ orgId, work:w, jobIds:(req.body||{}).jobIds, user:req.user, content });
+    recordSync(orgId, w.id, out);
     if(out.error)return res.status(out.code||400).json(out);
     audit.log(actor(req), "ia_publicada_no_app", { workId:w.id, jobs:out.jobIds, produtos:out.products, cenas:out.scenes });
     res.json(out);

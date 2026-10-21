@@ -70,7 +70,9 @@
     "test:acr": "node test/acr.e2e.mjs",
     "test:audio-id": "node test/audio-id.e2e.mjs",
     "test:rc10": "node test/rcprep10.api.mjs",
-    "test:rc10:e2e": "node test/rcprep10.e2e.mjs"
+    "test:rc10:e2e": "node test/rcprep10.e2e.mjs",
+    "test:rc11": "node test/rcprep11.api.mjs",
+    "test:rc11:e2e": "node test/rcprep11.e2e.mjs"
   },
   "engines": {
     "node": ">=20"

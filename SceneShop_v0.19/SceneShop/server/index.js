@@ -522,8 +522,13 @@ app.get("/api/tracks/:id", requireRole(), wrap(async (req, res) => {
   res.json(t);
 }));
 
-app.get("/api/me/tracks", requireRole(), orgAccess.requireCapability("CONTENT_READ"), wrap(async (req, res) =>
-  res.json((await Promise.resolve(content.listTracksByOrganizationAuthoritative(req.organization.id, req.query.work || null))).map(tracks.summary))));
+app.get("/api/me/tracks", requireRole(), orgAccess.requireCapability("CONTENT_READ"), wrap(async (req, res) => {
+  const rows = (await Promise.resolve(content.listTracksByOrganizationAuthoritative(req.organization.id, req.query.work || null))).map(tracks.summary);
+  // marca a trilha que está publicada no app (a que o Editor abre por padrão)
+  const live = new Map();
+  for (const w of new Set(rows.map((r) => r.workId))) live.set(w, await tracks.liveTrackId(w));
+  res.json(rows.map((r) => ({ ...r, live: live.get(r.workId) === r.id && r.status === "ativa" })));
+}));
 
 app.post("/api/tracks", requireRole(), orgAccess.requireCapability("CONTENT_WRITE"), wrap(async (req, res) => {
   const r = await tracks.saveAuthoritative({ ...req.body, authorId: req.user.authorId, organizationId: req.organization.id });
@@ -539,9 +544,27 @@ app.put("/api/tracks/:id", requireRole(), wrap(async (req, res) => {
     if (orgAccess.organizationRequiresMfa(req.organization) && !(req.user._auth && req.user._auth.mfa)) return res.status(403).json({error:'MFA_REQUIRED',message:'Esta ação exige autenticação multifator.'});
   } else if (t.authorId !== req.user.authorId) return res.status(403).json({ errors: ["Só o autor pode editar a trilha legada."] });
   if (t.status !== "ativa") return res.status(409).json({ errors: ["Trilha em revisão ou removida não pode ser editada."] });
-  const r = await tracks.saveAuthoritative({ ...req.body, authorId:t.authorId, organizationId:t.organizationId || req.organization?.id || null }, t);
-  if (r.track) audit.log(actor(req), "trilha_editada", { trackId: t.id, organizationId:t.organizationId || null });
+  const body = { ...(req.body || {}) };
+  body.scenes = Array.isArray(body.scenes) ? JSON.parse(JSON.stringify(body.scenes)) : body.scenes;
+  // produtos aprovados na IA depois que o Editor abriu a trilha entram junto (não se perdem ao salvar)
+  const merge = Array.isArray(body.scenes) ? tracks.mergeAiEdits(t, body) : { merged: 0 };
+  const r = await tracks.saveAuthoritative({ ...body, authorId:t.authorId, organizationId:t.organizationId || req.organization?.id || null }, t);
+  if (r.track) audit.log(actor(req), "trilha_editada", { trackId: t.id, organizationId:t.organizationId || null, iaMesclados: merge.merged || 0 });
+  if (r.track) r.aiMerged = merge.merged || 0;
   reply(res, r);
+}));
+
+// Excluir trilha (fica como "removida": some do Editor, do player e do app; vendas antigas continuam rastreáveis)
+app.delete("/api/tracks/:id", requireRole(), wrap(async (req, res) => {
+  const t = await tracks.getAuthoritative(req.params.id);
+  if (!t || t.status === "removida") return res.status(404).json({ error: "Trilha não encontrada." });
+  if (t.organizationId) {
+    if (!req.organization || req.organization.id !== t.organizationId || !orgAccess.hasCapability(req.orgMembership,"CONTENT_WRITE")) return res.status(403).json({ error:"Sem permissão para excluir esta trilha." });
+    if (orgAccess.organizationRequiresMfa(req.organization) && !(req.user._auth && req.user._auth.mfa)) return res.status(403).json({error:'MFA_REQUIRED',message:'Esta ação exige autenticação multifator.'});
+  } else if (t.authorId !== req.user.authorId && req.user.role !== "moderator") return res.status(403).json({ error: "Só o autor pode excluir a trilha." });
+  const out = await tracks.removeAuthoritative(t, actor(req));
+  audit.log(actor(req), "trilha_excluida", { trackId: t.id, workId: t.workId, organizationId: t.organizationId || null, republicada: out.republished, publicacaoEncerrada: out.retired });
+  res.json({ ok: true, ...out });
 }));
 
 // ================================================================== ganhos (do próprio usuário)
@@ -747,7 +770,8 @@ io.on("connection", (socket) => {
     const safeConfidence = Number.isFinite(Number(confidence)) ? Math.max(0, Math.min(1, Number(confidence))) : null;
     const updated = await Promise.resolve(sessions.resync(sessionCode, { position: safePosition, confidence: safeConfidence, sceneId }));
     await playback.recordSync(updated, { source: String(source || "AUDIO_FINGERPRINT").slice(0, 40), recognizedSyncId, fingerprintId: null, metadata: { deviceId, ...(fingerprintId ? { clientFingerprintId: String(fingerprintId).slice(0, 80) } : {}) } });
-    io.to(sessionCode).emit("player:tick", { time: updated.playbackPosition, playing: updated.playing, resynced: true });
+    // sincronizado pelo som de outra tela: o filme está passando (não há player do SceneShop para pausar)
+    io.to(sessionCode).emit("player:tick", { time: updated.playbackPosition, playing: updated.mode === "COMPANION" ? true : updated.playing, resynced: true });
     ack && ack({ ok: true, ...sessions.publicView(updated) });
   });
 

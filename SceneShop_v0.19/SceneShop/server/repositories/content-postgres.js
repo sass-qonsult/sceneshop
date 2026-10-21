@@ -536,6 +536,17 @@ class PostgresContentRepository {
     });
   }
 
+  // Encerra a publicação do app de uma obra (a última trilha oficial foi excluída).
+  async retirePublishedTimeline(workId) {
+    return this.store.writeDomain(async (client) => {
+      const r = await client.query(`UPDATE sceneshop_commerce_track_publications SET status='RETIRED' WHERE work_id=$1 AND status='PUBLISHED'`,[String(workId)]);
+      if (r.rowCount) await client.query(
+        `INSERT INTO sceneshop_outbox(topic,aggregate_type,aggregate_id,payload) VALUES('commerce_track.retired','work',$1,$2::jsonb)`,
+        [String(workId),JSON.stringify({ workId:String(workId) })]);
+      return { retired: r.rowCount };
+    });
+  }
+
   async getPublishedTimeline(workId) {
     return this.store.readDomain(async (client) => {
       const pub = await client.query(

@@ -375,3 +375,8 @@ input[data-money] { text-align: right; font-variant-numeric: tabular-nums; }
 @media (max-width:1000px){ .review-card{grid-template-columns:26px 90px 1fr} .review-actions{grid-column:1/-1} }
 .seller-actions .switch { flex-direction: row; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
 .agreement .pills { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+
+/* rcprep.11: produtos colocados pela IA e exclusão de trilha */
+.ai-tag { font-style: normal; font-size: 10px; font-weight: 700; letter-spacing: .04em; color: #fff; background: var(--accent, #6d5efc); border-radius: 6px; padding: 1px 5px; margin-left: 4px; vertical-align: 1px; }
+.board-chips .chip.is-ai { outline: 1px solid var(--accent, #6d5efc); }
+#trackDel { align-self: end; }

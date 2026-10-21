@@ -74,7 +74,7 @@
     if (tab === "ganhos") loadLedger();
     if (tab === "moderacao") loadModeration();
     if (tab === "ofertas") loadOffers();
-    if (tab === "editor") requestAnimationFrame(renderBoxes);
+    if (tab === "editor") { requestAnimationFrame(renderBoxes); refreshEditorTrack(); }
     if (tab === "obras") loadWorks();
     if (tab === "produtos") loadMyProducts();
     if (tab === "piloto") loadPilot();
@@ -210,10 +210,29 @@
   async function loadTrackList() {
     if (!st.workId) { $("trackSel").innerHTML = `<option value="">+ Nova trilha</option>`; return; }
     const list = ((await api(`/api/me/tracks?work=${st.workId}`)).data || []).filter((t) => t.status !== "removida");
+    st.trackList = list;
     $("trackSel").innerHTML = `<option value="">+ Nova trilha</option>` +
-      list.map((t) => `<option value="${t.id}">${esc(t.title)} (${t.scenes} cenas)</option>`).join("");
+      // texto em português: o tradutor da página reconhece os padrões "{1} ({2} cenas…)" e "● {1} · no app"
+      list.map((t) => `<option value="${t.id}">${t.live ? "● " : ""}${esc(t.title)} (${t.scenes} cenas${t.aiProducts ? ` · ${t.aiProducts} da IA` : ""})${t.live ? " · no app" : ""}</option>`).join("");
+    if (st.track && st.track.id) $("trackSel").value = st.track.id;
+    $("trackDel").hidden = !(st.track && st.track.id);
+    return list;
   }
+  const liveTrack = () => (st.trackList || []).find((x) => x.live) || null;
   $("trackSel").onchange = (e) => (e.target.value ? loadTrack(e.target.value) : newTrack());
+  $("trackDel").onclick = async () => {
+    const t = st.track, tr = window.t || String;
+    if (!t || !t.id) return;
+    const row = (st.trackList || []).find((x) => x.id === t.id) || {};
+    if (!confirm(tr("Excluir a trilha “{0}”? Ela sai do Editor, do player e do app.").replace("{0}", row.title || t.title || "") + (row.live ? "\n" + tr("É a trilha que está no app: a próxima trilha oficial mais recente passa a ser usada.") : ""))) return;
+    const r = await api(`/api/tracks/${encodeURIComponent(t.id)}`, { method: "DELETE" });
+    if (!r.ok) return toast(r.data.error || (r.data.errors || []).join(" ") || tr("Falha ao excluir."), true);
+    toast(tr("Trilha excluída.") + (r.data.republished ? " " + tr("O app passou a usar outra trilha oficial.") : r.data.retired ? " " + tr("A obra ficou sem trilha no app.") : ""));
+    st.track = null;
+    await loadTrackList();
+    const live = liveTrack();
+    if (live) await loadTrack(live.id); else newTrack();
+  };
   $("work").onchange = (e) => selectWork(e.target.value);
 
   // Troca a obra do editor: vídeo, duração e trilhas
@@ -229,7 +248,13 @@
     $("work").value = w.id;
     if (video.getAttribute("src") !== w.video) { video.src = w.video; video.load(); }
     store.set("ss-studio-work", w.id);
-    if (st.user && !isMod()) { await loadTrackList(); newTrack(); }
+    if (st.user && !isMod()) {
+      st.track = null;
+      await loadTrackList();
+      // abre a trilha que está no app (com os produtos aprovados na IA); sem ela, uma trilha nova
+      const live = liveTrack();
+      if (live) await loadTrack(live.id); else newTrack();
+    }
     refreshAi();
   }
 
@@ -250,9 +275,42 @@
     st.track = { id: null, title: "", offset: 0, scenes: [{ id: "c1", title: (window.t || String)("Cena {0#}", 1), start: 0, end: st.duration, products: [] }] };
     st.sel = 0;
     $("trackSel").value = "";
+    snapshotTrack(null);
     renderAll();
     setLinks();
   }
+
+  // ---- versão aberta no Editor: detecta mudanças feitas pela IA enquanto a trilha estava aberta
+  const aiKeyOf = (s, p) => `${s.id}|${p.id}|${p.source}`;
+  const isAi = (p) => String(p.source || "").startsWith("ai:");
+  const trackJson = () => JSON.stringify({ title: st.track.title, offset: st.track.offset, scenes: st.track.scenes });
+  function snapshotTrack(t) {
+    st.loaded = { updatedAt: t ? Number(t.updatedAt || 0) : 0, aiKeys: new Set(t ? t.scenes.flatMap((s) => s.products.filter(isAi).map((p) => aiKeyOf(s, p))) : []), at: Date.now() };
+    st.loadedJson = trackJson();
+  }
+  const editorDirty = () => !!st.track && st.loadedJson !== trackJson();
+  function aiRemovedKeys() {
+    const now = new Set(st.track.scenes.flatMap((s) => s.products.filter(isAi).map((p) => aiKeyOf(s, p))));
+    return [...(st.loaded ? st.loaded.aiKeys : [])].filter((k) => !now.has(k));
+  }
+  // Ao voltar para o Editor: se a IA atualizou a trilha, recarrega (ou avisa que vai mesclar ao salvar)
+  async function refreshEditorTrack() {
+    if (!st.user || isMod() || !st.workId || !st.track) return;
+    await loadTrackList();
+    const tr = window.t || String;
+    if (st.track.id) {
+      const r = await api(`/api/tracks/${st.track.id}`);
+      if (!r.ok || r.data.status === "removida") { toast(tr("Esta trilha foi excluída."), true); const live = liveTrack(); return live ? loadTrack(live.id) : newTrack(); }
+      if (Number(r.data.updatedAt || 0) > (st.loaded ? st.loaded.updatedAt : 0)) {
+        if (!editorDirty()) { const sel = st.sel; await loadTrack(st.track.id); st.sel = Math.min(sel, scenes().length - 1); renderAll(); setLinks(); flashMsg(tr("Trilha atualizada com os produtos aprovados na IA.")); }
+        else flashMsg(tr("A IA atualizou esta trilha. Os produtos novos entram junto quando você salvar."));
+      }
+    } else {
+      const live = liveTrack();
+      if (live && !editorDirty()) { await loadTrack(live.id); flashMsg(tr("Aberta a trilha que está no app, com os produtos aprovados na IA.")); }
+    }
+  }
+  function flashMsg(text) { $("msg").className = "msg ok"; $("msg").textContent = text; }
 
   async function loadTrack(id) {
     const t = (await api(`/api/tracks/${id}`)).data;
@@ -260,6 +318,9 @@
     const ids = [...new Set(t.scenes.flatMap((s) => s.products.map((p) => p.id)))];
     await Promise.all(ids.filter((i) => !st.products[i]).map(async (i) => (st.products[i] = (await api(`/api/products/${i}`)).data)));
     st.sel = 0;
+    snapshotTrack(t);
+    $("trackSel").value = t.id;
+    $("trackDel").hidden = false;
     renderAll();
     setLinks();
   }
@@ -404,7 +465,7 @@
       const p = st.products[it.id] || { name: it.id, image: "/media/products/placeholder.svg", brand: "" };
       return `<li data-i="${i}">
         <img src="${p.image}" alt=""/>
-        <div class="pi"><b>${esc(p.name)}</b><span>${esc(p.brand)}</span></div>
+        <div class="pi"><b>${esc(p.name)}${isAi(it) ? ` <em class="ai-tag" title="${esc((window.t || String)("Colocado pela IA (aprovado na Fila de revisão)"))}">IA</em>` : ""}</b><span>${esc(p.brand)}</span></div>
         <select data-match title="O produto é exatamente o da cena ou um parecido?">
           <option value="exato" ${it.match !== "parecido" ? "selected" : ""}>Exato</option>
           <option value="parecido" ${it.match === "parecido" ? "selected" : ""}>Parecido</option>
@@ -557,15 +618,27 @@
         try { sc.thumb = await captureThumb((sc.start + sc.end) / 2 + t.offset); } catch (e) { /* segue sem miniatura */ }
       }
     }
+    const tr = window.t || String;
+    // trilha nova, mas a IA já publicou uma trilha desta obra no app: salvar nela, para não ficar uma trilha sem os produtos da IA
+    if (!t.id) {
+      await loadTrackList();
+      const live = liveTrack();
+      if (live && live.aiProducts && confirm(tr("A IA já publicou no app a trilha “{0}”, com os produtos aprovados. Salvar suas cenas e produtos nela? (Cancelar cria uma trilha separada.)").replace("{0}", live.title))) {
+        t.id = live.id; t.title = t.title || live.title; st.loaded = { updatedAt: 1, aiKeys: new Set(), at: Date.now() };
+      }
+    }
     const body = { workId: st.workId, title: t.title || "Minha trilha", offset: t.offset, scenes: t.scenes };
+    if (t.id) { body.baseUpdatedAt = st.loaded ? st.loaded.updatedAt : 0; body.aiRemoved = aiRemovedKeys(); }
     const r = t.id ? await api(`/api/tracks/${t.id}`, { method: "PUT", body }) : await api("/api/tracks", { method: "POST", body });
     if (!r.ok) { $("msg").className = "msg bad"; $("msg").textContent = (r.data.errors || [r.data.error || "Erro"]).join(" "); return; }
     t.id = r.data.track.id;
+    const merged = r.data.aiMerged || 0;
+    await loadTrack(t.id); // recarrega a versão salva (inclui os produtos da IA mesclados)
     await loadTrackList();
-    $("trackSel").value = t.id;
     setLinks();
     $("msg").className = "msg ok";
     $("msg").textContent = `Trilha publicada como ${r.data.track.type === "official" ? "Oficial" : "Comunidade"}.` +
+      (merged ? ` ${merged} ${tr("produto(s) aprovado(s) na IA entraram junto.")}` : "") +
       (empty ? ` ${empty} cena(s) sem produto.` : "") + (noBox ? ` ${noBox} produto(s) sem posição marcada.` : "");
   };
 
@@ -599,7 +672,7 @@
         <button type="button" class="board-thumb" data-bgo="${i}" title="${esc(tr("Abrir esta cena no vídeo"))}">${s.thumb ? `<img src="${esc(s.thumb)}" alt=""/>` : `<canvas width="192" height="108" data-bthumb="${i}"></canvas>`}<span>${fmtT(s.start)}</span></button>
         <div class="board-main">
           <div class="board-head"><b>${i + 1}.</b><input data-btitle="${i}" value="${esc(s.title)}" maxlength="60" aria-label="${esc(tr("Nome da cena"))}"/><small>${fmtT(s.start)}–${fmtT(s.end)} · ${s.products.length} ${tr("prod.")}</small></div>
-          <div class="board-chips">${s.products.length ? s.products.map((it, j) => { const p = st.products[it.id] || { name: it.id, image: "/media/products/placeholder.svg" }; return `<span class="chip"><img src="${esc(p.image)}" alt=""/>${esc(p.name)}<button type="button" data-brm="${i}:${j}" aria-label="${esc(tr("Remover"))}">×</button></span>`; }).join("") : `<span class="help">${esc(tr("Nenhum produto nesta cena ainda."))}</span>`}</div>
+          <div class="board-chips">${s.products.length ? s.products.map((it, j) => { const p = st.products[it.id] || { name: it.id, image: "/media/products/placeholder.svg" }; return `<span class="chip ${isAi(it) ? "is-ai" : ""}"><img src="${esc(p.image)}" alt=""/>${esc(p.name)}${isAi(it) ? `<em class="ai-tag">IA</em>` : ""}<button type="button" data-brm="${i}:${j}" aria-label="${esc(tr("Remover"))}">×</button></span>`; }).join("") : `<span class="help">${esc(tr("Nenhum produto nesta cena ainda."))}</span>`}</div>
           <div class="search board-search"><input data-bq="${i}" placeholder="${esc(tr("Buscar produto para esta cena…"))}" autocomplete="off"/><ul class="results" data-bres="${i}" hidden></ul></div>
         </div>
       </section>`).join("") || `<p class="help">${esc(tr("Nenhuma cena com esse nome."))}</p>`;
@@ -1637,7 +1710,14 @@
       <div class="grow"><b>${esc(j.mode)}</b> · ${esc(j.scanDepth||'STANDARD')} · ${esc(scenesOf(j))}<small>${new Date(j.createdAt).toLocaleString('pt-BR')} · ${k.n} ${tr('itens')} · ${k.ok} ${tr('aprovados')}${j.errorMessage?` · ${esc(j.errorMessage)}`:''}</small></div>
       <span class="status-pill ${String(j.status||'').toLowerCase()}">${esc(j.status)}</span>
       <button class="ghost small danger" data-del-job="${esc(j.id)}" ${j.status==='RUNNING'?'disabled':''} title="${esc(tr('Excluir esta análise e os itens dela'))}">${esc(tr('Excluir'))}</button></div>`;}).join(''):'<div class="empty-state">Nenhuma análise persistente desta obra.</div>';
-    $("aiOpsSyncMsg").textContent=jobs.length&&!sync.explicit?tr('Nenhuma análise marcada: vale a mais recente concluída.'):'';
+    const last=sync.last;
+    const ago=(ms)=>{const s=Math.max(0,Math.round((Date.now()-Number(ms))/1000));return s<60?`${s}s`:s<3600?`${Math.round(s/60)} min`:new Date(Number(ms)).toLocaleString('pt-BR');};
+    $("aiOpsSyncMsg").className='msg'+(last&&!last.ok?' bad':'');
+    $("aiOpsSyncMsg").textContent=[
+      jobs.length&&!sync.explicit?tr('Nenhuma análise marcada: vale a mais recente concluída.'):'',
+      sync.pending?tr('Sincronizando com a trilha e o app…'):last?(last.ok?`${tr('Trilha do Editor e app sincronizados')}${last.trackTitle?` (“${last.trackTitle}”)`:''}: ${last.products} ${tr('produto(s) da IA em')} ${last.scenesWithProducts} ${tr('de')} ${last.scenes} ${tr('cenas')}${last.skipped?` · ${last.skipped} ${tr('aprovado(s) sem produto cadastrado ficaram de fora')}`:''} · ${tr('há {0}').replace('{0}',ago(last.at))}.`:`${tr('Falha na sincronização')}: ${last.error}`):tr('Os itens aprovados vão sozinhos para a trilha do Editor e para o app.')
+    ].filter(Boolean).join(' ');
+    if(sync.pending){clearTimeout(aiOps.syncT);aiOps.syncT=setTimeout(loadAiOps,1200);}
     $("aiOpsJobs").querySelectorAll('[data-sync-job]').forEach(cb=>cb.onchange=async()=>{
       const ids=[...$("aiOpsJobs").querySelectorAll('[data-sync-job]:checked')].map(x=>x.dataset.syncJob);
       const r=await api(`/api/ai/works/${encodeURIComponent(aiOps.workId)}/sync`,{method:'PUT',body:{jobIds:ids}});
@@ -1711,7 +1791,7 @@
     if(!confirm(`${(window.t||String)('Excluir os itens selecionados?')} (${ids.length})`))return;
     const r=await api('/api/ai/candidates/delete',{method:'POST',body:{ids}});
     if(!r.ok)return toast(r.data.error||'Falha ao excluir.',true);
-    aiOps.sel.clear();toast(`${r.data.deleted} ${(window.t||String)('item(ns) excluído(s).')}`);await loadAiOps();
+    aiOps.sel.clear();toast(`${r.data.deleted} ${(window.t||String)('item(ns) excluído(s).')}`);await loadAiOps();setTimeout(loadAiOps,1500);
   };
   $("aiOpsApproveSel").onclick=async()=>{
     const d=aiOps.data||{}, assets=d.assets||[];
@@ -1730,7 +1810,7 @@
     }
     aiOps.sel.clear();
     toast(`${ok} ${(window.t||String)('aprovado(s).')}${skip?` ${skip} ${(window.t||String)('sem produto escolhido (escolha “Qual produto é este?”).')}`:''}`,!ok&&!!skip);
-    await loadAiOps();
+    await loadAiOps(); setTimeout(()=>{loadAiOps();if(st.workId===aiOps.workId)loadTrackList();},1500);
   };
   $("aiOpsPublish").onclick=async()=>{
     const wid=aiOps.workId;if(!wid)return;
@@ -1739,7 +1819,6 @@
     $("aiOpsPublish").disabled=false;
     if(!r.ok){$("aiOpsSyncMsg").textContent=r.data.error||(r.data.errors||[]).join(' ')||'Falha ao publicar.';return;}
     const tr=(window.t||String);
-    $("aiOpsSyncMsg").textContent=`${tr('Publicado no app')}: ${r.data.products} ${tr('produto(s) em')} ${r.data.scenesWithProducts} ${tr('de')} ${r.data.scenes} ${tr('cenas')}${r.data.skipped?` · ${r.data.skipped} ${tr('aprovado(s) sem produto cadastrado ficaram de fora')}`:''}.`;
     if(st.workId===wid)await loadTrackList();
     await loadAiOps();
   };
@@ -1751,7 +1830,7 @@
     const url=flag?`/api/ai/operator-flags/${encodeURIComponent(flag.id)}/resolve`:`/api/ai/candidates/${encodeURIComponent(candidateId)}/review`;
     const r=await api(url,{method:'POST',body:{decision,assetId:assetId||undefined,note}});
     if(!r.ok)return toast(r.data.error||(r.data.errors||[]).join(' ')||'Falha na revisão.',true);
-    toast(decision==='APPROVE'?'Placement aprovado.':'Identificação rejeitada.'); await loadAiOps();
+    toast(decision==='APPROVE'?(window.t||String)('Aprovado: vai para a trilha do Editor e para o app.'):'Identificação rejeitada.'); await loadAiOps(); setTimeout(()=>{loadAiOps();if(st.workId===aiOps.workId)loadTrackList();},1500);
   }
 
   $("aiOpsWork").onchange=()=>{aiOps.workId=$("aiOpsWork").value;loadAiOps();};
