@@ -157,7 +157,27 @@
         <img src="${o.pixQr}" alt="QR code Pix (simulado)"/>
         <div><h2 style="font-size:18px">Pague com Pix</h2><p class="muted">Pedido ${esc(o.number)} · ${brl(o.total)}. Este Pix é simulado: nenhum valor é cobrado.</p>
           <code>${esc(o.pixCode)}</code>
-          <button class="btn primary" id="payBtn">Simular pagamento do Pix</button></div></div>`;
+          <button class="btn primary" id="payBtn">Simular pagamento do Pix</button></div></div>
+        <div class="card wallets" id="walletBox" hidden style="margin-top:12px"><h2 style="font-size:16px">Ou pague com a carteira do celular</h2>
+          <p class="muted" style="font-size:13px">O cartão fica na carteira (Google, Samsung, Apple): a loja recebe só um código seguro.</p>
+          <div id="walletBtns" style="display:flex;gap:10px;flex-wrap:wrap"></div><div class="errors" id="walletErr"></div></div>`;
+      // rcprep.16: Google Pay / Apple Pay quando o aparelho tiver a carteira com cartão
+      if (window.SceneShopWallet) SceneShopWallet.available().then((list) => {
+        if (!list.length) return;
+        document.getElementById("walletBox").hidden = false;
+        document.getElementById("walletBtns").innerHTML = list.map((w) => `<button class="btn primary" data-wallet="${w.method}" style="background:#000;color:#fff">Pagar com ${esc(w.label)}</button>`).join("");
+        document.querySelectorAll("[data-wallet]").forEach((b) => (b.onclick = async () => {
+          const err = document.getElementById("walletErr"); err.textContent = "";
+          let r;
+          try { r = await SceneShopWallet.pay(b.dataset.wallet, { total: o.total, label: `Pedido ${o.number}` }); }
+          catch (e) { if (e && e.name !== "AbortError") err.textContent = e.message || "Pagamento cancelado."; return; }
+          const p = await api(`/mkt/api/order/${o.id}/pay-wallet`, { method: "POST", body: { method: r.method, token: r.token, card: r.card } });
+          r.complete(p.ok);
+          if (!p.ok) { err.textContent = p.data.error || "Pagamento recusado."; return; }
+          cart.set([]);
+          go(`/marketplace/pedido/${o.id}`);
+        }));
+      });
       document.getElementById("payBtn").onclick = async () => {
         document.getElementById("payBtn").disabled = true;
         const p = await api(`/mkt/api/order/${o.id}/pay`, { method: "POST" });
@@ -178,6 +198,7 @@
         <span class="status ${o.status}">${STATUS[o.status]}</span>
         <h1 style="font-size:26px;margin:12px 0 4px">${o.status === "pago" ? "Obrigado pela compra!" : "Pedido " + esc(o.number)}</h1>
         <p class="muted">Pedido ${esc(o.number)} · ${new Date(o.at).toLocaleString("pt-BR")} · entrega para ${esc(o.buyer.name)}</p>
+        ${o.payment && o.payment.method !== "PIX" ? `<p class="muted" id="paidWith">Pago com ${esc({ GOOGLE_PAY: "Google Pay", APPLE_PAY: "Apple Pay", SAMSUNG_PAY: "Samsung Pay" }[o.payment.method] || o.payment.method)}${o.payment.card && o.payment.card.network ? ` · ${esc(o.payment.card.network)}` : ""}${o.payment.card && o.payment.card.last4 ? ` •••• ${esc(o.payment.card.last4)}` : ""}${o.payment.simulated ? " (teste)" : ""}</p>` : ""}
         ${o.items.map((i) => `<div class="line"><img src="${esc(i.image)}" alt=""/><div><div class="nm">${esc(i.name)}</div>${i.guaranteed ? '<span class="tag">Preço garantido pela produção</span>' : ""}<div class="muted" style="font-size:13px">${i.qty} × ${brl(i.unitPrice)}</div></div><b>${brl(i.unitPrice * i.qty)}</b></div>`).join("")}
         <div class="summary" style="position:static;padding:16px 0 0">${o.savings > 0 ? `<div class="row" style="color:var(--ok)"><span>Economia com o preço garantido</span><span>${brl(o.savings)}</span></div>` : ""}
           <div class="row total"><span>Total</span><span>${brl(o.total)}</span></div></div>

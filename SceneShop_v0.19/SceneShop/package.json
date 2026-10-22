@@ -77,7 +77,9 @@
     "test:rc12:e2e": "node test/rcprep12.e2e.mjs",
     "test:rc13": "node test/rcprep13.api.mjs",
     "test:rc15": "node test/rcprep15.api.mjs",
-    "test:rc15:e2e": "node test/rcprep15.e2e.mjs"
+    "test:rc15:e2e": "node test/rcprep15.e2e.mjs",
+    "test:rc16": "node test/rcprep16.api.mjs",
+    "test:rc16:e2e": "node test/rcprep16.e2e.mjs"
   },
   "engines": {
     "node": ">=20"

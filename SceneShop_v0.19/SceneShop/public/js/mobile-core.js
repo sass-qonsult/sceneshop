@@ -28,6 +28,7 @@
     missedScenes(timeline){const ids=new Set(this._missedSceneIds);return (timeline&&timeline.scenes||[]).filter((s)=>ids.has(sceneId(s)));}
     consumeMissed(timeline){const out=this.missedScenes(timeline);this._missedSceneIds=[];return out;}
     clearMissed(){this._missedSceneIds=[];return this.snapshot();}
+    addMissed(ids){for(const id of ids||[])if(id&&id!==this.browseSceneId&&!this._missedSceneIds.includes(id))this._missedSceneIds.push(id);return this.snapshot();}
     snapshot(){return{mode:this.mode,playbackPosition:this.playbackPosition,browsePosition:this.browsePosition,browseSceneId:this.browseSceneId,syncConfidence:this.syncConfidence,lastSyncAt:this.lastSyncAt,missedSceneIds:[...this._missedSceneIds]};}
   }
   return{CompanionState,activeScene};

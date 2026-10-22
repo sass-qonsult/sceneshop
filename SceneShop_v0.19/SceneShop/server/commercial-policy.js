@@ -83,24 +83,28 @@ function resolve({ sale = {}, trackType = "community", at } = {}) {
   const terms = normalizeTerms({}, p.terms || baseTerms());
   const seller = sale.sellerId && S().sellers ? S().sellers[sale.sellerId] : null;
   const agreementTerms = seller?.agreement?.commercialTerms || {};
+  // rcprep.16: contrato do cliente dono do título (padrão do cliente > título > produto)
+  const client = require("./client-accounts").termsForSale(sale) || {};
 
   // Prioridade: oferta/venda explícita > contrato do seller > política vigente > fallback da loja.
   const commissionRate = clampRate(
     "comissão",
     sale.commissionRate,
-    agreementTerms.commissionRate ?? terms.storeCommission[sale.store] ?? terms.defaultCommissionRate
+    client.commissionRate ?? agreementTerms.commissionRate ?? terms.storeCommission[sale.store] ?? terms.defaultCommissionRate
   );
   const partnerShareRate = sale.partnerId
     ? clampRate("participação do parceiro", agreementTerms.partnerShareRate, terms.partnerShareRate)
     : 0;
   const ownerFallback = (terms.splits[trackType] || terms.splits.community).owner;
-  const splitOwnerRate = clampRate("participação do proprietário", agreementTerms.splitOwnerRate, ownerFallback);
+  const splitOwnerRate = clampRate("participação do proprietário", client.ownerShareRate ?? agreementTerms.splitOwnerRate, ownerFallback);
   return {
     policyId: p.id,
     policyVersion: Number(p.version || 1),
     commissionRate,
     partnerShareRate,
     splitOwnerRate,
+    clientOrganizationId: client.organizationId || null,
+    clientContractVersion: client.contractVersion || null,
   };
 }
 

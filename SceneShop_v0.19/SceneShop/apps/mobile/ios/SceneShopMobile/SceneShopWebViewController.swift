@@ -5,7 +5,7 @@ import UserNotifications
 final class SceneShopWebViewController: UIViewController, WKScriptMessageHandler, WKNavigationDelegate {
     private var webView: WKWebView!
     private let baseURL = URL(string: "https://app.sceneshop.io/mobile")!
-    private let allowed = Set(["NATIVE_READY","SHARE","OPEN_EXTERNAL","SECURE_GET","SECURE_SET","SECURE_DELETE","DEVICE_CONTEXT","NOTIFICATION_PERMISSION","NOTIFICATION_REGISTER"])
+    private let allowed = Set(["NATIVE_READY","SHARE","OPEN_EXTERNAL","SECURE_GET","SECURE_SET","SECURE_DELETE","DEVICE_CONTEXT","NOTIFICATION_PERMISSION","NOTIFICATION_REGISTER","SYNC_STARTED","SYNC_STOPPED"])
     private var allowedHost: String { baseURL.host ?? "app.sceneshop.io" }
     private var pendingEvents: [(String,[String:Any])] = []
     private var pageReady = false

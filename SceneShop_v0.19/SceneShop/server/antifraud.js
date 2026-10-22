@@ -60,7 +60,7 @@ function checkViewer({ trackId, session: code, deviceId }) {
 }
 
 // Registra (ou reaproveita) um clique rastreado
-function registerClick({ trackId, productId, storeId, session, deviceId, partnerId }) {
+function registerClick({ trackId, productId, storeId, session, deviceId, partnerId, workId }) {
   const t = tracks.get(trackId);
   const dev = validDevice(deviceId) ? deviceId : null;
   const finalize = (activeSession) => {
@@ -75,6 +75,7 @@ function registerClick({ trackId, productId, storeId, session, deviceId, partner
       id: "k" + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
       trackId, authorId: t ? t.authorId : null, productId, store: storeId,
       deviceId: dev, session: sess, at: now, partnerId: partnerId || null,
+      workId: (t && t.workId) || (/^[A-Za-z0-9_-]{1,80}$/.test(String(workId || "")) ? String(workId) : null), // rcprep.16: relatório por cliente/título
       anonymous: !dev && !sess,
     };
     S().clicks.push(c);

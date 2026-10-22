@@ -9,6 +9,9 @@
   const territory = (() => { const m=String(navigator.language||'').match(/[-_]([A-Za-z]{2})$/); return m ? m[1].toUpperCase() : 'GLOBAL'; })();
   const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const Home = window.SceneShopHome;
+  const params = new URLSearchParams(location.search);
+  const go = (url) => location.replace(url); // sem voltar para o início pelo botão "voltar" do aparelho
 
   const state = {
     code: window.SceneShopAppCore ? window.SceneShopAppCore.resolveSessionCode(location) : ((location.pathname.match(/^\/s\/([^/]+)/)||[])[1]||""),
@@ -29,6 +32,9 @@
     foreground: document.visibilityState !== "hidden",
     networkOnline: navigator.onLine !== false,
     resumeInFlight: false,
+    historyMode: false,   // aberto pelo histórico: sem TV/sessão ao vivo, mostra o que já passou
+    awayPosition: null,   // posição quando o app foi para segundo plano
+    lastHistoryWrite: 0,
   };
 
   function loadSaved() {
@@ -127,7 +133,7 @@
       const currentShown=shownScene();
       const isSel = currentShown && sid === (currentShown.sceneId||currentShown.id);
       b.className = "scene" + (isLive ? " is-live" : "") + (isSel ? " is-sel" : "");
-      b.innerHTML = `<div class="thumb">${s.thumb?`<img src="${s.thumb}" alt=""/>`:'<span class="thumb-fallback">SHOP</span>'}${isLive ? '<span class="live">AO VIVO</span>' : ""}</div>
+      b.innerHTML = `<div class="thumb">${s.thumb?`<img src="${s.thumb}" alt=""/>`:'<span class="thumb-fallback">SHOP</span>'}${isLive && !state.historyMode ? '<span class="live">AO VIVO</span>' : ""}</div>
                      <div class="label">${i + 1}. ${esc(s.title)}</div>
                      <div class="count">${(s.products||[]).length} produtos · ${fmt(Number(s.start||0))}</div>`;
       b.onclick = () => {
@@ -272,6 +278,9 @@
     if(!state.core||!state.timeline||!(state.timeline.policy||{}).missedItemsEnabled){box.hidden=true;return;}
     const rows=state.core.missedScenes(state.timeline);
     box.hidden=!rows.length;
+    const away=state.missedReason==='away';
+    $("missedTitle").textContent=away?"Enquanto você estava fora":"Enquanto você explorava";
+    $("missedSub").textContent=away?"O vídeo continuou sincronizado; estas cenas com produtos passaram.":"O vídeo continuou; estas oportunidades passaram na Commerce Timeline.";
     host.innerHTML=rows.map((s)=>{const sid=s.sceneId||s.id;return `<button type="button" data-missed-scene="${esc(sid)}"><span>${s.thumb?`<img src="${s.thumb}" alt=""/>`:'<i>SHOP</i>'}</span><b>${esc(s.title||'Cena comercial')}</b><small>${fmt(Number(s.start||0))} · ${(s.products||[]).length} produtos</small></button>`;}).join('');
     host.querySelectorAll('[data-missed-scene]').forEach((b)=>b.onclick=()=>{const sc=timelineScenes().find((s)=>(s.sceneId||s.id)===b.dataset.missedScene);if(!sc)return;state.viewSceneId=b.dataset.missedScene;state.tab='scene';state.core.browse(sc);persistCore();if(state.socket&&state.connected)state.socket.emit('commerce:browse',{position:Number(sc.start||0),sceneId:state.viewSceneId});render();});
   }
@@ -281,12 +290,14 @@
     const playback=state.core?state.core.playbackPosition:state.time;
     $("progress").style.width = `${Math.min(100,(playback / state.work.duration) * 100)}%`;
     const browsing=state.core&&state.core.mode==='BROWSING';
-    const txt = state.connected
+    const txt = state.historyMode
+      ? `Histórico · visto até ${fmt(playback)}`
+      : state.connected
       ? browsing ? `Explorando ${fmt(state.core.browsePosition)} · vídeo ${fmt(playback)}` : `${state.playing ? "Ao vivo" : "Pausado"} · ${fmt(playback)}`
       : "Reconectando…";
     $("statusText").textContent = txt;
-    $("status").className = "status" + (state.connected ? (state.playing ? " is-live" : " is-paused") : "");
-    $("pinned").hidden = !(state.core&&state.core.mode==='BROWSING') || state.tab !== "scene";
+    $("status").className = "status" + (state.historyMode ? " is-history" : state.connected ? (state.playing ? " is-live" : " is-paused") : "");
+    $("pinned").hidden = state.historyMode || !(state.core&&state.core.mode==='BROWSING') || state.tab !== "scene";
     if($("browseStatus")&&state.core&&state.core.mode==='BROWSING') $("browseStatus").textContent=`Explorando ${fmt(state.core.browsePosition)} · vídeo em ${fmt(state.core.playbackPosition)}`;
     $("tabScene").classList.toggle("is-on", state.tab === "scene");
     $("tabSaved").classList.toggle("is-on", state.tab === "saved");
@@ -311,7 +322,7 @@
 
   // ------------------------------------------------------------ dados + tempo real
   async function refreshAfterResume() {
-    if (!state.code || state.resumeInFlight || !state.networkOnline) return;
+    if (!state.code || state.historyMode || state.resumeInFlight || !state.networkOnline) return;
     state.resumeInFlight = true;
     try {
       const response = await fetch(`/api/sessions/${state.code}?deviceId=${encodeURIComponent(state.deviceId)}`, { cache: "no-store" });
@@ -322,10 +333,20 @@
       state.anchor = { time: state.time, at: performance.now() };
       if (state.core) {
         state.core.tick(state.time, state.timeline);
+        // cenas com produto que passaram enquanto o app estava em segundo plano
+        if (state.awayPosition != null) {
+          const from = state.awayPosition;
+          const passed = timelineScenes().filter((s) => (s.products || []).length && Number(s.start || 0) > from && Number(s.start || 0) <= state.time).map((s) => s.sceneId || s.id);
+          if (passed.length) { state.core.addMissed(passed); state.missedReason = "away"; }
+        }
         persistCore();
       }
+      state.awayPosition = null;
       if (state.socket && !state.socket.connected) state.socket.connect();
+      const live = activeSceneAt(state.time), liveId = live && (live.sceneId || live.id);
+      if (state.work && liveId !== state.liveSceneId) onSceneChange(liveId);
       renderStatus();
+      renderMissed();
     } catch (e) {
       state.connected = false;
       renderStatus();
@@ -334,7 +355,7 @@
 
   function handleLifecycle(detail = {}) {
     const next = String(detail.state || "").toUpperCase();
-    if (next === "BACKGROUND") { state.foreground = false; persistCore(); return; }
+    if (next === "BACKGROUND") { state.foreground = false; if (!state.historyMode && state.work && state.awayPosition == null) state.awayPosition = state.time; persistCore(); if (Home && state.workId && !state.historyMode) Home.history.touch(state.workId, state.time); return; }
     if (next === "OFFLINE") { state.networkOnline = false; state.connected = false; renderStatus(); return; }
     if (next === "ONLINE") { state.networkOnline = true; refreshAfterResume(); return; }
     if (next === "FOREGROUND") { state.foreground = true; state.networkOnline = navigator.onLine !== false; refreshAfterResume(); }
@@ -351,6 +372,8 @@
         if (!state.code) showJoin("Conteúdo recebido. Sincronize para identificar a cena comercial.");
         else notice("Conteúdo recebido pelo aplicativo.");
       }
+    } else if (type === "SYNC_STOP_REQUESTED") {
+      stopSync(true);
     } else if (type === "NOTIFICATION_REGISTRATION") {
       const btn = $("enableNotifications");
       if (btn && payload.granted) btn.hidden = true;
@@ -379,14 +402,37 @@
   window.addEventListener("sceneshop:app-lifecycle", (event) => handleLifecycle(event.detail || {}));
   window.addEventListener("sceneshop:native-event", (event) => handleNativeEvent(event.detail || {}));
 
+  // ------------------------------------------------------------ início da tela
   async function start() {
-    if (!state.code) return showJoin();
+    if (params.get("h")) return startHistory(params.get("h"));
+    if (params.has("stopped") && Home) {
+      // o espectador fechou o app (Android) durante a sincronização: ela termina; o título fica no histórico
+      const act = Home.active.get(); Home.active.clear(); if (act) markHistoryInactive(act.workId);
+    }
+    if (!state.code) {
+      // sincronização em andamento (o sistema pode ter fechado o app em segundo plano): volta direto para ela
+      const act = Home && Home.active.get();
+      if (act && !params.has("home")) {
+        const alive = await fetch(`/api/sessions/${act.code}?deviceId=${encodeURIComponent(state.deviceId)}`, { cache: "no-store" }).then((r) => r.ok).catch(() => false);
+        if (alive) return go(`/s/${act.code}`);
+        Home.active.clear();
+        markHistoryInactive(act.workId);
+      }
+      return showJoin();
+    }
     const sRes = await fetch(`/api/sessions/${state.code}?deviceId=${encodeURIComponent(state.deviceId)}`);
-    if (!sRes.ok) return showJoin("Esse código expirou. Gere um novo QR code na TV.");
+    if (!sRes.ok) {
+      // sessão expirada: se ela está no histórico, abre o que já passou (sem precisar sincronizar de novo)
+      const act = Home && Home.active.get();
+      if (act && act.code === state.code) Home.active.clear();
+      const past = Home && Home.history.list().find((e) => e.code === state.code);
+      if (past) { markHistoryInactive(past.workId); return go(`/mobile?h=${encodeURIComponent(past.workId)}&expired=1`); }
+      return showJoin("Esse código expirou. Gere um novo QR code na TV.");
+    }
     const session = await sRes.json();
     // sincronizado pelo som: a posição do servidor (+ o tempo que passou) vale mais que o ?t= arredondado da URL
     if (session.mode === "COMPANION") state.time = companionNow(session);
-    else if (!new URLSearchParams(location.search).has("t")) state.time = session.time;
+    else if (!params.has("t")) state.time = session.time;
 
     state.workId = session.workId;
     state.mode = session.mode || "PARTNER_NATIVE";
@@ -406,6 +452,7 @@
     const liveScene=activeSceneAt(state.time); state.liveSceneId=liveScene&&(liveScene.sceneId||liveScene.id);
     if (state.core.mode === "BROWSING") { const browsed=browseSceneAt(state.core.browsePosition); state.viewSceneId = state.core.browseSceneId || (browsed&&((browsed.sceneId)||browsed.id)) || null; }
     persistCore(); render();
+    beginActiveSync();
 
     const socket = (state.socket = io());
     socket.on("connect", () => {
@@ -432,11 +479,88 @@
       state.viewSceneId = null;
       if(state.core) state.core.goLive(state.timeline);
       const live=activeSceneAt(state.time);state.liveSceneId=live&&(live.sceneId||live.id);
-      persistCore(); render();
+      persistCore(); render(); rememberWork();
     });
     socket.on("session:tv", ({ online }) => {
       if (!online) $("statusText").textContent = "TV desconectada";
     });
+  }
+
+  // ------------------------------------------------------------ sincronização ativa + histórico
+  function thumbOf() {
+    const sc = timelineScenes().find((s) => s.thumb) || null;
+    return state.work && (state.work.poster || (sc && sc.thumb)) || null;
+  }
+  function rememberWork() {
+    if (!Home || !state.work) return;
+    const productCount = new Set(timelineScenes().flatMap((s) => (s.products || []).map((p) => p.id))).size;
+    Home.history.record({ workId: state.work.id, title: state.work.title, thumb: thumbOf(), trackId: state.work.track && state.work.track.id || null,
+      code: state.code || null, mode: state.mode || null, duration: Number(state.work.duration) || 0, position: state.historyMode ? 0 : state.time, productCount, active: !state.historyMode });
+    Home.history.cache(state.work.id, { work: state.work, timeline: state.rawTimeline || null });
+  }
+  function markHistoryInactive(workId) {
+    if (!Home || !workId) return;
+    const e = Home.history.get(workId); if (e && e.active) Home.history.record({ workId, active: false });
+  }
+  function beginActiveSync() {
+    if (!Home) return;
+    Home.active.set({ code: state.code, workId: state.workId, title: state.work.title, mode: state.mode });
+    rememberWork();
+    $("stopSync").hidden = false; $("menuStop").hidden = false;
+    // Android: serviço em primeiro plano com aviso "Sincronizado" (mantém o app vivo e tem o botão Parar)
+    if (window.SceneShopAppBridge) window.SceneShopAppBridge.notify("SYNC_STARTED", { title: String(state.work.title || "").slice(0, 120), code: state.code });
+  }
+  function stopSync(goHome = true) {
+    if (Home) { Home.active.clear(); if (state.workId) Home.history.record({ workId: state.workId, active: false, position: state.time }); }
+    if (state.socket) { try { state.socket.disconnect(); } catch (e) {} }
+    state.connected = false; state.playing = false;
+    if (window.SceneShopAppBridge) window.SceneShopAppBridge.notify("SYNC_STOPPED", {});
+    if (goHome) go("/mobile?home=1");
+  }
+  function historyTick() {
+    if (!Home || !state.workId || state.historyMode) return;
+    const now = Date.now(); if (now - state.lastHistoryWrite < 5000) return;
+    state.lastHistoryWrite = now;
+    Home.history.touch(state.workId, state.time);
+    Home.active.beat();
+  }
+
+  // Aberto pelo histórico: a trilha do que já foi visto, sem sessão ao vivo (comprar depois sem sincronizar de novo)
+  async function startHistory(workId) {
+    const entry = Home && Home.history.get(workId);
+    if (!entry) return showJoin("Esse título não está mais no histórico deste aparelho.");
+    state.historyMode = true; document.body.classList.add("history-mode");
+    state.workId = workId; state.code = entry.code || ""; state.mode = entry.mode || null;
+    const cached = Home.history.cached(workId);
+    try {
+      const q = new URLSearchParams(); if (entry.code) q.set("session", entry.code); if (entry.trackId) q.set("track", entry.trackId);
+      let r = await fetch(`/api/works/${encodeURIComponent(workId)}?${q}`);
+      if (!r.ok && entry.trackId) r = await fetch(`/api/works/${encodeURIComponent(workId)}?track=${encodeURIComponent(entry.trackId)}`);
+      if (!r.ok) throw new Error("offline");
+      state.work = await r.json();
+      let raw = null;
+      if (!state.work.track || state.work.track.type === "official") { try { const tr = await fetch(`/api/works/${encodeURIComponent(workId)}/commerce-timeline`); if (tr.ok) raw = await tr.json(); } catch (e) {} }
+      state.rawTimeline = raw; state.timeline = hydrateTimeline(raw);
+    } catch (e) {
+      if (!cached || !cached.work) return showJoin("Sem conexão e sem cópia guardada deste título.");
+      state.work = cached.work; state.rawTimeline = cached.timeline || null; state.timeline = hydrateTimeline(state.rawTimeline);
+      notice("Sem conexão: mostrando a cópia guardada no aparelho.");
+    }
+    applyPartner();
+    $("workTitle").textContent = state.work.title;
+    // tudo o que passou até o ponto em que o espectador parou (ou a obra inteira, se ele viu até o fim)
+    state.time = Math.min(Number(state.work.duration) || Infinity, Math.max(Number(entry.position) || 0, 0));
+    state.playing = false;
+    state.core = new SceneShopMobileCore.CompanionState({ mode: "LIVE", playbackPosition: state.time });
+    state.core.tick(state.time, state.timeline);
+    const visible = state.core.visibleScenes(state.timeline, state.timeline && state.timeline.policy).filter((s) => (s.products || []).length);
+    const last = visible[visible.length - 1] || timelineScenes().find((s) => (s.products || []).length) || null;
+    state.liveSceneId = null;
+    state.viewSceneId = last ? (last.sceneId || last.id) : null;
+    $("stopSync").hidden = false; $("stopSync").textContent = "Fechar";
+    rememberWork();
+    render();
+    if (params.has("expired")) notice("A sessão terminou. Os produtos do que você assistiu continuam aqui.");
   }
 
   // posição atual no modo COMPANION: a última posição conhecida + o tempo que passou desde ela
@@ -457,6 +581,7 @@
     if (!state.work) return;
     state.time = estimatedTime();
     if(state.core){state.core.tick(state.time,state.timeline);persistCore();}
+    historyTick();
     const liveScene=activeSceneAt(state.time), live=liveScene&&(liveScene.sceneId||liveScene.id);
     if (live !== state.liveSceneId) onSceneChange(live);
     renderStatus();
@@ -472,12 +597,16 @@
     // A Commerce Timeline é a publicação OFICIAL; trilhas da comunidade usam as próprias cenas.
     let rawTimeline=null;
     if(!state.work.track||state.work.track.type==='official'){try{const tr=await fetch(`/api/works/${state.workId}/commerce-timeline`);if(tr.ok)rawTimeline=await tr.json();}catch(e){}}
+    state.rawTimeline=rawTimeline;
     state.timeline=hydrateTimeline(rawTimeline);
-    if (state.work.partner) {
-      document.documentElement.style.setProperty("--accent", state.work.partner.brand.color);
-      document.documentElement.style.setProperty("--accent-2", state.work.partner.brand.color);
-      $("brandName").textContent = state.work.partner.brand.label;
-    }
+    applyPartner();
+  }
+  function applyPartner() {
+    if (!state.work || !state.work.partner) return;
+    document.body.style.setProperty("--accent", state.work.partner.brand.color);
+    document.body.style.setProperty("--accent-2", state.work.partner.brand.color);
+    $("brandName").textContent = state.work.partner.brand.label;
+    $("brandName").hidden = false;
   }
 
   function onSceneChange(id) {
@@ -487,28 +616,101 @@
     render();
   }
 
+  // ------------------------------------------------------------ início: botão grande, código, QR code, link, histórico
+  const tr = (k, ...a) => (window.t ? window.t(k, ...a) : k.replace(/\{(\d+)#?\}/g, (_, i) => a[i]));
+  const ago = (t) => { const m = Math.round((Date.now() - Number(t || 0)) / 60000); if (m < 1) return tr("agora"); if (m < 60) return tr("há {0} min", m); const h = Math.round(m / 60); if (h < 24) return tr("há {0} h", h); const d = Math.round(h / 24); return d === 1 ? tr("ontem") : tr("há {0} dias", d); };
+  function renderHistory() {
+    const box = $("historyBox"), host = $("historyList"); if (!box || !Home) return;
+    const list = Home.history.list();
+    const act = Home.active.get();
+    box.hidden = !list.length;
+    host.innerHTML = list.map((e) => {
+      const live = act && act.workId === e.workId;
+      const seen = e.duration ? tr("visto até {0}", fmt(Math.min(e.position || 0, e.duration))) : "";
+      return `<button type="button" class="history-item" data-history="${esc(e.workId)}">
+        <span class="h-thumb">${e.thumb ? `<img src="${esc(e.thumb)}" alt=""/>` : '<img class="h-mark" src="/media/brand/sceneshop-mark-black.svg" alt=""/>'}</span>
+        <span class="h-body"><b data-no-i18n>${esc(e.title || "Título")}</b><small data-no-i18n>${esc([e.productCount ? tr("{0} produtos", e.productCount) : "", seen, ago(e.lastAt)].filter(Boolean).join(" · "))}</small></span>
+        ${live ? '<span class="h-live">AO VIVO</span>' : ""}
+      </button>`;
+    }).join("");
+    host.querySelectorAll("[data-history]").forEach((b) => (b.onclick = () => {
+      const id = b.dataset.history;
+      const a = Home.active.get();
+      if (a && a.workId === id) { if (state.code === a.code && !state.historyMode) return hideJoin(); return go(`/s/${a.code}`); }
+      go(`/mobile?h=${encodeURIComponent(id)}`);
+    }));
+  }
+  function renderActiveCard() {
+    const card = $("activeCard"); if (!card || !Home) return;
+    const a = Home.active.get();
+    card.hidden = !a;
+    if (!a) return;
+    $("activeTitle").textContent = a.title || "";
+    card.onclick = () => { if (state.code === a.code && !state.historyMode && state.work) hideJoin(); else go(`/s/${a.code}`); };
+  }
+  function hideJoin() { $("join").hidden = true; }
+  function toggleOption(which) {
+    const panels = { code: $("joinForm"), link: $("linkBox") };
+    Object.entries(panels).forEach(([k, el]) => { el.hidden = k !== which || !el.hidden; });
+    $("optCode").classList.toggle("is-on", !panels.code.hidden);
+    $("optLink").classList.toggle("is-on", !panels.link.hidden);
+    if (!panels.code.hidden) $("joinCode").focus();
+    if (!panels.link.hidden) $("syncSourceUrl").focus();
+  }
   function showJoin(msg) {
     $("join").hidden = false;
     if (msg) $("joinMsg").textContent = msg;
-    const source = window.SceneShopAppCore ? window.SceneShopAppCore.resolveSharedSource(location) : new URLSearchParams(location.search).get("source");
-    if (source && $("syncSourceUrl")) $("syncSourceUrl").value = source;
+    renderActiveCard();
+    renderHistory();
+    const source = window.SceneShopAppCore ? window.SceneShopAppCore.resolveSharedSource(location) : params.get("source");
+    if (source && $("syncSourceUrl")) { $("syncSourceUrl").value = source; $("linkBox").hidden = false; $("optLink").classList.add("is-on"); }
     const syncProvider = window.SceneShopCompanionSync && SceneShopCompanionSync.provider ? SceneShopCompanionSync.provider() : Promise.resolve("fingerprint");
     syncProvider.then((p) => { if ((p === "acrcloud" || p === "sceneshop") && $("syncState") && !$("syncState").textContent) $("syncState").textContent = `Toque e deixe o celular ouvir ${SceneShopCompanionSync.ACR_SECONDS} segundos do que está passando. O áudio só serve para identificar o conteúdo e não fica guardado.`; });
     if ($("syncNow")) $("syncNow").onclick = async () => {
-      const btn=$("syncNow"),status=$("syncState"); btn.disabled=true;
+      const btn=$("syncNow"),status=$("syncState"); btn.disabled=true; btn.classList.add("is-listening");
       status.textContent=["acrcloud","sceneshop"].includes(await syncProvider)?`Ouvindo por ${SceneShopCompanionSync.ACR_SECONDS} segundos…`:"Ouvindo e reconhecendo o conteúdo…";
       try {
         const out=await SceneShopCompanionSync.synchronize({externalUrl:$("syncSourceUrl").value.trim()||null,seconds:5,onRetry:()=>{status.textContent=`Ainda não reconheci. Ouvindo mais ${SceneShopCompanionSync.ACR_SECONDS} segundos…`;}});
         status.textContent=`${out.work.title} reconhecido · ${Math.round(out.confidence*100)}%`;
-        location.href=`/s/${out.session.code}?t=${Math.floor(out.position)}`;
-      } catch(e) { status.textContent=e.message; btn.disabled=false; }
+        // uma sincronização por vez: a anterior vai para o histórico
+        if (state.socket && state.code && state.code !== out.session.code) stopSync(false);
+        go(`/s/${out.session.code}?t=${Math.floor(out.position)}`);
+      } catch(e) { status.textContent=e.message; btn.disabled=false; btn.classList.remove("is-listening"); }
+    };
+    $("optCode").onclick = () => toggleOption("code");
+    $("optLink").onclick = () => toggleOption("link");
+    $("optQr").onclick = async () => {
+      try {
+        const out = await Home.scanQr({ view: $("qrView"), video: $("qrVideo"), message: $("qrMsg") });
+        if (navigator.vibrate) navigator.vibrate(40);
+        $("syncState").textContent = `Código ${out.code} lido. Conectando…`;
+        go(`/s/${out.code}`);
+      } catch (e) { if (!e.cancelled) $("syncState").textContent = e.message; }
     };
     $("joinForm").onsubmit = (e) => {
       e.preventDefault();
-      const c = $("joinCode").value.trim().toUpperCase();
-      if (c.length === 6) location.href = `/s/${c}`;
+      const raw = $("joinCode").value.trim();
+      const c = (Home && Home.codeFrom(raw)) || raw.toUpperCase();
+      if (c.length >= 4) go(`/s/${c}`);
+      else $("syncState").textContent = "Digite o código que aparece na TV.";
     };
+    $("historyClear").onclick = () => { if (!confirm(window.t ? window.t("Limpar o histórico deste aparelho?") : "Limpar o histórico deste aparelho?")) return; const a = Home.active.get(); Home.history.clear(); if (a) rememberWork(); renderHistory(); };
   }
+
+  // ------------------------------------------------------------ menu (o que ficava solto no topo)
+  const menu = $("menu");
+  const openMenu = () => { menu.hidden = false; $("menuStop").hidden = !(Home && Home.active.get()); };
+  const closeMenu = () => { menu.hidden = true; };
+  $("menuBtn").onclick = openMenu;
+  $("homeMenuBtn").onclick = openMenu;
+  $("menuClose").onclick = closeMenu;
+  menu.addEventListener("click", (e) => { if (e.target === menu) closeMenu(); });
+  $("menuHome").onclick = () => { closeMenu(); showJoin(); };
+  $("menuStop").onclick = () => { closeMenu(); if (state.code && !state.historyMode) stopSync(true); else { const a = Home && Home.active.get(); if (Home) Home.active.clear(); if (a) markHistoryInactive(a.workId); if (window.SceneShopAppBridge) window.SceneShopAppBridge.notify("SYNC_STOPPED", {}); renderActiveCard(); renderHistory(); } };
+  $("homeBtn").onclick = () => showJoin();
+  $("stopSync").onclick = () => { if (state.historyMode) return go("/mobile?home=1"); stopSync(true); };
+  $("qrClose").onclick = () => Home && Home.stopScan();
+  if (window.SceneShopAppBridge && window.SceneShopAppBridge.notify && (window.SceneShopNative || (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.sceneshop))) document.body.classList.add("native-app");
 
   document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => { state.tab = b.dataset.tab; renderList(); renderStatus(); }));
   $("backLive").onclick = () => {
@@ -518,7 +720,7 @@
     if (state.socket && state.connected) state.socket.emit("commerce:live", {});
     render();
   };
-  if($("clearMissed")) $("clearMissed").onclick=()=>{if(state.core){state.core.clearMissed();persistCore();renderMissed();}};
+  if($("clearMissed")) $("clearMissed").onclick=()=>{if(state.core){state.core.clearMissed();state.missedReason=null;persistCore();renderMissed();}};
   if ($("reSync")) $("reSync").onclick = async () => {
     if (state.mode !== "COMPANION" || !state.socket || !state.connected) return;
     const btn=$("reSync"); btn.disabled=true; const before=btn.textContent; btn.textContent="Sincronizando…";

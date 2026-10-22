@@ -20,6 +20,7 @@ class PostgresOrganizationRepository {
       return q.rows.map((r)=>publicOrg(orgFromRow(r),{role:r.m_role,status:r.m_status}));
     });
   }
+  async listAll() { return this.store.readDomain(async(c)=>{ const q=await c.query('SELECT * FROM sceneshop_organizations ORDER BY name'); return q.rows.map(orgFromRow); }); }
   async get(orgId) { return this.store.readDomain(async(c)=>{ const q=await c.query('SELECT * FROM sceneshop_organizations WHERE id=$1',[orgId]); return q.rowCount?orgFromRow(q.rows[0]):null; }); }
   async getMembership(orgId, username) { return this.store.readDomain(async(c)=>{ const q=await c.query('SELECT * FROM sceneshop_organization_members WHERE organization_id=$1 AND username=$2',[orgId,String(username||'').toLowerCase()]); return q.rowCount?memberFromRow(q.rows[0]):null; }); }
   async create({name,slug,kind='OTHER',settings={}},actor) {

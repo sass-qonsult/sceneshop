@@ -29,7 +29,7 @@ test('v0.19 native and desktop package metadata is aligned with the rc',()=>{
   const android=fs.readFileSync(path.join(ROOT,'apps/mobile/android/app/build.gradle.kts'),'utf8');
   const ios=fs.readFileSync(path.join(ROOT,'apps/mobile/ios/SceneShopMobile/Info.plist'),'utf8');
   const desktop=fs.readFileSync(path.join(ROOT,'apps/desktop/install-macos.command'),'utf8');
-  assert.match(android,/versionCode = 6/); assert.match(android,/versionName = "0\.19\.0-rc\.1"/);
+  assert.match(android,/versionCode = 7/); assert.match(android,/versionName = "0\.19\.0-rc\.1"/);
   assert.match(ios,/CFBundleShortVersionString<\/key><string>0\.19\.0<\/string>/);
   assert.match(desktop,/CFBundleShortVersionString<\/key><string>0\.19\.0<\/string>/);
 });

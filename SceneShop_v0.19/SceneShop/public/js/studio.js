@@ -77,7 +77,8 @@
     if (tab === "editor") { requestAnimationFrame(renderBoxes); refreshEditorTrack(); }
     if (tab === "obras") loadWorks();
     if (tab === "produtos") loadMyProducts();
-    if (tab === "piloto") loadPilot();
+    if (tab === "piloto") { loadPilot(); loadAccountReport(); }
+    if (tab === "clientes") loadClients();
     if (tab === "equipe") loadTeamSecurity();
     if (tab === "aiops") loadAiOps();
     store.set("ss-studio-tab", tab);
@@ -138,13 +139,14 @@
     renderWhoControls();
     // abas conforme o papel
     const orgRole=(activeOrg()&&activeOrg().membership&&activeOrg().membership.role)||null;
-    const allowed = isMod() ? ["moderacao"]
+    const allowed = isMod() ? ["moderacao","clientes"]
       : ["OWNER","ADMIN"].includes(orgRole) ? ["obras","produtos","editor","aiops","ofertas","piloto","ganhos","equipe"]
       : orgRole === "EDITOR" ? ["obras","produtos","editor","aiops","piloto","ganhos","equipe"]
       : orgRole === "COMMERCIAL" ? ["produtos","ofertas","piloto","ganhos","equipe"]
       : orgRole === "ANALYST" ? ["aiops","piloto","ganhos","equipe"]
       : ["ganhos","equipe"];
     if (st.user.platformAdmin && !allowed.includes("moderacao")) allowed.push("moderacao");
+    if (st.user.platformAdmin && !allowed.includes("clientes")) allowed.push("clientes");
     document.querySelectorAll(".tabs button").forEach((b) => (b.hidden = !allowed.includes(b.dataset.tab)));
     if (!isMod()) { await refreshWorks(); await selectWork(st.workId); }
     refreshAi();
@@ -1675,6 +1677,118 @@
   };
 
   // ================================================================ piloto: painel
+
+  // ================================================================ contas de clientes (rcprep.16)
+  const pct = (v) => v == null || v === "" ? "" : String(Math.round(Number(v) * 10000) / 100).replace(".", ",");
+  const KIND_LABEL = { CONTENT_OWNER: "Dono de conteúdo / estúdio", PRODUCER: "Produtor", CHANNEL: "Canal / emissora", PLATFORM: "Plataforma / streaming", BRAND: "Marca", AGENCY: "Agência", RETAILER: "Varejista", OTHER: "Outro" };
+  const periodQs = (sel) => { const v = $(sel).value; return v ? `?days=${v}` : ""; };
+  const reportTiles = (t, cur, who) => [
+    ["Cliques", t.clicks, `${t.qualifiedClicks} qualificados`, "hold"],
+    ["Pedidos", t.orders, `${t.conversion}% de conversão${t.refunds ? ` · ${t.refunds} estorno(s)` : ""}`, "free"],
+    ["Vendas", brl(t.gmv), "valor dos pedidos atribuídos", "paid"],
+    ["Comissão", brl(t.commission), `${who}: ${brl(t.clientShare)}`, "kyc"],
+    ["Receita SceneShop", brl(t.sceneshopRevenue), `taxas ${brl(t.fees)}${t.monthlyFees ? ` · mensalidade ${brl(t.monthlyFees)}` : ""}`, "frozen"],
+  ].map(([l, v, sub, c]) => `<div class="tile ${c}"><div class="lbl">${l}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`).join("");
+  async function downloadCsv(url, name) {
+    const headers = { Authorization: `Bearer ${token}` }; if (organizationId) headers["X-SceneShop-Organization"] = organizationId;
+    const r = await fetch(url, { headers });
+    if (!r.ok) return toast("Não foi possível gerar o CSV.", true);
+    const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
+  // visão do cliente (aba Desempenho): a própria conta, separada por título
+  async function loadAccountReport() {
+    const r = await api(`/api/me/account-report${periodQs("acctPeriod")}`);
+    if (!r.ok) { $("acctCard").hidden = true; return; }
+    $("acctCard").hidden = false;
+    const rep = r.data.report, c = r.data.contract;
+    const T = (k, ...x) => (window.t ? window.t(k, ...x) : k.replace(/\{(\d+)#?\}/g, (_, i) => x[i]));
+    $("acctContract").textContent = c ? [
+      T("Contrato {0} (versão {1})", c.contractRef || "", c.version) + (c.status !== "active" ? " · " + T(c.status === "paused" ? "pausado" : "encerrado") : ""),
+      T("comissão: {0}", c.terms.commissionRate != null ? pct(c.terms.commissionRate) + "%" : T("política geral")),
+      T("parte da conta: {0}", c.terms.ownerShareRate != null ? pct(c.terms.ownerShareRate) + "%" : T("política geral")),
+      ...(Object.keys(c.works || {}).length ? [T("condições próprias em {0} título(s)", Object.keys(c.works).length)] : []),
+    ].join(" · ") : T("Sem contrato específico: valem as condições gerais do SceneShop.");
+    $("acctTiles").innerHTML = reportTiles(rep.totals, rep.currency, "parte da conta");
+    $("acctWorks").innerHTML = rep.byWork.map((w) => `<tr><td>${esc(w.title)}${w.archived ? ' <span class="pill-off">(excluído)</span>' : ""}</td><td class="num">${w.clicks}</td><td class="num">${w.orders}</td><td class="num">${w.conversion}%</td><td class="num">${brl(w.gmv)}</td><td class="num">${brl(w.commission)}</td><td class="num">${brl(w.clientShare)}</td><td class="num">${brl(w.fees)}</td></tr>`).join("") || `<tr><td colspan="8" class="help">Nenhum título ainda.</td></tr>`;
+    $("acctCsv").onclick = (e) => { e.preventDefault(); downloadCsv(`/api/me/account-report.csv${periodQs("acctPeriod")}`, "sceneshop-relatorio.csv"); };
+  }
+  $("acctPeriod").onchange = loadAccountReport;
+
+  // console do SceneShop: todos os clientes
+  async function loadClients() {
+    const r = await api(`/api/admin/clients${periodQs("cliPeriod")}`, { noOrganization: true });
+    if (!r.ok) { $("cliList").innerHTML = `<tr><td colspan="10" class="help">${esc(r.data.error || "Sem acesso.")}</td></tr>`; return; }
+    const t = r.data.totals;
+    $("cliTotals").innerHTML = [
+      ["Clientes", t.clients, "organizações", "hold"], ["Cliques", t.clicks, "em todos os títulos", "kyc"], ["Pedidos", t.orders, "atribuídos", "free"],
+      ["Vendas", brl(t.gmv), `comissão ${brl(t.commission)}`, "paid"], ["Receita SceneShop", brl(t.sceneshopRevenue), `clientes ${brl(t.clientShare)}`, "frozen"],
+    ].map(([l, v, sub, c]) => `<div class="tile ${c}"><div class="lbl">${l}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`).join("");
+    $("cliList").innerHTML = r.data.clients.map((c) => `<tr data-client="${esc(c.id)}" class="${c.id === st.clientId ? "is-sel" : ""}"><td><b>${esc(c.name)}</b></td><td>${esc(KIND_LABEL[c.kind] || c.kind || "")}</td><td class="num">${c.works}</td><td class="num">${c.totals.clicks}</td><td class="num">${c.totals.orders}</td><td class="num">${brl(c.totals.gmv)}</td><td class="num">${brl(c.totals.commission)}</td><td class="num">${brl(c.totals.clientShare)}</td><td class="num">${brl(c.totals.sceneshopRevenue)}</td><td>${c.contract ? `<span class="${c.contract.status === "active" ? "pill-ok" : "pill-off"}">${esc(c.contract.contractRef || "v" + c.contract.version)}</span>` : '<span class="pill-off">sem contrato</span>'}</td></tr>`).join("") || `<tr><td colspan="10" class="help">Nenhum cliente.</td></tr>`;
+    $("cliList").querySelectorAll("[data-client]").forEach((tr) => (tr.onclick = () => { st.clientId = tr.dataset.client; loadClients(); }));
+    if (st.clientId) loadClient(st.clientId);
+  }
+  $("cliPeriod").onchange = loadClients;
+  $("cliRefresh").onclick = loadClients;
+
+  async function loadClient(id) {
+    const r = await api(`/api/admin/clients/${encodeURIComponent(id)}${periodQs("cliPeriod")}`, { noOrganization: true });
+    if (!r.ok) { $("cliDetail").hidden = true; return toast(r.data.error || "Cliente não encontrado.", true); }
+    const d = r.data, rep = d.report, c = d.contract || { terms: {}, works: {}, products: {} };
+    st.client = d;
+    $("cliDetail").hidden = false;
+    $("cliName").textContent = d.organization.name;
+    $("cliTiles").innerHTML = reportTiles(rep.totals, rep.currency, "cliente");
+    $("cliWorks").innerHTML = rep.byWork.map((w) => `<tr><td>${esc(w.title)}${w.archived ? ' <span class="pill-off">(excluído)</span>' : ""}</td><td class="num">${w.clicks}</td><td class="num">${w.orders}</td><td class="num">${w.conversion}%</td><td class="num">${brl(w.gmv)}</td><td class="num">${brl(w.commission)}</td><td class="num">${brl(w.clientShare)}</td><td class="num">${brl(w.sceneshopShare)}</td><td class="num">${brl(w.fees)}</td></tr>`).join("") || `<tr><td colspan="9" class="help">Nenhum título.</td></tr>`;
+    $("cliProducts").innerHTML = rep.byProduct.map((p) => `<tr><td>${esc(p.name)}</td><td class="num">${p.clicks}</td><td class="num">${p.orders}</td><td class="num">${brl(p.gmv)}</td><td class="num">${brl(p.commission)}</td><td class="num">${brl(p.clientShare)}</td></tr>`).join("") || `<tr><td colspan="6" class="help">Sem movimento no período.</td></tr>`;
+    $("cliCsv").onclick = (e) => { e.preventDefault(); downloadCsv(`/api/admin/clients/${encodeURIComponent(id)}/report.csv${periodQs("cliPeriod")}`, `sceneshop-${id}.csv`); };
+    // contrato
+    const f = $("cliContract");
+    const day = (ms) => ms ? new Date(ms).toISOString().slice(0, 10) : "";
+    f.contractRef.value = c.contractRef || ""; f.status.value = c.status || "active"; f.startsAt.value = day(c.startsAt); f.endsAt.value = day(c.endsAt ? c.endsAt - 864e5 : null);
+    f.currency.value = c.currency || "BRL"; f.monthlyFee.value = money2(c.monthlyFee); f.notes.value = c.notes || "";
+    f.def_commissionRate.value = pct(c.terms.commissionRate); f.def_ownerShareRate.value = pct(c.terms.ownerShareRate); f.def_cpcFee.value = money2(c.terms.cpcFee); f.def_cpaFee.value = money2(c.terms.cpaFee);
+    const allWorks = [...d.works];
+    for (const wid of Object.keys(c.works || {})) if (!allWorks.some((w) => w.id === wid)) allWorks.push({ id: wid, title: wid });
+    $("cliWorkTerms").innerHTML = allWorks.map((w) => { const t = (c.works || {})[w.id] || {}; return `<tr data-wterm="${esc(w.id)}"><td>${esc(w.title)}${w.archived ? ' <span class="pill-off">(excluído)</span>' : ""}</td><td><input name="commissionRate" value="${pct(t.commissionRate)}" inputmode="decimal"/></td><td><input name="ownerShareRate" value="${pct(t.ownerShareRate)}" inputmode="decimal"/></td><td><input name="cpcFee" value="${money2(t.cpcFee)}" inputmode="decimal"/></td><td><input name="cpaFee" value="${money2(t.cpaFee)}" inputmode="decimal"/></td><td><input name="notes" value="${esc(t.notes || "")}" maxlength="500"/></td></tr>`; }).join("") || `<tr><td colspan="6" class="help">Este cliente ainda não tem títulos.</td></tr>`;
+    const names = new Map([...d.products.map((p) => [p.id, p.name]), ...rep.byProduct.map((p) => [p.productId, p.name])]);
+    const productRow = (pid, t = {}) => `<tr data-pterm="${esc(pid)}"><td>${esc(names.get(pid) || pid)}</td><td><input name="commissionRate" value="${pct(t.commissionRate)}" inputmode="decimal"/></td><td><input name="ownerShareRate" value="${pct(t.ownerShareRate)}" inputmode="decimal"/></td><td><input name="notes" value="${esc(t.notes || "")}" maxlength="500"/></td><td><button type="button" class="ghost small" data-prm>Remover</button></td></tr>`;
+    $("cliProductTerms").innerHTML = Object.entries(c.products || {}).map(([pid, t]) => productRow(pid, t)).join("");
+    const wireRemove = () => $("cliProductTerms").querySelectorAll("[data-prm]").forEach((b) => (b.onclick = () => { b.closest("tr").remove(); fillAdd(); }));
+    const fillAdd = () => {
+      const used = new Set([...$("cliProductTerms").querySelectorAll("[data-pterm]")].map((tr) => tr.dataset.pterm));
+      $("cliAddProduct").innerHTML = '<option value="">Escolha um produto…</option>' + [...names.entries()].filter(([pid]) => !used.has(pid)).map(([pid, n]) => `<option value="${esc(pid)}">${esc(n)}</option>`).join("");
+    };
+    wireRemove(); fillAdd();
+    $("cliAddProduct").onchange = () => { const pid = $("cliAddProduct").value; if (!pid) return; $("cliProductTerms").insertAdjacentHTML("beforeend", productRow(pid)); wireRemove(); fillAdd(); };
+    $("cliMsg").textContent = d.contract ? `Versão ${d.contract.version} · salva por ${d.contract.updatedBy} em ${new Date(d.contract.updatedAt).toLocaleString("pt-BR")}` : "Sem contrato: valem as condições gerais.";
+  }
+
+  $("cliContract").onsubmit = async (e) => {
+    e.preventDefault();
+    const f = e.target, id = st.client && st.client.organization.id; if (!id) return;
+    const level = (root) => { const o = {}; root.querySelectorAll("input").forEach((i) => { if (i.value.trim() !== "") o[i.name] = i.name === "notes" ? i.value.trim() : i.value.trim().replace(/\./g, "").replace(",", "."); }); return o; };
+    const pctv = (v) => v.trim() === "" ? null : v.trim().replace(/\./g, "").replace(",", ".");
+    const toEnd = (v) => v ? Date.parse(v + "T00:00:00Z") + 864e5 : null;
+    const body = {
+      contractRef: f.contractRef.value, status: f.status.value, currency: f.currency.value.trim().toUpperCase() || "BRL",
+      startsAt: f.startsAt.value ? Date.parse(f.startsAt.value + "T00:00:00Z") : null, endsAt: toEnd(f.endsAt.value),
+      monthlyFee: pctv(f.monthlyFee.value), notes: f.notes.value,
+      terms: { commissionRate: pctv(f.def_commissionRate.value), ownerShareRate: pctv(f.def_ownerShareRate.value), cpcFee: pctv(f.def_cpcFee.value), cpaFee: pctv(f.def_cpaFee.value) },
+      works: {}, products: {},
+    };
+    // percentuais digitados em % (12 = 12%)
+    const asRate = (o) => { for (const k of ["commissionRate", "ownerShareRate"]) if (o[k] != null && o[k] !== "") o[k] = Number(o[k]) / 100; return o; };
+    asRate(body.terms);
+    $("cliWorkTerms").querySelectorAll("[data-wterm]").forEach((tr) => { const o = asRate(level(tr)); if (Object.keys(o).length) body.works[tr.dataset.wterm] = o; });
+    $("cliProductTerms").querySelectorAll("[data-pterm]").forEach((tr) => { body.products[tr.dataset.pterm] = asRate(level(tr)); });
+    const r = await api(`/api/admin/clients/${encodeURIComponent(id)}/contract`, { method: "PUT", body, noOrganization: true });
+    if (!r.ok) { $("cliMsg").textContent = r.data.error || "Não foi possível salvar."; return toast(r.data.error || "Não foi possível salvar.", true); }
+    toast(`Contrato salvo (versão ${r.data.contract.version}).`);
+    loadClients();
+  };
+
   async function loadPilot() {
     const mine = st.works.filter((w) => w.pilot || w.id === "demo-01");
     const cur = st.pilotWork || (mine.find((w) => w.pilot) || mine[0] || {}).id;

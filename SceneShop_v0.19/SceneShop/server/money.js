@@ -72,6 +72,8 @@ function financialsForSale(sale) {
     currency: "BRL",
     policyId: policy.policyId,
     policyVersion: policy.policyVersion,
+    clientOrganizationId: policy.clientOrganizationId || null,
+    clientContractVersion: policy.clientContractVersion || null,
     commissionRate,
     splitOwnerRate,
     partnerShareRate,

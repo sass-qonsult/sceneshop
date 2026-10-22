@@ -6723,5 +6723,501 @@ globalThis.SceneShopI18nDict = {
 "analisando {0} cena(s) em paralelo: {1}/{2}…": [
 "analyzing {0} scene(s) in parallel: {1}/{2}…",
 "analizando {0} escena(s) en paralelo: {1}/{2}…"
+],
+"Menu": [
+"Menu",
+"Menú"
+],
+"Início e histórico": [
+"Home and history",
+"Inicio e historial"
+],
+"Abrir em": [
+"Open in",
+"Abrir en"
+],
+"Parar sincronização": [
+"Stop syncing",
+"Detener sincronización"
+],
+"Parar": [
+"Stop",
+"Detener"
+],
+"Idioma": [
+"Language",
+"Idioma"
+],
+"Sincronizado agora": [
+"Synced now",
+"Sincronizado ahora"
+],
+"Voltar": [
+"Back",
+"Volver"
+],
+"Toque no botão e deixe o celular ouvir o que está passando.": [
+"Tap the button and let your phone listen to what's playing.",
+"Toca el botón y deja que el celular escuche lo que se está reproduciendo."
+],
+"Outras formas de conectar": [
+"Other ways to connect",
+"Otras formas de conectar"
+],
+"Código": [
+"Code",
+"Código"
+],
+"QR code": [
+"QR code",
+"Código QR"
+],
+"Link": [
+"Link",
+"Enlace"
+],
+"Código da tela": [
+"Screen code",
+"Código de la pantalla"
+],
+"Cole o link do vídeo e toque no botão grande para sincronizar.": [
+"Paste the video link and tap the big button to sync.",
+"Pega el enlace del video y toca el botón grande para sincronizar."
+],
+"Assistidos recentemente": [
+"Recently watched",
+"Vistos recientemente"
+],
+"Aponte a câmera para o QR code da TV": [
+"Point the camera at the QR code on the TV",
+"Apunta la cámara al código QR de la TV"
+],
+"Esse QR code não é de uma tela SceneShop.": [
+"This QR code is not from a SceneShop screen.",
+"Este código QR no es de una pantalla SceneShop."
+],
+"Este aparelho não permite usar a câmera aqui. Digite o código da TV.": [
+"This device can't use the camera here. Type the code shown on the TV.",
+"Este dispositivo no permite usar la cámara aquí. Escribe el código de la TV."
+],
+"Não foi possível abrir a câmera. Permita o acesso à câmera ou digite o código da TV.": [
+"Couldn't open the camera. Allow camera access or type the code shown on the TV.",
+"No se pudo abrir la cámara. Permite el acceso a la cámara o escribe el código de la TV."
+],
+"Leitor de QR code indisponível. Digite o código da TV.": [
+"QR reader unavailable. Type the code shown on the TV.",
+"Lector de QR no disponible. Escribe el código de la TV."
+],
+"Código {0} lido. Conectando…": [
+"Code {0} read. Connecting…",
+"Código {0} leído. Conectando…"
+],
+"Digite o código que aparece na TV.": [
+"Type the code shown on the TV.",
+"Escribe el código que aparece en la TV."
+],
+"Limpar o histórico deste aparelho?": [
+"Clear this device's history?",
+"¿Borrar el historial de este dispositivo?"
+],
+"Enquanto você estava fora": [
+"While you were away",
+"Mientras no estabas"
+],
+"O vídeo continuou sincronizado; estas cenas com produtos passaram.": [
+"The video stayed in sync; these scenes with products went by.",
+"El video siguió sincronizado; pasaron estas escenas con productos."
+],
+"Histórico · visto até {0}": [
+"History · watched up to {0}",
+"Historial · visto hasta {0}"
+],
+"visto até {0}": [
+"watched up to {0}",
+"visto hasta {0}"
+],
+"{0} produtos": [
+"{0} products",
+"{0} productos"
+],
+"agora": [
+"just now",
+"ahora"
+],
+"há {0} min": [
+"{0} min ago",
+"hace {0} min"
+],
+"há {0} h": [
+"{0} h ago",
+"hace {0} h"
+],
+"ontem": [
+"yesterday",
+"ayer"
+],
+"há {0} dias": [
+"{0} days ago",
+"hace {0} días"
+],
+"Título": [
+"Title",
+"Título"
+],
+"Esse título não está mais no histórico deste aparelho.": [
+"This title is no longer in this device's history.",
+"Este título ya no está en el historial de este dispositivo."
+],
+"Sem conexão e sem cópia guardada deste título.": [
+"No connection and no saved copy of this title.",
+"Sin conexión y sin copia guardada de este título."
+],
+"Sem conexão: mostrando a cópia guardada no aparelho.": [
+"Offline: showing the copy saved on this device.",
+"Sin conexión: mostrando la copia guardada en el dispositivo."
+],
+"A sessão terminou. Os produtos do que você assistiu continuam aqui.": [
+"The session ended. The products from what you watched are still here.",
+"La sesión terminó. Los productos de lo que viste siguen aquí."
+],
+"Clientes": [
+"Clients",
+"Clientes"
+],
+"Relatório da conta": [
+"Account report",
+"Informe de la cuenta"
+],
+"Período": [
+"Period",
+"Período"
+],
+"Últimos 30 dias": [
+"Last 30 days",
+"Últimos 30 días"
+],
+"Últimos 90 dias": [
+"Last 90 days",
+"Últimos 90 días"
+],
+"Últimos 12 meses": [
+"Last 12 months",
+"Últimos 12 meses"
+],
+"Desde o início": [
+"All time",
+"Desde el inicio"
+],
+"Baixar CSV": [
+"Download CSV",
+"Descargar CSV"
+],
+"Cliques, pedidos e comissão de todos os títulos desta conta, separados por título e por produto, nas condições do contrato com o SceneShop.": [
+"Clicks, orders and commission for every title in this account, split by title and by product, under the terms of the contract with SceneShop.",
+"Clics, pedidos y comisión de todos los títulos de esta cuenta, separados por título y por producto, según las condiciones del contrato con SceneShop."
+],
+"Parte da conta": [
+"Account share",
+"Parte de la cuenta"
+],
+"Cada cliente (estúdio, canal, plataforma, marca) é uma organização com os próprios títulos e produtos. Os números são separados por cliente, título e produto; o contrato define comissão, parte do cliente e taxas, com exceções por título e por produto.": [
+"Each client (studio, channel, platform, brand) is an organization with its own titles and products. Figures are split by client, title and product; the contract sets commission, client share and fees, with exceptions per title and per product.",
+"Cada cliente (estudio, canal, plataforma, marca) es una organización con sus propios títulos y productos. Los números se separan por cliente, título y producto; el contrato define comisión, parte del cliente y tarifas, con excepciones por título y por producto."
+],
+"Cliente": [
+"Client",
+"Cliente"
+],
+"Classe": [
+"Class",
+"Clase"
+],
+"Títulos": [
+"Titles",
+"Títulos"
+],
+"Parte do cliente": [
+"Client share",
+"Parte del cliente"
+],
+"Receita SceneShop": [
+"SceneShop revenue",
+"Ingresos SceneShop"
+],
+"Contrato": [
+"Contract",
+"Contrato"
+],
+"Por título": [
+"By title",
+"Por título"
+],
+"Parte SceneShop": [
+"SceneShop share",
+"Parte SceneShop"
+],
+"Vale para as vendas a partir de quando for salvo (as vendas anteriores ficam com as condições da época). Deixe em branco para usar a política geral do SceneShop. Percentuais em %.": [
+"Applies to sales from the moment it is saved (earlier sales keep the terms of their time). Leave blank to use SceneShop's general policy. Percentages in %.",
+"Se aplica a las ventas desde que se guarda (las ventas anteriores mantienen las condiciones de su época). Deja en blanco para usar la política general de SceneShop. Porcentajes en %."
+],
+"Nº do contrato": [
+"Contract no.",
+"N.º de contrato"
+],
+"Ativo": [
+"Active",
+"Activo"
+],
+"Encerrado": [
+"Ended",
+"Finalizado"
+],
+"Fim": [
+"End",
+"Fin"
+],
+"Moeda": [
+"Currency",
+"Moneda"
+],
+"Mensalidade": [
+"Monthly fee",
+"Mensualidad"
+],
+"Condições padrão do cliente": [
+"Client default terms",
+"Condiciones estándar del cliente"
+],
+"Comissão sobre a venda (%)": [
+"Commission on the sale (%)",
+"Comisión sobre la venta (%)"
+],
+"política geral": [
+"general policy",
+"política general"
+],
+"Parte do cliente na comissão (%)": [
+"Client share of the commission (%)",
+"Parte del cliente en la comisión (%)"
+],
+"Taxa por clique": [
+"Fee per click",
+"Tarifa por clic"
+],
+"Taxa por pedido": [
+"Fee per order",
+"Tarifa por pedido"
+],
+"Por título / programa": [
+"By title / program",
+"Por título / programa"
+],
+"Comissão %": [
+"Commission %",
+"Comisión %"
+],
+"Parte do cliente %": [
+"Client share %",
+"Parte del cliente %"
+],
+"Observação": [
+"Note",
+"Observación"
+],
+"Adicionar produto": [
+"Add product",
+"Agregar producto"
+],
+"Escolha um produto…": [
+"Choose a product…",
+"Elige un producto…"
+],
+"Notas internas": [
+"Internal notes",
+"Notas internas"
+],
+"Salvar contrato": [
+"Save contract",
+"Guardar contrato"
+],
+"organizações": [
+"organizations",
+"organizaciones"
+],
+"em todos os títulos": [
+"across all titles",
+"en todos los títulos"
+],
+"atribuídos": [
+"attributed",
+"atribuidos"
+],
+"comissão {0}": [
+"commission {0}",
+"comisión {0}"
+],
+"clientes {0}": [
+"clients {0}",
+"clientes {0}"
+],
+"{0} qualificados": [
+"{0} qualified",
+"{0} calificados"
+],
+"{0}% de conversão": [
+"{0}% conversion",
+"{0}% de conversión"
+],
+"{0}% de conversão · {1} estorno(s)": [
+"{0}% conversion · {1} refund(s)",
+"{0}% de conversión · {1} reembolso(s)"
+],
+"valor dos pedidos atribuídos": [
+"value of attributed orders",
+"valor de los pedidos atribuidos"
+],
+"cliente: {0}": [
+"client: {0}",
+"cliente: {0}"
+],
+"parte da conta: {0}": [
+"account share: {0}",
+"parte de la cuenta: {0}"
+],
+"taxas {0}": [
+"fees {0}",
+"tarifas {0}"
+],
+"taxas {0} · mensalidade {1}": [
+"fees {0} · monthly fee {1}",
+"tarifas {0} · mensualidad {1}"
+],
+"Versão {0} · salva por {1} em {2}": [
+"Version {0} · saved by {1} on {2}",
+"Versión {0} · guardada por {1} el {2}"
+],
+"Sem contrato: valem as condições gerais.": [
+"No contract: general terms apply.",
+"Sin contrato: rigen las condiciones generales."
+],
+"Contrato salvo (versão {0}).": [
+"Contract saved (version {0}).",
+"Contrato guardado (versión {0})."
+],
+"Não foi possível salvar.": [
+"Couldn't save.",
+"No se pudo guardar."
+],
+"Não foi possível gerar o CSV.": [
+"Couldn't generate the CSV.",
+"No se pudo generar el CSV."
+],
+"Nenhum título ainda.": [
+"No titles yet.",
+"Aún no hay títulos."
+],
+"Nenhum título.": [
+"No titles.",
+"Ningún título."
+],
+"Nenhum cliente.": [
+"No clients.",
+"Ningún cliente."
+],
+"Sem movimento no período.": [
+"No activity in this period.",
+"Sin movimiento en el período."
+],
+"Este cliente ainda não tem títulos.": [
+"This client has no titles yet.",
+"Este cliente aún no tiene títulos."
+],
+"sem contrato": [
+"no contract",
+"sin contrato"
+],
+"(excluído)": [
+"(deleted)",
+"(eliminado)"
+],
+"Contrato {0} (versão {1})": [
+"Contract {0} (version {1})",
+"Contrato {0} (versión {1})"
+],
+"comissão: {0}": [
+"commission: {0}",
+"comisión: {0}"
+],
+"condições próprias em {0} título(s)": [
+"specific terms on {0} title(s)",
+"condiciones propias en {0} título(s)"
+],
+"Sem contrato específico: valem as condições gerais do SceneShop.": [
+"No specific contract: SceneShop's general terms apply.",
+"Sin contrato específico: rigen las condiciones generales de SceneShop."
+],
+"pausado": [
+"paused",
+"pausado"
+],
+"encerrado": [
+"ended",
+"finalizado"
+],
+"Somente a equipe SceneShop acessa as contas de clientes.": [
+"Only the SceneShop team can access client accounts.",
+"Solo el equipo de SceneShop accede a las cuentas de clientes."
+],
+"Cliente não encontrado.": [
+"Client not found.",
+"Cliente no encontrado."
+],
+"Sem acesso.": [
+"No access.",
+"Sin acceso."
+],
+"Ou pague com a carteira do celular": [
+"Or pay with your phone wallet",
+"O paga con la billetera del celular"
+],
+"O cartão fica na carteira (Google, Samsung, Apple): a loja recebe só um código seguro.": [
+"Your card stays in the wallet (Google, Samsung, Apple): the store only receives a secure code.",
+"La tarjeta se queda en la billetera (Google, Samsung, Apple): la tienda solo recibe un código seguro."
+],
+"Pagar com {0}": [
+"Pay with {0}",
+"Pagar con {0}"
+],
+"Pago com {0}": [
+"Paid with {0}",
+"Pagado con {0}"
+],
+"Pagamento cancelado.": [
+"Payment canceled.",
+"Pago cancelado."
+],
+"Pagamento recusado.": [
+"Payment declined.",
+"Pago rechazado."
+],
+"Carteira indisponível neste aparelho.": [
+"Wallet unavailable on this device.",
+"Billetera no disponible en este dispositivo."
+],
+"A carteira não devolveu o pagamento.": [
+"The wallet didn't return the payment.",
+"La billetera no devolvió el pago."
+],
+"Pagamento recusado pela carteira/banco. Tente outro cartão.": [
+"Payment declined by the wallet/bank. Try another card.",
+"Pago rechazado por la billetera/banco. Prueba otra tarjeta."
+],
+"Pagamento por carteira ainda não está ligado a um gateway (WALLET_PSP_URL).": [
+"Wallet payments are not connected to a gateway yet (WALLET_PSP_URL).",
+"El pago con billetera aún no está conectado a un gateway (WALLET_PSP_URL)."
+],
+"Carteira não suportada.": [
+"Wallet not supported.",
+"Billetera no compatible."
 ]
 };

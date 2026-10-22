@@ -1,10 +1,10 @@
-const CACHE='sceneshop-app-v019-rc1-r8';
+const CACHE='sceneshop-app-v019-rc1-r9';
 const CORE=[
   '/app','/desktop','/mobile','/app.html','/desktop.html','/mobile.html','/offline.html',
-  '/css/mobile.css','/css/app-shell.css',
-  '/js/i18n-dict.js','/js/i18n.js','/js/mobile.js','/js/sync-fingerprint.js','/js/companion-sync.js','/js/mobile-core.js','/js/app-core.js','/js/native-bridge-contract.js','/js/app-shell.js',
+  '/css/mobile.css','/css/app-shell.css','/css/mobile-home.css',
+  '/js/i18n-dict.js','/js/i18n.js','/js/mobile.js','/js/sync-fingerprint.js','/js/companion-sync.js','/js/mobile-core.js','/js/app-core.js','/js/native-bridge-contract.js','/js/app-shell.js','/js/mobile-home.js','/js/wallet-pay.js',
   '/app.webmanifest','/desktop.webmanifest','/mobile.webmanifest',
-  '/media/app/sceneshop-192.png','/media/app/sceneshop-512.png'
+  '/media/app/sceneshop-192.png','/media/app/sceneshop-512.png','/media/brand/sceneshop-lockup-black.svg','/media/brand/sceneshop-mark-black.svg'
 ];
 self.addEventListener('install',(event)=>event.waitUntil(caches.open(CACHE).then((cache)=>cache.addAll(CORE)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',(event)=>event.waitUntil(Promise.all([

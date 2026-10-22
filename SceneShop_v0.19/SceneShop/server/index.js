@@ -87,6 +87,8 @@ app.use(require("./commerce").routes({ requireRole, orgAccess }));
 app.use(require("./payments").routes({ requireRole, orgAccess }));
 app.use(require("./distribution").routes({ requireRole, orgAccess, antifraud, io }));
 app.use(require("./privacy").routes({ requireRole, orgAccess }));
+app.use(require("./wallets").routes()); // rcprep.16: Google Pay / Apple Pay / Samsung Pay (token direto para o gateway)
+app.use(require("./client-accounts-routes")({ requireRole, actor: (req) => actor(req) })); // rcprep.16: contas de clientes
 
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => {
   console.error(e);
@@ -359,7 +361,7 @@ app.get("/r", antifraud.rateLimit("click"), wrap(async (req, res) => {
   const product = await Promise.resolve(content.getProductAuthoritative(p));
   if (!product) return res.status(404).send("Produto não encontrado");
   const partnerId = pa && store.state.partners[pa] ? pa : null;
-  const { click } = await Promise.resolve(antifraud.registerClick({ trackId: t, productId: p, storeId: s, session: sess, deviceId: d, partnerId }));
+  const { click } = await Promise.resolve(antifraud.registerClick({ trackId: t, productId: p, storeId: s, session: sess, deviceId: d, partnerId, workId: w }));
 
   // loja com acordo: gera a oferta garantida e monta o link conforme o acordo
   // (código assinado, cupom de uso único ou link de campanha)

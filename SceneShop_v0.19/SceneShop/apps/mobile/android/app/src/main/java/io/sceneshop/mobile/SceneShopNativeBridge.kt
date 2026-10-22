@@ -9,7 +9,7 @@ import org.json.JSONObject
 
 class SceneShopNativeBridge(private val activity: MainActivity, private val webView: WebView) {
   private val secure = SceneShopSecureStore(activity)
-  private val allowed = setOf("NATIVE_READY","SHARE","OPEN_EXTERNAL","SECURE_GET","SECURE_SET","SECURE_DELETE","DEVICE_CONTEXT","NOTIFICATION_PERMISSION","NOTIFICATION_REGISTER")
+  private val allowed = setOf("NATIVE_READY","SHARE","OPEN_EXTERNAL","SECURE_GET","SECURE_SET","SECURE_DELETE","DEVICE_CONTEXT","NOTIFICATION_PERMISSION","NOTIFICATION_REGISTER","SYNC_STARTED","SYNC_STOPPED")
   @JavascriptInterface
   fun postMessage(raw: String) {
     var asynchronous = false
@@ -26,6 +26,8 @@ class SceneShopNativeBridge(private val activity: MainActivity, private val webV
         "SECURE_DELETE" -> { secure.delete(payload.getString("key")); true }
         "DEVICE_CONTEXT" -> JSONObject().put("platform","android").put("sdk",Build.VERSION.SDK_INT).put("model",Build.MODEL)
         "NOTIFICATION_PERMISSION" -> activity.notificationPermissionState()
+        "SYNC_STARTED" -> { val title = payload.optString("title").take(120); activity.runOnUiThread { activity.startSync(title) }; true }
+        "SYNC_STOPPED" -> { activity.runOnUiThread { activity.stopSync() }; true }
         "NOTIFICATION_REGISTER" -> { require(requestId.isNotBlank()); asynchronous = true; activity.requestNotificationRegistration(requestId); null }
         else -> null
       }

@@ -194,6 +194,7 @@ function organizationImpl() {
 const organizations = {
   listForUser: (username) => organizationImpl().listForUser(username),
   get: (orgId) => organizationImpl().get(orgId),
+  listAll: () => organizationImpl().listAll(),
   getMembership: (orgId, username) => organizationImpl().getMembership(orgId, username),
   create: (body, actor) => organizationImpl().create(body, actor),
   listMembers: (orgId) => organizationImpl().listMembers(orgId),

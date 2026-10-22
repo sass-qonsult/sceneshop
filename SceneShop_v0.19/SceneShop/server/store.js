@@ -65,7 +65,7 @@ const PRODUCTION_MAPS = ["commerceSponsors", "commerceCampaigns", "commerceConne
   "aiCommercialAssets", "aiAssetReferences", "aiAnalysisJobs", "aiJobAssets", "aiDetectionCandidates", "aiRedundantVerifications", "aiOperatorFlags", "aiPlacements",
   "distributionBindings", "distributionSdkKeys", "syncFingerprints", "syncIndexBuilds", "timelinePolicies", "platformConnections",
   "authors", "accounts", "organizations", "organizationMembers", "organizationInvites", "privacyPreferences", "privacyRequests", "retentionPolicies",
-  "tracks", "partners", "workPartners", "sellers", "codePools", "userWorks", "issuedOffers", "officialOffers", "deviceVotes", "deviceRep", "userProducts"];
+  "tracks", "partners", "workPartners", "sellers", "codePools", "userWorks", "issuedOffers", "officialOffers", "deviceVotes", "deviceRep", "userProducts", "clientContracts"];
 
 function baselineCommercialPolicies(t0) {
   return [{
@@ -229,6 +229,7 @@ function demoSeed() {
     events: [],      // eventos de audiência (visualização, painel, QR) para o painel do piloto
     mktOrders: [],   // pedidos do Marketplace Piloto
     issuedOffers: {}, // ofertas emitidas (cupom/campanha apontam para elas na conciliação)
+    clientContracts: {}, // contrato comercial de cada cliente (organização): padrão, por título e por produto
     // Ofertas oficiais por produto: vendedor, preço garantido e comissão definidos pela produtora
     officialOffers: {
       "jaqueta-couro": { sellerId: "urbano-oficial", price: 479.9, commission: 0.12, validUntil: t0 + 120 * DAY, setBy: "produtora" },
@@ -410,7 +411,7 @@ function migrate(st) {
   ["produtora", "ana", "promo_x", "moderador"].forEach((u) => {
     if (st.accounts && st.accounts[u]) st.accounts[u].demo = true;
   });
-  ["userWorks", "events", "mktOrders", "issuedOffers", "codePools", "orders", "alerts", "audit", "commercialPolicies", "organizations", "organizationMembers", "organizationInvites", "privacyPreferences", "privacyRequests", "retentionPolicies", "commerceSponsors", "commerceCampaigns", "commerceConnections", "commerceOffers", "commerceRoutingPolicies", "commerceResolutions", "commerceActivations", "distributionBindings", "distributionSdkKeys", "syncFingerprints", "syncIndexBuilds", "timelinePolicies", "distributionEvents", "platformConnections", "aiCommercialAssets", "aiAssetReferences", "aiAnalysisJobs", "aiJobAssets", "aiDetectionCandidates", "aiRedundantVerifications", "aiOperatorFlags", "aiPlacements"].forEach((k) => {
+  ["userWorks", "events", "mktOrders", "issuedOffers", "clientContracts", "codePools", "orders", "alerts", "audit", "commercialPolicies", "organizations", "organizationMembers", "organizationInvites", "privacyPreferences", "privacyRequests", "retentionPolicies", "commerceSponsors", "commerceCampaigns", "commerceConnections", "commerceOffers", "commerceRoutingPolicies", "commerceResolutions", "commerceActivations", "distributionBindings", "distributionSdkKeys", "syncFingerprints", "syncIndexBuilds", "timelinePolicies", "distributionEvents", "platformConnections", "aiCommercialAssets", "aiAssetReferences", "aiAnalysisJobs", "aiJobAssets", "aiDetectionCandidates", "aiRedundantVerifications", "aiOperatorFlags", "aiPlacements"].forEach((k) => {
     if (st[k] == null) st[k] = fresh[k];
   });
   if (!st.sellers["loja-piloto"] && fresh.sellers["loja-piloto"]) st.sellers["loja-piloto"] = fresh.sellers["loja-piloto"];

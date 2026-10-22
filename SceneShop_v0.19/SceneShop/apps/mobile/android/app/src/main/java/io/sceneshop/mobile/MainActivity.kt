@@ -13,6 +13,8 @@ import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import org.json.JSONObject
 
 class MainActivity : Activity() {
@@ -38,18 +40,26 @@ class MainActivity : Activity() {
     webView.settings.domStorageEnabled = true
     webView.settings.allowFileAccess = false
     webView.settings.allowContentAccess = false
+    // Carteiras (Google Pay e cartões salvos na Carteira do Google) pelo Payment Request: o cartão fica na
+    // carteira e a página recebe só o token do gateway. Requer WebView 137+ e Google Play services 25.18.30+.
+    if (WebViewFeature.isFeatureSupported(WebViewFeature.PAYMENT_REQUEST)) {
+      WebSettingsCompat.setPaymentRequestEnabled(webView.settings, true)
+    }
     webView.webChromeClient = object : WebChromeClient() {
-      // Microfone para "Sincronizar com o que estou assistindo": só para a página do próprio SceneShop.
+      // Microfone ("Sincronizar com o que estou assistindo") e câmera (ler o QR code da TV):
+      // só para a página do próprio SceneShop, e só esses dois recursos.
       override fun onPermissionRequest(request: PermissionRequest) {
         val origin = request.origin
         val trusted = origin.host == allowedHost && (origin.scheme == "https" || allowedHost in setOf("127.0.0.1", "localhost"))
-        if (!trusted || !request.resources.contains(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) { request.deny(); return }
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-          request.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE))
+        val wanted = request.resources.filter { it == PermissionRequest.RESOURCE_AUDIO_CAPTURE || it == PermissionRequest.RESOURCE_VIDEO_CAPTURE }
+        if (!trusted || wanted.isEmpty() || wanted.size != request.resources.size) { request.deny(); return }
+        val missing = wanted.map { androidPermissionFor(it) }.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
+        if (missing.isEmpty()) {
+          request.grant(wanted.toTypedArray())
         } else {
           pendingMicRequest?.deny()
           pendingMicRequest = request
-          requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), MIC_REQUEST_CODE)
+          requestPermissions(missing.toTypedArray(), MIC_REQUEST_CODE)
         }
       }
       override fun onPermissionRequestCanceled(request: PermissionRequest) {
@@ -70,6 +80,7 @@ class MainActivity : Activity() {
         flushPendingEvents()
       }
     }
+    SyncForegroundService.onStopRequested = { emitNativeEvent("SYNC_STOP_REQUESTED", JSONObject()) }
     nativeBridge = SceneShopNativeBridge(this, webView)
     webView.addJavascriptInterface(nativeBridge, "SceneShopNative")
     setContentView(webView)
@@ -77,8 +88,17 @@ class MainActivity : Activity() {
     consumeShareIntent(intent)
   }
 
+  private fun androidPermissionFor(resource: String): String =
+    if (resource == PermissionRequest.RESOURCE_VIDEO_CAPTURE) Manifest.permission.CAMERA else Manifest.permission.RECORD_AUDIO
+
+  // rcprep.16: sincronização em segundo plano (aviso fixo com "Parar"); chamado pelo app web via ponte
+  fun startSync(title: String) = SyncForegroundService.start(this, title)
+  fun stopSync() = SyncForegroundService.stop(this)
+
   private fun resolveSceneShopUrl(deepLink: Uri?): String {
     val url = Uri.parse("$base/mobile").buildUpon()
+    // o espectador fechou o app durante uma sincronização: abre no início, sem retomar a sessão
+    if (SyncForegroundService.consumeClosedByUser(this)) url.appendQueryParameter("stopped", "1")
     if (deepLink == null) return url.build().toString()
     val segments = deepLink.pathSegments
     if (deepLink.scheme == "https" && deepLink.host == allowedHost && segments.size >= 2 && segments[0] == "s") {
@@ -97,6 +117,8 @@ class MainActivity : Activity() {
     super.onNewIntent(intent)
     setIntent(intent)
     if (consumeShareIntent(intent)) return
+    // aviso de sincronização ou ícone do app: só traz o app para a frente, sem recarregar a sessão
+    if (intent?.data == null) return
     pageReady = false
     webView.loadUrl(resolveSceneShopUrl(intent?.data))
   }
@@ -139,7 +161,8 @@ class MainActivity : Activity() {
     if (requestCode == MIC_REQUEST_CODE) {
       val request = pendingMicRequest
       pendingMicRequest = null
-      if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) request?.grant(arrayOf(PermissionRequest.RESOURCE_AUDIO_CAPTURE)) else request?.deny()
+      val allGranted = grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }
+      if (allGranted) request?.let { it.grant(it.resources) } else request?.deny()
       return
     }
     if (requestCode != NOTIFICATION_REQUEST_CODE) return
@@ -164,6 +187,16 @@ class MainActivity : Activity() {
 
   override fun onStart() { super.onStart(); emitNativeEvent("APP_LIFECYCLE", JSONObject().put("state", "FOREGROUND")) }
   override fun onStop() { emitNativeEvent("APP_LIFECYCLE", JSONObject().put("state", "BACKGROUND")); super.onStop() }
+
+  // sair do app (voltar até fechar) encerra a sincronização; se o sistema fechar o app sozinho, ela continua
+  override fun onDestroy() {
+    if (isFinishing && !isChangingConfigurations) {
+      SyncForegroundService.markClosedByUser(this)
+      SyncForegroundService.stop(this)
+    }
+    SyncForegroundService.onStopRequested = null
+    super.onDestroy()
+  }
 
   @Deprecated("Deprecated in Java")
   override fun onBackPressed() { if (webView.canGoBack()) webView.goBack() else super.onBackPressed() }

@@ -9,7 +9,7 @@ val releaseSigningReady = listOf(releaseKeystoreFile, releaseStorePassword, rele
 android {
   namespace = "io.sceneshop.mobile"
   compileSdk = 35
-  defaultConfig { applicationId = "io.sceneshop.mobile"; minSdk = 26; targetSdk = 35; versionCode = 6; versionName = "0.19.0-rc.1" }
+  defaultConfig { applicationId = "io.sceneshop.mobile"; minSdk = 26; targetSdk = 35; versionCode = 7; versionName = "0.19.0-rc.1" }
   signingConfigs {
     if (releaseSigningReady) create("production") {
       storeFile = file(releaseKeystoreFile!!)
@@ -24,3 +24,6 @@ android {
 }
 android.defaultConfig.buildConfigField("String", "SCENESHOP_APP_URL", "\"${System.getenv("SCENESHOP_APP_URL") ?: "https://app.sceneshop.io"}\"")
 android.buildFeatures.buildConfig = true
+
+// rcprep.16: Payment Request no WebView (Google Pay / cartões da Carteira do Google dentro do app)
+dependencies { implementation("androidx.webkit:webkit:1.14.0") }

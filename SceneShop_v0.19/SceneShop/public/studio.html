@@ -22,6 +22,7 @@
       <button data-tab="piloto">Desempenho</button>
       <button data-tab="equipe">Equipe & Segurança</button>
       <button data-tab="moderacao">Moderação</button>
+      <button data-tab="clientes">Clientes</button>
     </nav>
     <div class="who" id="who"></div>
   </header>
@@ -362,6 +363,19 @@
   <!-- ====================================================== PILOTO (painel) -->
   <section id="tab-piloto" class="tab" hidden>
     <div class="wrap">
+      <div class="card" id="acctCard">
+        <div class="head-row">
+          <h3>Relatório da conta</h3>
+          <div class="actions">
+            <label>Período <select id="acctPeriod"><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="365">Últimos 12 meses</option><option value="">Desde o início</option></select></label>
+            <a class="ghost small" id="acctCsv" href="#">Baixar CSV</a>
+          </div>
+        </div>
+        <p class="help">Cliques, pedidos e comissão de todos os títulos desta conta, separados por título e por produto, nas condições do contrato com o SceneShop.</p>
+        <div id="acctContract" class="help" data-no-i18n></div>
+        <div class="tiles" id="acctTiles"></div>
+        <div class="table-wrap"><table class="ledger"><thead><tr><th>Título</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Conversão</th><th class="num">Vendas</th><th class="num">Comissão</th><th class="num">Parte da conta</th><th class="num">Taxas</th></tr></thead><tbody id="acctWorks"></tbody></table></div>
+      </div>
       <div class="card">
         <h3>Todos os projetos</h3>
         <p class="help">Rendimento de cada obra enviada: audiência, cliques em comprar, vendas confirmadas e comissão. Clique numa linha para ver os detalhes.</p>
@@ -387,6 +401,62 @@
       <div class="card"><h3>Por cena</h3><div class="table-wrap"><table class="ledger"><thead><tr><th>Cena</th><th>Tempo</th><th class="num">Produtos</th><th class="num">Aberturas do painel</th><th class="num">Cliques em comprar</th></tr></thead><tbody id="pilotScenes"></tbody></table></div></div>
       <div class="card"><h3>Por produto</h3><div class="table-wrap"><table class="ledger"><thead><tr><th>Produto</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Receita</th><th class="num">Comissão</th></tr></thead><tbody id="pilotProducts"></tbody></table></div></div>
       <div class="card" id="pilotOrdersCard"><h3>Pedidos recentes no Marketplace Piloto</h3><div class="table-wrap"><table class="ledger"><thead><tr><th>Pedido</th><th>Quando</th><th>Itens</th><th class="num">Total</th><th>Situação</th></tr></thead><tbody id="pilotOrders"></tbody></table></div></div>
+    </div>
+  </section>
+
+  <!-- rcprep.16: contas de clientes (equipe SceneShop) -->
+  <section id="tab-clientes" class="tab" hidden>
+    <div class="wrap">
+      <div class="card">
+        <div class="head-row">
+          <h3>Clientes</h3>
+          <div class="actions">
+            <label>Período <select id="cliPeriod"><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option><option value="365">Últimos 12 meses</option><option value="">Desde o início</option></select></label>
+            <button class="small" id="cliRefresh">Atualizar</button>
+          </div>
+        </div>
+        <p class="help">Cada cliente (estúdio, canal, plataforma, marca) é uma organização com os próprios títulos e produtos. Os números são separados por cliente, título e produto; o contrato define comissão, parte do cliente e taxas, com exceções por título e por produto.</p>
+        <div class="tiles" id="cliTotals"></div>
+        <div class="table-wrap"><table class="ledger"><thead><tr><th>Cliente</th><th>Classe</th><th class="num">Títulos</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Vendas</th><th class="num">Comissão</th><th class="num">Parte do cliente</th><th class="num">Receita SceneShop</th><th>Contrato</th></tr></thead><tbody id="cliList"></tbody></table></div>
+      </div>
+      <div id="cliDetail" hidden>
+        <div class="card">
+          <div class="head-row"><h3 id="cliName">Cliente</h3><div class="actions"><a class="ghost small" id="cliCsv" href="#">Baixar CSV</a></div></div>
+          <div class="tiles" id="cliTiles"></div>
+          <h4>Por título</h4>
+          <div class="table-wrap"><table class="ledger"><thead><tr><th>Título</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Conversão</th><th class="num">Vendas</th><th class="num">Comissão</th><th class="num">Parte do cliente</th><th class="num">Parte SceneShop</th><th class="num">Taxas</th></tr></thead><tbody id="cliWorks"></tbody></table></div>
+          <h4>Por produto</h4>
+          <div class="table-wrap"><table class="ledger"><thead><tr><th>Produto</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Vendas</th><th class="num">Comissão</th><th class="num">Parte do cliente</th></tr></thead><tbody id="cliProducts"></tbody></table></div>
+        </div>
+        <div class="card">
+          <h3>Contrato</h3>
+          <p class="help">Vale para as vendas a partir de quando for salvo (as vendas anteriores ficam com as condições da época). Deixe em branco para usar a política geral do SceneShop. Percentuais em %.</p>
+          <form id="cliContract" class="contract-form">
+            <div class="grid-4">
+              <label>Nº do contrato <input name="contractRef" maxlength="80" /></label>
+              <label>Situação <select name="status"><option value="active">Ativo</option><option value="paused">Pausado</option><option value="ended">Encerrado</option></select></label>
+              <label>Início <input name="startsAt" type="date" /></label>
+              <label>Fim <input name="endsAt" type="date" /></label>
+              <label>Moeda <input name="currency" maxlength="3" value="BRL" /></label>
+              <label>Mensalidade <input name="monthlyFee" inputmode="decimal" placeholder="0,00" /></label>
+            </div>
+            <h4>Condições padrão do cliente</h4>
+            <div class="grid-4">
+              <label>Comissão sobre a venda (%) <input name="def_commissionRate" inputmode="decimal" placeholder="política geral" /></label>
+              <label>Parte do cliente na comissão (%) <input name="def_ownerShareRate" inputmode="decimal" placeholder="política geral" /></label>
+              <label>Taxa por clique <input name="def_cpcFee" inputmode="decimal" placeholder="0,00" /></label>
+              <label>Taxa por pedido <input name="def_cpaFee" inputmode="decimal" placeholder="0,00" /></label>
+            </div>
+            <h4>Por título / programa</h4>
+            <div class="table-wrap"><table class="ledger overrides"><thead><tr><th>Título</th><th>Comissão %</th><th>Parte do cliente %</th><th>Taxa por clique</th><th>Taxa por pedido</th><th>Observação</th></tr></thead><tbody id="cliWorkTerms"></tbody></table></div>
+            <h4>Por produto</h4>
+            <div class="head-row"><label>Adicionar produto <select id="cliAddProduct"><option value="">Escolha um produto…</option></select></label></div>
+            <div class="table-wrap"><table class="ledger overrides"><thead><tr><th>Produto</th><th>Comissão %</th><th>Parte do cliente %</th><th>Observação</th><th></th></tr></thead><tbody id="cliProductTerms"></tbody></table></div>
+            <label>Notas internas <textarea name="notes" rows="2" maxlength="2000"></textarea></label>
+            <div class="actions"><button type="submit">Salvar contrato</button><span id="cliMsg" class="help"></span></div>
+          </form>
+        </div>
+      </div>
     </div>
   </section>
 

@@ -5,7 +5,7 @@ function middleware(req,res,next){
   req.requestId=requestId;res.setHeader('X-Request-Id',requestId);
   res.setHeader('X-Content-Type-Options','nosniff');
   res.setHeader('Referrer-Policy','strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy','camera=(), geolocation=(), microphone=(self), payment=()');
+  res.setHeader('Permissions-Policy','camera=(self), geolocation=(), microphone=(self), payment=()');
   res.setHeader('Cross-Origin-Opener-Policy','same-origin-allow-popups');
   const partnerSdk=req.path==='/js/sceneshop-partner-sdk.js';
   res.setHeader('Cross-Origin-Resource-Policy',partnerSdk?'cross-origin':'same-site');

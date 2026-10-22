@@ -3,38 +3,58 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0e0e16" />
+  <meta name="theme-color" content="#ffffff" />
   <meta name="application-name" content="SceneShop" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>SceneShop — Mobile</title>
   <link rel="stylesheet" href="/css/mobile.css" />
   <link rel="stylesheet" href="/css/app-shell.css" />
+  <link rel="stylesheet" href="/css/mobile-home.css" />
   <link rel="manifest" href="/mobile.webmanifest" />
   <link rel="icon" sizes="192x192" href="/media/app/sceneshop-192.png" />
   <link rel="apple-touch-icon" href="/media/app/sceneshop-192.png" />
   <script src="/js/i18n-dict.js"></script>
   <script src="/js/i18n.js"></script>
 </head>
-<body data-surface="MOBILE">
+<body data-surface="MOBILE" class="theme-light">
   <header class="top">
-    <div class="brand"><span class="logo"></span><span id="brandName">SceneShop</span></div>
+    <button type="button" class="brand brand-btn" id="homeBtn" aria-label="Início">
+      <img class="brand-logo" src="/media/brand/sceneshop-lockup-black.svg" alt="SceneShop" />
+      <span id="brandName" class="partner-name" hidden>SceneShop</span>
+    </button>
     <div class="status" id="status"><span class="dot"></span><span id="statusText">Conectando…</span></div>
+    <button type="button" class="icon-btn" id="menuBtn" aria-label="Menu" aria-haspopup="dialog">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+    </button>
   </header>
 
-  <nav class="app-rail" aria-label="Aplicativos SceneShop">
-    <a data-surface-link="WEB" href="/app">Web</a>
-    <a data-surface-link="DESKTOP" href="/desktop">Desktop</a>
-    <a data-surface-link="MOBILE" href="/mobile">Mobile</a>
-    <button type="button" class="install-app" data-install-app hidden>Instalar aplicativo</button>
-    <button type="button" class="install-app" data-share-app hidden>Compartilhar</button>
-    <button type="button" class="install-app" id="enableNotifications" hidden>Ativar notificações</button>
-    <span data-lang-slot></span>
-    <span class="surface-pill" data-surface-label>Mobile</span>
-  </nav>
+  <!-- Menu: o que antes ficava solto no topo (versões do app, instalar, compartilhar, notificações, idioma) -->
+  <div class="sheet-backdrop" id="menu" hidden>
+    <div class="sheet" role="dialog" aria-modal="true" aria-label="Menu">
+      <div class="sheet-grip"></div>
+      <button type="button" class="sheet-item" id="menuHome">Início e histórico</button>
+      <button type="button" class="sheet-item" data-share-app hidden>Compartilhar</button>
+      <button type="button" class="sheet-item" id="enableNotifications" hidden>Ativar notificações</button>
+      <button type="button" class="sheet-item" data-install-app hidden>Instalar aplicativo</button>
+      <div class="sheet-row"><span>Idioma</span><span data-lang-slot></span></div>
+      <nav class="app-rail sheet-surfaces" aria-label="Aplicativos SceneShop">
+        <span>Abrir em</span>
+        <a data-surface-link="WEB" href="/app">Web</a>
+        <a data-surface-link="DESKTOP" href="/desktop">Desktop</a>
+        <a data-surface-link="MOBILE" href="/mobile">Mobile</a>
+        <span class="surface-pill" data-surface-label>Mobile</span>
+      </nav>
+      <button type="button" class="sheet-item danger" id="menuStop" hidden>Parar sincronização</button>
+      <button type="button" class="sheet-item muted" id="menuClose">Fechar</button>
+    </div>
+  </div>
 
   <section class="now">
-    <div class="work" id="workTitle">&nbsp;</div>
+    <div class="now-head">
+      <div class="work" id="workTitle">&nbsp;</div>
+      <button type="button" class="stop-btn" id="stopSync" hidden>Parar</button>
+    </div>
     <div class="trackbar" id="trackbar"></div>
     <div class="progress"><div id="progress"></div></div>
   </section>
@@ -48,7 +68,7 @@
   </div>
 
   <section class="missed" id="missed" hidden>
-    <div class="missed-head"><div><b>Enquanto você explorava</b><span>O vídeo continuou; estas oportunidades passaram na Commerce Timeline.</span></div><button id="clearMissed" type="button">Limpar</button></div>
+    <div class="missed-head"><div><b id="missedTitle">Enquanto você explorava</b><span id="missedSub">O vídeo continuou; estas oportunidades passaram na Commerce Timeline.</span></div><button id="clearMissed" type="button">Limpar</button></div>
     <div class="missed-scenes" id="missedScenes"></div>
   </section>
 
@@ -59,20 +79,68 @@
 
   <main id="list" class="list"></main>
 
-  <div id="join" class="join" hidden>
-    <div class="join-lang" data-lang-slot style="position:absolute;top:16px;right:16px"></div>
-    <h1>Conectar ao conteúdo</h1>
-    <p id="joinMsg">Conecte por código ou sincronize com um conteúdo que está tocando fora do SceneShop.</p>
-    <div class="sync-card">
-      <input id="syncSourceUrl" class="source-url" autocomplete="url" inputmode="url" placeholder="Link do YouTube / Instagram / TikTok (opcional)" />
-      <button type="button" id="syncNow" class="sync-now">Sincronizar com o que estou assistindo</button>
-      <div id="syncState" class="sync-state" aria-live="polite"></div>
+  <!-- Início: botão grande para sincronizar (estilo "toque para reconhecer"), código, QR code, link e histórico -->
+  <div id="join" class="join home" hidden>
+    <div class="home-top">
+      <img class="home-logo" src="/media/brand/sceneshop-lockup-black.svg" alt="SceneShop" />
+      <span class="home-lang" data-lang-slot></span>
+      <button type="button" class="icon-btn" id="homeMenuBtn" aria-label="Menu">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+      </button>
     </div>
-    <div class="join-separator"><span>ou</span></div>
-    <form id="joinForm">
-      <input id="joinCode" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="K7Q2ZP" />
+
+    <button type="button" class="active-card" id="activeCard" hidden>
+      <span class="active-dot"></span>
+      <span class="active-text"><small>Sincronizado agora</small><b id="activeTitle"></b></span>
+      <span class="active-go">Voltar</span>
+    </button>
+
+    <h1>Conectar ao conteúdo</h1>
+    <p id="joinMsg">Toque no botão e deixe o celular ouvir o que está passando.</p>
+
+    <button type="button" id="syncNow" class="sync-now big-sync" aria-label="Sincronizar com o que estou assistindo">
+      <span class="ring"></span><span class="ring r2"></span><span class="ring r3"></span>
+      <span class="big-core"><img src="/media/brand/sceneshop-mark-black.svg" alt="" /></span>
+      <span class="sr-only">Sincronizar com o que estou assistindo</span>
+    </button>
+    <div id="syncState" class="sync-state" aria-live="polite"></div>
+
+    <div class="home-options" role="group" aria-label="Outras formas de conectar">
+      <button type="button" class="opt" id="optCode" aria-controls="joinForm">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M7 14h10"/></svg>
+        <span>Código</span>
+      </button>
+      <button type="button" class="opt" id="optQr">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8" y="8" width="3" height="3"/><rect x="13" y="8" width="3" height="3"/><rect x="8" y="13" width="3" height="3"/><path d="M13 13h3v3"/></svg>
+        <span>QR code</span>
+      </button>
+      <button type="button" class="opt" id="optLink" aria-controls="linkBox">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>
+        <span>Link</span>
+      </button>
+    </div>
+
+    <form id="joinForm" class="opt-panel" hidden>
+      <input id="joinCode" maxlength="64" autocomplete="off" autocapitalize="characters" placeholder="K7Q2ZP" aria-label="Código da tela" />
       <button>Conectar por código</button>
     </form>
+    <div id="linkBox" class="opt-panel" hidden>
+      <input id="syncSourceUrl" class="source-url" autocomplete="url" inputmode="url" placeholder="Link do YouTube / Instagram / TikTok (opcional)" />
+      <small>Cole o link do vídeo e toque no botão grande para sincronizar.</small>
+    </div>
+
+    <section class="history" id="historyBox" hidden>
+      <div class="history-head"><h2>Assistidos recentemente</h2><button type="button" id="historyClear">Limpar</button></div>
+      <div class="history-list" id="historyList"></div>
+    </section>
+  </div>
+
+  <!-- Leitor de QR code (câmera) -->
+  <div id="qrView" class="qr-view" hidden>
+    <video id="qrVideo" playsinline muted autoplay></video>
+    <div class="qr-frame"></div>
+    <p id="qrMsg">Aponte a câmera para o QR code da TV</p>
+    <button type="button" id="qrClose">Fechar</button>
   </div>
 
   <script src="/socket.io/socket.io.js"></script>
@@ -82,6 +150,7 @@
   <script src="/js/app-core.js"></script>
   <script src="/js/native-bridge-contract.js"></script>
   <script src="/js/app-shell.js"></script>
+  <script src="/js/mobile-home.js"></script>
   <script src="/js/mobile.js"></script>
 </body>
 </html>

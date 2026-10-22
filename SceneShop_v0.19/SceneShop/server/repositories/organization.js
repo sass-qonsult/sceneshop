@@ -62,6 +62,8 @@ class StateOrganizationRepository {
       .sort((a,b) => a.name.localeCompare(b.name));
   }
   get(orgId) { return this.state().organizations[String(orgId || '')] || null; }
+  // todas as organizações (console de clientes do SceneShop)
+  listAll() { return Object.values(this.state().organizations).filter(Boolean).sort((a,b) => String(a.name||'').localeCompare(String(b.name||''))); }
   getMembership(orgId, username) {
     return this.state().organizationMembers[`${orgId}:${String(username || '').toLowerCase()}`] || null;
   }

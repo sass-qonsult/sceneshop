@@ -16,6 +16,7 @@
 const path = require("path");
 const crypto = require("crypto");
 const express = require("express");
+const wallets = require("./wallets");
 const QRCode = require("qrcode");
 const store = require("./store");
 const catalog = require("./catalog");
@@ -112,7 +113,7 @@ module.exports = function marketplace({ port }) {
 
   function publicOrder(o) {
     const { pix, ...rest } = o;
-    return { ...rest, items: o.items.map(({ ss_offer, ...i }) => i), pixCode: pix };
+    return { ...rest, items: o.items.map(({ ss_offer, ...i }) => i), pixCode: pix, payment: o.payment ? { method: o.payment.method, simulated: !!o.payment.simulated, card: o.payment.card || null } : null };
   }
 
   async function notify(body) {
@@ -132,16 +133,35 @@ module.exports = function marketplace({ port }) {
     const o = S().mktOrders.find((x) => x.id === req.params.id);
     if (!o) return res.status(404).json({ error: "Pedido não encontrado." });
     if (o.status !== "aguardando_pagamento") return res.json(publicOrder(o));
+    await markPaid(o, { method: "PIX", simulated: true });
+    res.json(publicOrder(o));
+  });
+
+  // rcprep.16: pagamento com carteira (Google Pay / Apple Pay / Samsung Pay). O token vai direto ao gateway;
+  // o SceneShop não vê nem guarda o cartão — só a bandeira e o final, se o gateway informar.
+  r.post("/mkt/api/order/:id/pay-wallet", async (req, res) => {
+    const o = S().mktOrders.find((x) => x.id === req.params.id);
+    if (!o) return res.status(404).json({ error: "Pedido não encontrado." });
+    if (o.status !== "aguardando_pagamento") return res.json(publicOrder(o));
+    const b = req.body || {};
+    const out = await wallets.charge({ orderId: o.number, amount: o.total, method: String(b.method || "").toUpperCase(), token: b.token, cardHint: b.card || {} });
+    if (out.error) return res.status(out.code || 400).json({ error: out.error });
+    if (!out.ok) return res.status(402).json({ error: "Pagamento recusado pela carteira/banco. Tente outro cartão." });
+    await markPaid(o, { method: String(b.method).toUpperCase(), simulated: out.simulated, card: out.card, pspReference: out.pspReference });
+    res.json(publicOrder(o));
+  });
+
+  async function markPaid(o, payment) {
     o.status = "pago";
     o.paidAt = store.now();
+    o.payment = payment;
     for (let i = 0; i < o.items.length; i++) {
       const it = o.items[i];
       if (!it.guaranteed) continue;
       it.sceneshop = await notify({ offer: it.ss_offer, orderId: `${o.number}-${i + 1}`, quantity: it.qty, unitPrice: it.unitPrice, status: "pago" });
     }
     store.save();
-    res.json(publicOrder(o));
-  });
+  }
 
   r.post("/mkt/api/order/:id/cancel", async (req, res) => {
     const o = S().mktOrders.find((x) => x.id === req.params.id);
