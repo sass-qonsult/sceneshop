@@ -36,16 +36,21 @@ async function invalidateProduct(productId, metadata = {}) {
   return coordinator.invalidate('offers', { productId: productId || null, reason: 'product_changed', ...metadata });
 }
 
+// Preços simulados (Amazon/Mercado Livre/Magalu de exemplo) só valem para o catálogo da demonstração.
+// Produto cadastrado por uma organização nunca mostra loja que ela não indicou: só a oferta oficial.
+const simulatedAllowed = (product) => require('./config').DEMO && !product.organizationId && !product.createdBy;
+const visible = (product, list) => list.filter((o) => !o.simulated || simulatedAllowed(product));
+
 async function offersFor(product) {
   const hit = await cacheGet(product.id);
-  if (Array.isArray(hit)) return hit;
+  if (Array.isArray(hit)) return visible(product, hit); // vale também para o que já estava em cache
 
   const results = await Promise.allSettled(adapters.map((a) => a.getOffer(product)));
   const offers = results
     .filter((r) => r.status === 'fulfilled' && r.value)
     .map((r) => r.value)
     // preços simulados (Amazon/Mercado Livre/Magalu de exemplo) só aparecem na demonstração
-    .filter((o) => !o.simulated || require('./config').DEMO)
+    .filter((o) => !o.simulated || simulatedAllowed(product))
     .sort((a, b) => (b.inStock - a.inStock) || (a.price - b.price));
 
   await cacheSet(product.id, offers);

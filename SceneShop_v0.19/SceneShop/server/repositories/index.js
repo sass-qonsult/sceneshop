@@ -88,12 +88,22 @@ const liveProducts = (rows) => (rows && typeof rows.then === "function")
   ? rows.then((r) => (r || []).filter((p) => p && !p.archivedAt))
   : (rows || []).filter((p) => p && !p.archivedAt);
 
+// Obras excluídas pela organização (archivedAt) somem de todas as listas, do player e do app.
+const liveWork = (w) => (w && !w.archivedAt ? w : null);
+const liveWorkOf = (v) => (v && typeof v.then === "function" ? v.then(liveWork) : liveWork(v));
+const liveWorkList = (v) => (v && typeof v.then === "function" ? v.then((r) => (r || []).filter((w) => w && !w.archivedAt)) : (v || []).filter((w) => w && !w.archivedAt));
+const archivedWorkIds = () => new Set(Object.values(store.state.userWorks || {}).filter((w) => w.archivedAt).map((w) => w.id));
+
 const content = {
-  getWorkAuthoritative: (id) => contentImpl() ? contentImpl().getWork(id) : catalog.getWork(id),
-  listWorksAuthoritative: () => contentImpl() ? contentImpl().listWorks() : catalog.listWorks(),
-  listWorksByOwnerAuthoritative: (ownerId) => contentImpl() ? contentImpl().listWorksByOwner(ownerId) : Object.values(store.state.userWorks || {}).filter((w) => w.ownerId === ownerId),
-  listWorksByOrganizationAuthoritative: (organizationId) => contentImpl() ? contentImpl().listWorksByOrganization(organizationId) : Object.values(store.state.userWorks || {}).filter((w) => w.organizationId === organizationId),
-  getWorkForOrganizationAuthoritative: (id, organizationId) => contentImpl() ? contentImpl().getWorkForOrganization(id, organizationId) : (() => { const w=catalog.getWork(id); return w && w.organizationId===organizationId ? w : null; })(),
+  getWorkAuthoritative: (id) => liveWorkOf(contentImpl() ? contentImpl().getWork(id) : catalog.getWork(id)),
+  listWorksAuthoritative: () => contentImpl() ? liveWorkList(contentImpl().listWorks()) : catalog.listWorks().filter((w) => !archivedWorkIds().has(w.id)),
+  listWorksByOwnerAuthoritative: (ownerId) => liveWorkList(contentImpl() ? contentImpl().listWorksByOwner(ownerId) : Object.values(store.state.userWorks || {}).filter((w) => w.ownerId === ownerId)),
+  listWorksByOrganizationAuthoritative: (organizationId) => liveWorkList(contentImpl() ? contentImpl().listWorksByOrganization(organizationId) : Object.values(store.state.userWorks || {}).filter((w) => w.organizationId === organizationId)),
+  getWorkForOrganizationAuthoritative: (id, organizationId) => liveWorkOf(contentImpl() ? contentImpl().getWorkForOrganization(id, organizationId) : (() => { const w=catalog.getWork(id); return w && w.organizationId===organizationId ? w : null; })()),
+  updateWorkAuthoritative: async (work) => {
+    if (contentImpl()) { const w = await contentImpl().updateWork(work); catalog.addWork(w); return w; }
+    store.state.userWorks[work.id] = work; catalog.addWork(work); store.save(); return work;
+  },
   createWorkAuthoritative: async (work, partnerIds=[]) => {
     const normalized = { ...work, syncId: work.syncId || `SYNC-${crypto.randomBytes(10).toString("hex").toUpperCase()}` };
     if (contentImpl()) { const w = await contentImpl().createWork(normalized, partnerIds); catalog.addWork(w); return w; }
@@ -188,6 +198,7 @@ const organizations = {
   create: (body, actor) => organizationImpl().create(body, actor),
   listMembers: (orgId) => organizationImpl().listMembers(orgId),
   updateSettings: (orgId, patch) => organizationImpl().updateSettings(orgId, patch),
+  updateKind: (orgId, kind) => organizationImpl().updateKind(orgId, kind),
   addMember: (orgId, username, role, actor) => organizationImpl().addMember(orgId, username, role, actor),
   setMemberRole: (orgId, username, role) => organizationImpl().setMemberRole(orgId, username, role),
   removeMember: (orgId, username) => organizationImpl().removeMember(orgId, username),

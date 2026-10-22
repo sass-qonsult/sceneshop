@@ -17,6 +17,7 @@ const antifraud = require("./antifraud");
 const official = require("./official");
 const offers = require("./offers");
 const { content } = require("./repositories");
+const projects = require("./projects");
 const orgAccess = require("./organizations");
 
 const S = () => store.state;
@@ -90,6 +91,26 @@ module.exports = function pilotRoutes({ requireRole, reply, actor }) {
     res.json(enriched.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
   }));
 
+  // Excluir obra (título): some das listas, do player e do app; as trilhas dela são excluídas
+  // e a publicação do app é encerrada. Vendas e auditoria antigas continuam com o id.
+  r.delete("/api/works/:id", requireRole(), orgAccess.requireCapability("CONTENT_WRITE"), safe(async (req, res) => {
+    const orgId = req.organization.id;
+    const w = await Promise.resolve(content.getWorkForOrganizationAuthoritative(req.params.id, orgId));
+    if (!w) return res.status(404).json({ errors: ["Obra não encontrada nesta organização."] });
+    const who = actor(req);
+    let removed = 0;
+    for (const t of (await Promise.resolve(content.listTracksByWorkAuthoritative(w.id))) || []) {
+      if (!t || t.status === "removida") continue;
+      await tracks.removeAuthoritative(t, who);
+      removed++;
+    }
+    if (content.retirePublishedTimeline) await Promise.resolve(content.retirePublishedTimeline(w.id));
+    const archived = { ...w, archivedAt: store.now(), archivedBy: who, updatedAt: store.now() };
+    await content.updateWorkAuthoritative(archived);
+    audit.log(who, "obra_excluida", { workId: w.id, organizationId: orgId, trilhasExcluidas: removed });
+    res.json({ ok: true, id: w.id, tracksRemoved: removed });
+  }));
+
   // ------------------------------------------------------------------ produtos com galeria
   function productFields(body, current = {}) {
     const errors = [];
@@ -120,7 +141,11 @@ module.exports = function pilotRoutes({ requireRole, reply, actor }) {
     const base = slugify(fields.name);
     let id = base, n = 2;
     while (await Promise.resolve(content.getProductAuthoritative(id))) id = `${base}-${n++}`;
-    const prod = { id, ...fields, box: null, storeIds: {}, createdBy: req.user.authorId, organizationId: req.organization.id, createdAt: store.now() };
+    // produto nasce no projeto (obra) aberto, quando informado
+    const wid = (req.body || {}).workId ? String(req.body.workId) : null;
+    const ownWork = wid ? await Promise.resolve(content.getWorkForOrganizationAuthoritative(wid, req.organization.id)) : null;
+    if (wid && !ownWork) return res.status(400).json({ errors: ["Projeto (obra) não encontrado nesta organização."] });
+    const prod = { id, ...fields, box: null, storeIds: {}, createdBy: req.user.authorId, organizationId: req.organization.id, createdAt: store.now(), workIds: ownWork ? [ownWork.id] : [] };
     const created = await content.createProductAuthoritative(prod);
     await offers.invalidateProduct(created.id, { action: "create" });
     res.status(201).json(created);
@@ -164,8 +189,31 @@ module.exports = function pilotRoutes({ requireRole, reply, actor }) {
 
   r.get("/api/me/products", requireRole(), orgAccess.requireCapability("COMMERCE_READ"), safe(async (req, res) => {
     const products = await Promise.resolve(content.listProductsByOrganizationAuthoritative(req.organization.id));
-    res.json(products.map((p) => ({ ...p, offer: S().officialOffers[p.id] || null }))
+    let rows = await projects.withProjects(req.organization.id, products);
+    // ?work=ID: só os produtos deste projeto; ?work=none: os que ainda não estão em nenhum projeto
+    const w = req.query.work ? String(req.query.work) : null;
+    if (w === "none") rows = rows.filter((p) => !p.projects.length);
+    else if (w) rows = rows.filter((p) => p.projects.includes(w));
+    res.json(rows.map((p) => ({ ...p, offer: S().officialOffers[p.id] || null }))
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
+  }));
+
+  // Puxar um produto de outro projeto para este (ou tirar do projeto)
+  r.post("/api/products/:id/projects", requireRole(), orgAccess.requireAnyCapability("CONTENT_WRITE","COMMERCE_WRITE"), safe(async (req, res) => {
+    const orgId = req.organization.id, b = req.body || {};
+    const w = await Promise.resolve(content.getWorkForOrganizationAuthoritative(String(b.workId || ""), orgId));
+    if (!w) return res.status(404).json({ errors: ["Projeto (obra) não encontrado nesta organização."] });
+    if (b.linked === false) {
+      const out = await projects.unlinkProduct(orgId, w.id, req.params.id);
+      if (out.error) return res.status(out.code || 400).json(out);
+      audit.log(actor(req), "produto_tirado_do_projeto", { productId: req.params.id, workId: w.id });
+      return res.json({ ok: true });
+    }
+    const p = await Promise.resolve(content.getProductForOrganizationAuthoritative(req.params.id, orgId, { allowGlobal: false }));
+    if (!p || p.archivedAt) return res.status(404).json({ errors: ["Produto não encontrado nesta organização."] });
+    await projects.linkProducts(orgId, w.id, [p.id]);
+    audit.log(actor(req), "produto_puxado_para_projeto", { productId: p.id, workId: w.id });
+    res.json({ ok: true });
   }));
 
   // ------------------------------------------------------------------ eventos de audiência

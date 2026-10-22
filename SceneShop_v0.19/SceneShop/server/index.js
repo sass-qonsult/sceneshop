@@ -148,10 +148,12 @@ app.post("/api/auth/signup", antifraud.rateLimit("signup"), wrap(async (req, res
   if (r.token && r.user) {
     const existing = await Promise.resolve(organizations.listForUser(r.user.username));
     if (!existing.length) {
+      // classe do operador escolhida na tela de entrada (padrão: produtor)
+      const kind = String((req.body || {}).kind || "PRODUCER").toUpperCase();
       const org = await Promise.resolve(organizations.create({
         name: `${r.user.name || r.user.username} · Workspace`,
         slug: `workspace-${r.user.username}`,
-        kind: 'OTHER',
+        kind: ["CONTENT_OWNER","PRODUCER","CHANNEL","BRAND","AGENCY","PLATFORM","RETAILER","OTHER"].includes(kind) ? kind : "PRODUCER",
       }, r.user.username));
       if (org.organization) r.organization = org.organization;
     }
@@ -227,6 +229,14 @@ app.get("/api/organizations/:id", requireRole(), wrap(async (req, res) => {
   res.json({ ...org, membership: { role: membership.role, status: membership.status } });
 }));
 
+// Classe do operador (tipo da organização): produtor, canal, marca, agência...
+app.patch("/api/organizations/:id/kind", requireRole(), orgAccess.requireCapability("ORG_SETTINGS"), wrap(async (req, res) => {
+  if (req.organization.id !== req.params.id) return res.status(404).json({ error:"Organização não encontrada." });
+  const before = req.organization.kind;
+  const r = await Promise.resolve(organizations.updateKind(req.params.id, (req.body || {}).kind));
+  if (r.organization) audit.log(actor(req), "organizacao_tipo_alterado", { organizationId:req.params.id, de:before, para:r.organization.kind });
+  reply(res, r);
+}));
 app.patch("/api/organizations/:id/settings", requireRole(), orgAccess.requireCapability("ORG_SETTINGS", { strong:true }), wrap(async (req, res) => {
   if (req.organization.id !== req.params.id) return res.status(404).json({ error:"Organização não encontrada." });
   const security = (req.body || {}).security || {};
@@ -498,9 +508,21 @@ app.put("/api/official-offers/:productId", requireRole(), orgAccess.requireCapab
 
 // ================================================================== estúdio (autor / produtora)
 app.get("/api/products", wrap(async (req, res) => {
-  const rows = req.organization
+  let rows = req.organization
     ? await Promise.resolve(content.searchProductsForOrganizationAuthoritative(req.query.q, req.organization.id))
     : await Promise.resolve(content.searchPublicProductsAuthoritative(req.query.q));
+  // ?work=ID (Editor): só os produtos deste projeto; ?work=ID&others=1: os de outros projetos
+  if (req.organization && req.query.work) {
+    const w = String(req.query.work);
+    const owned = await Promise.resolve(content.getWorkForOrganizationAuthoritative(w, req.organization.id));
+    if (owned) {
+      // catálogo público da demonstração (sem organização) vale em qualquer projeto; os da organização, por projeto
+      const shared = (rows || []).filter((p) => !p.organizationId);
+      const own = (rows || []).filter((p) => p.organizationId === req.organization.id);
+      const withP = await require("./projects").withProjects(req.organization.id, own);
+      rows = req.query.others ? withP.filter((p) => !p.projects.includes(w)) : [...withP.filter((p) => p.projects.includes(w)), ...shared];
+    } else if (req.query.others) rows = []; // obra de outra organização (linha da comunidade): sem separação por projeto
+  }
   res.json(rows);
 }));
 app.get("/api/products/:id", wrap(async (req, res) => {
@@ -555,7 +577,7 @@ app.put("/api/tracks/:id", requireRole(), wrap(async (req, res) => {
   if (r.track) audit.log(actor(req), "trilha_editada", { trackId: t.id, organizationId:t.organizationId || null, iaMesclados: merge.merged || 0 });
   if (r.track) r.aiMerged = merge.merged || 0;
   // depois de editar as cenas, a IA recoloca os produtos aprovados pelo segundo exato de cada item
-  if (r.track && t.organizationId && t.type === "official") require("./ai").scheduleAutoSync(t.organizationId, t.workId, req.user, content);
+  if (r.track && t.organizationId && r.track.type === "official") require("./ai").scheduleAutoSync(t.organizationId, t.workId, req.user, content);
   reply(res, r);
 }));
 

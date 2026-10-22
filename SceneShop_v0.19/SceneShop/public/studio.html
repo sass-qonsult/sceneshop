@@ -38,8 +38,18 @@
         <label>Código do autenticador <input id="mfaLoginCode" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" /></label>
         <button type="button" class="primary" id="mfaLoginSubmit">Confirmar MFA</button>
       </div>
+      <label>Classe do operador <select id="loginKind">
+        <option value="PRODUCER" selected>Produtor</option>
+        <option value="CONTENT_OWNER">Dono de conteúdo / estúdio</option>
+        <option value="CHANNEL">Canal / emissora</option>
+        <option value="PLATFORM">Plataforma / streaming</option>
+        <option value="BRAND">Marca</option>
+        <option value="AGENCY">Agência</option>
+        <option value="RETAILER">Varejista</option>
+        <option value="OTHER">Outro</option>
+      </select></label>
       <button class="primary" data-mode="login">Entrar</button>
-      <button class="ghost" data-mode="signup" title="Cria uma conta de autor da comunidade (senha com 8+ caracteres)">Criar conta de autor</button>
+      <button class="ghost" data-mode="signup" title="Cria a conta e a organização na classe escolhida (senha com 8+ caracteres)">Criar conta</button>
       <div id="demoHint" hidden>
         <p class="help">Contas de demonstração (senha <code>demo1234</code>):</p>
         <div class="demo-accounts" id="demoAccounts"></div>
@@ -288,6 +298,11 @@
         <label><input type="checkbox" id="requireMfaWrites" /> Exigir MFA para ações de escrita desta organização</label>
         <p class="help">Para alterar esta política, sua sessão atual precisa ter sido autenticada com MFA.</p>
         <button class="primary" id="saveOrgSecurity">Salvar política</button><div class="msg" id="orgSecurityMsg"></div>
+        <div class="row" style="margin-top:12px"><label class="grow">Classe do operador desta organização <select id="orgKindSel">
+          <option value="PRODUCER">Produtor</option><option value="CONTENT_OWNER">Dono de conteúdo / estúdio</option><option value="CHANNEL">Canal / emissora</option><option value="PLATFORM">Plataforma / streaming</option>
+          <option value="BRAND">Marca</option><option value="AGENCY">Agência</option><option value="RETAILER">Varejista</option><option value="OTHER">Outro</option>
+        </select></label><button class="primary" id="saveOrgKind" type="button">Salvar classe</button></div>
+        <div class="msg" id="orgKindMsg"></div>
       </div>
       <div class="card">
         <h3>Sessões ativas</h3><div id="activeSessions"></div>
@@ -333,6 +348,12 @@
       <div id="drafts"></div>
       <div class="card">
         <div class="head-row"><h3>Meus produtos</h3><span><a class="ghost small" id="pilotMarketLink" href="/marketplace" target="_blank" hidden>Abrir o Marketplace Piloto</a> <button type="button" class="ghost small" id="goOffers">Lojas e ofertas</button></span></div>
+        <div class="row project-bar">
+          <label>Projeto <select id="prodProject"></select></label>
+          <label class="grow">Puxar de outro projeto <select id="prodPull"></select></label>
+          <button type="button" class="small" id="prodPullBtn">Puxar para este projeto</button>
+        </div>
+        <p class="help" id="prodProjectHelp">Cada projeto (obra) tem os seus produtos. Os produtos novos entram no projeto escolhido; um produto de outro projeto entra por "Puxar de outro projeto".</p>
         <div id="myProducts" class="plist"></div>
       </div>
     </div>

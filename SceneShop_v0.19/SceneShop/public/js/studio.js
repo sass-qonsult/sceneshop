@@ -151,7 +151,7 @@
     st.sellers = [];
     const saved = store.get("ss-studio-tab");
     // primeiro acesso de uma produtora: sem obras, começa enviando o vídeo
-    const firstRun = st.user.role === "producer" && !st.works.length;
+    const firstRun = (st.user.role === "producer" || ["PRODUCER", "CONTENT_OWNER", "CHANNEL", "PLATFORM"].includes((activeOrg() || {}).kind)) && !st.works.length;
     showTab(isMod() ? "moderacao" : firstRun ? "obras" : allowed.includes(saved) ? saved : "editor");
   }
 
@@ -168,6 +168,7 @@
     e.preventDefault();
     const signup = e.submitter && e.submitter.dataset.mode === "signup";
     const body = { username: $("loginUser").value.trim(), password: $("loginPass").value };
+    if (signup) body.kind = $("loginKind").value || "PRODUCER"; // classe do operador (padrão: produtor)
     const r = await api(signup ? "/api/auth/signup" : "/api/auth/login", { method: "POST", body, noLogout: true });
     if (!r.ok) return ($("loginMsg").textContent = r.data.error || (r.data.errors || []).join(" "));
     if (r.data.mfaRequired) {
@@ -196,6 +197,7 @@
     const role=org&&org.membership&&org.membership.role; const canAdmin=['OWNER','ADMIN'].includes(role);
     $("inviteCard").hidden=!canAdmin; $("orgSecurityCard").hidden=!canAdmin;
     $("requireMfaWrites").checked=!!(org&&org.settings&&org.settings.security&&org.settings.security.requireMfaForWrites);
+    if(org&&org.kind)$("orgKindSel").value=org.kind;
     if(canAdmin){const inv=await api(`/api/organizations/${encodeURIComponent(organizationId)}/invites`);$("teamInvites").innerHTML=(inv.ok?inv.data:[]).map((i)=>`<tr><td>${esc(i.username||'')}</td><td>${esc(i.role)}</td><td>${esc(i.status)}</td><td>${i.expiresAt?new Date(i.expiresAt).toLocaleString('pt-BR'):'—'}</td></tr>`).join("");}
   }
   $("teamRefresh").onclick=loadTeamSecurity;
@@ -204,6 +206,7 @@
   $("mfaSetupBtn").onclick=async()=>{const r=await api('/api/me/mfa/setup',{method:'POST',body:{}});$("mfaSetupResult").textContent=r.ok?`Segredo: ${r.data.secret} · adicione no autenticador e confirme com o código.`:(r.data.error||'Falha ao iniciar MFA.');};
   $("mfaEnableBtn").onclick=async()=>{const r=await api('/api/me/mfa/enable',{method:'POST',body:{code:$("mfaEnableCode").value.trim()}});$("mfaSetupResult").textContent=r.ok?'MFA ativado. Faça logout/login para obter uma sessão forte.':(r.data.error||'Código inválido.');if(r.ok)loadTeamSecurity();};
   $("mfaDisableBtn").onclick=async()=>{const code=prompt((window.t || String)('Código atual do autenticador:'));if(!code)return;const r=await api('/api/me/mfa/disable',{method:'POST',body:{code}});if(r.ok)logout('MFA desativado. Entre novamente.');else $("mfaSetupResult").textContent=r.data.error||'Falha ao desativar MFA.';};
+  $("saveOrgKind").onclick=async()=>{const k=$("orgKindSel").value;const r=await api(`/api/organizations/${encodeURIComponent(organizationId)}/kind`,{method:'PATCH',body:{kind:k}});$("orgKindMsg").className='msg '+(r.ok?'ok':'bad');$("orgKindMsg").textContent=r.ok?(window.t||String)('Classe salva. As trilhas novas e as que você salvar seguem a classe escolhida.'):(r.data.error||(r.data.errors||[]).join(' ')||'Falha ao salvar.');if(r.ok){await loadOrganizations();renderSeal();}};
   $("saveOrgSecurity").onclick=async()=>{const r=await api(`/api/organizations/${encodeURIComponent(organizationId)}/settings`,{method:'PATCH',body:{security:{requireMfaForWrites:$("requireMfaWrites").checked}}});$("orgSecurityMsg").textContent=r.ok?'Política salva.':(r.data.message||r.data.error||'Falha ao salvar.');if(r.ok){await loadOrganizations();loadTeamSecurity();}};
 
   // ================================================================ editor: trilha
@@ -343,7 +346,8 @@
   function renderSeal() {
     const a = st.user || {};
     const org=activeOrg();
-    const official = !!(org && ["CONTENT_OWNER","PRODUCER","CHANNEL","PLATFORM"].includes(org.kind));
+    const w = st.works.find((x) => x.id === st.workId) || {};
+    const official = !!(org && (["CONTENT_OWNER","PRODUCER","CHANNEL","PLATFORM"].includes(org.kind) || (w.organizationId && w.organizationId === org.id)));
     $("sealLine").innerHTML = `Será publicada como <span class="seal ${official ? "is-official" : "is-community"}">${official ? "Oficial" : "Comunidade"}</span>` +
       (a.kyc !== "aprovado" ? ` <span class="warn">· Você pode publicar, mas só recebe comissão depois da verificação de identidade (aba Ganhos).</span>` : "");
   }
@@ -496,7 +500,22 @@
     });
   }
 
+  // busca do Editor: primeiro os produtos deste projeto, depois os de outros projetos (marcados)
+  async function searchProducts(q) {
+    if (!st.workId) return (await api(`/api/products?q=${encodeURIComponent(q)}`)).data || [];
+    const [mine, others] = await Promise.all([
+      api(`/api/products?q=${encodeURIComponent(q)}&work=${encodeURIComponent(st.workId)}`),
+      api(`/api/products?q=${encodeURIComponent(q)}&work=${encodeURIComponent(st.workId)}&others=1`),
+    ]);
+    return [...(mine.data || []), ...(others.data || []).map((p) => ({ ...p, _other: true }))];
+  }
+  // produto puxado de outro projeto passa a ser também deste
+  function pullToProject(p) {
+    if (p && p._other && st.workId) api(`/api/products/${encodeURIComponent(p.id)}/projects`, { method: "POST", body: { workId: st.workId } });
+  }
+
   function addProduct(p) {
+    pullToProject(p);
     st.products[p.id] = p;
     if (cur().products.some((x) => x.id === p.id)) return toast("Esse produto já está na cena.", true);
     cur().products.push({ id: p.id, match: "exato", box: null });
@@ -512,8 +531,8 @@
       const q = e.target.value.trim();
       const res = $("results");
       if (!q) { res.hidden = true; return; }
-      const list = (await api(`/api/products?q=${encodeURIComponent(q)}`)).data;
-      res.innerHTML = list.length ? list.map((p) => `<li data-id="${p.id}"><img src="${p.image}" alt=""/><span><b>${esc(p.name)}</b> ${esc(p.brand)}</span><em>${brl(p.referencePrice)}</em></li>`).join("")
+      const list = await searchProducts(q);
+      res.innerHTML = list.length ? list.map((p) => `<li data-id="${p.id}"><img src="${p.image}" alt=""/><span><b>${esc(p.name)}</b> ${esc(p.brand)}${p._other ? ` <small class="other-proj">${esc((window.t || String)("outro projeto"))}</small>` : ""}</span><em>${brl(p.referencePrice)}</em></li>`).join("")
         : `<li class="none">Nada encontrado. Cadastre abaixo.</li>`;
       res.hidden = false;
       res.querySelectorAll("li[data-id]").forEach((li) => (li.onclick = () => {
@@ -527,6 +546,7 @@
   $("newProd").onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(e.target));
+    if (st.workId) body.workId = st.workId; // o produto novo é deste projeto
     const r = await api("/api/products", { method: "POST", body });
     if (!r.ok) return toast((r.data.errors || ["Erro"]).join(" "), true);
     e.target.reset();
@@ -672,9 +692,14 @@
   async function openBoard() {
     if (!st.track) return;
     const r = await api("/api/me/products");
-    board.products = r.ok ? r.data || [] : [];
+    const all = r.ok ? r.data || [] : [];
+    const inProj = (p) => !st.workId || (p.projects || []).includes(st.workId);
+    board.products = all.map((p) => ({ ...p, _other: !inProj(p) }));
     board.products.forEach((p) => (st.products[p.id] = st.products[p.id] || p));
-    $("boardProduct").innerHTML = `<option value="">${esc((window.t || String)("— escolha um produto —"))}</option>` + board.products.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+    const tr = window.t || String, opt = (p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`;
+    $("boardProduct").innerHTML = `<option value="">${esc(tr("— escolha um produto —"))}</option>` +
+      `<optgroup label="${esc(tr("Deste projeto"))}">${board.products.filter((p) => !p._other).map(opt).join("")}</optgroup>` +
+      `<optgroup label="${esc(tr("Puxar de outro projeto"))}">${board.products.filter((p) => p._other).map(opt).join("")}</optgroup>`;
     board.sel = new Set(); $("boardAll").checked = false; $("boardFilter").value = "";
     $("boardModal").hidden = false;
     renderBoard();
@@ -702,11 +727,11 @@
       inp.oninput = () => { clearTimeout(tm); tm = setTimeout(async () => {
         const i = Number(inp.dataset.bq), res = body.querySelector(`[data-bres="${i}"]`), q = inp.value.trim();
         if (!q) { res.hidden = true; return; }
-        const list = (await api(`/api/products?q=${encodeURIComponent(q)}`)).data || [];
-        res.innerHTML = list.length ? list.map((p) => `<li data-id="${esc(p.id)}"><img src="${esc(p.image)}" alt=""/><span><b>${esc(p.name)}</b> ${esc(p.brand || "")}</span><em>${brl(p.referencePrice)}</em></li>`).join("") : `<li class="none">${esc(tr("Nada encontrado. Cadastre na aba Produtos."))}</li>`;
+        const list = await searchProducts(q);
+        res.innerHTML = list.length ? list.map((p) => `<li data-id="${esc(p.id)}"><img src="${esc(p.image)}" alt=""/><span><b>${esc(p.name)}</b> ${esc(p.brand || "")}${p._other ? ` <small class="other-proj">${esc(tr("outro projeto"))}</small>` : ""}</span><em>${brl(p.referencePrice)}</em></li>`).join("") : `<li class="none">${esc(tr("Nada encontrado. Cadastre na aba Produtos."))}</li>`;
         res.hidden = false;
         res.querySelectorAll("li[data-id]").forEach((li) => (li.onclick = () => {
-          const p = list.find((x) => x.id === li.dataset.id); st.products[p.id] = p;
+          const p = list.find((x) => x.id === li.dataset.id); st.products[p.id] = p; pullToProject(p);
           const sc = scenes()[i];
           if (sc.products.some((x) => x.id === p.id)) return toast(tr("Esse produto já está na cena."), true);
           sc.products.push({ id: p.id, match: "exato", box: null });
@@ -742,6 +767,7 @@
     if (!pid) return toast(tr("Escolha o produto."), true);
     if (!board.sel.size) return toast(tr("Marque as cenas."), true);
     let n = 0;
+    pullToProject(board.products.find((p) => p.id === pid));
     board.sel.forEach((i) => { const sc = scenes()[i]; if (sc && !sc.products.some((x) => x.id === pid)) { sc.products.push({ id: pid, match: "exato", box: null }); n++; } });
     boardRefresh(); renderBoard();
     toast(`${n} ${tr("cena(s) receberam o produto.")}`);
@@ -1376,7 +1402,8 @@
           <div class="wa"><button class="small primary" data-inv="${w.id}">Inventariar</button>
             <a class="ghost small" href="/assistir/${encodeURIComponent(w.id)}" target="_blank">Assistir</a>
             <button class="small" data-pil="${w.id}">Painel</button>
-            <button class="small" data-brand="${esc(w.id)}" title="Gera uma cópia do vídeo com o selo SceneShop compatible nos primeiros segundos">Vídeo com selo SceneShop</button>${acrOn() ? `
+            <button class="small" data-brand="${esc(w.id)}" title="Gera uma cópia do vídeo com o selo SceneShop compatible nos primeiros segundos">Vídeo com selo SceneShop</button>
+            <button class="small ghost danger" data-del-work="${esc(w.id)}" data-title="${esc(w.title)}">${esc((window.t || String)("Excluir obra"))}</button>${acrOn() ? `
             <button class="small" data-acr-reg="${w.id}">Reconhecimento por áudio</button>` : ""}</div>${acrOn() ? `
           <span class="help acr-state" data-acr="${w.id}">Reconhecimento por áudio: consultando…</span>` : ""}
           <span class="help aid-state" data-aid="${esc(w.id)}">Reconhecimento pelo som (SceneShop ID): consultando…</span>
@@ -1389,6 +1416,17 @@
       : `<p class="help">Nenhuma obra ainda. Envie o primeiro vídeo acima.</p>`;
     $("myWorks").querySelectorAll("[data-inv]").forEach((b) => (b.onclick = async () => { await selectWork(b.dataset.inv); showTab("editor"); }));
     $("myWorks").querySelectorAll("[data-pil]").forEach((b) => (b.onclick = () => { st.pilotWork = b.dataset.pil; showTab("piloto"); }));
+    $("myWorks").querySelectorAll("[data-del-work]").forEach((b) => (b.onclick = async () => {
+      const tr = window.t || String;
+      if (!confirm(tr("Excluir a obra “{0}”? Ela sai do Studio, do player e do app, com todas as trilhas dela. Os produtos continuam na aba Produtos.").replace("{0}", b.dataset.title))) return;
+      const r = await api(`/api/works/${encodeURIComponent(b.dataset.delWork)}`, { method: "DELETE" });
+      if (!r.ok) return toast(r.data.error || (r.data.errors || []).join(" ") || tr("Falha ao excluir."), true);
+      toast(tr("Obra excluída."));
+      await refreshWorks();
+      if (st.workId === b.dataset.delWork || !st.works.some((w) => w.id === st.workId)) await selectWork((st.works[0] || {}).id);
+      if (st.prodWork === b.dataset.delWork) st.prodWork = undefined;
+      loadWorks();
+    }));
     $("myWorks").querySelectorAll("[data-del-track]").forEach((b) => (b.onclick = async () => {
       const tr = window.t || String;
       if (!confirm(tr("Excluir a trilha “{0}”? Ela sai do Editor, do player e do app.").replace("{0}", b.dataset.title))) return;
@@ -1564,6 +1602,7 @@
       const ref = parseMoney(fd.referencePrice);
       if (!Number.isFinite(ref) || ref <= 0) { msg.className = "msg bad"; msg.textContent = (window.t || String)("Informe o preço no padrão 1.250,00."); return; }
       const body = { name: fd.name, brand: fd.brand, category: fd.category, sku: fd.sku, referencePrice: ref, description: fd.description, images: p.images };
+      if (!p.id && st.prodWork && st.prodWork !== "all" && st.prodWork !== "none") body.workId = st.prodWork; // nasce no projeto escolhido
       const r = p.id ? await api(`/api/products/${p.id}`, { method: "PUT", body }) : await api("/api/products", { method: "POST", body });
       if (!r.ok) { msg.className = "msg bad"; msg.textContent = (r.data.errors || [r.data.error]).join(" "); return; }
       const saved = r.data;
@@ -1598,14 +1637,42 @@
   async function loadMyProducts() {
     await loadSellersCache();
     $("pilotMarketLink").hidden = !(st.config && st.config.demo);
-    const list = (await api("/api/me/products")).data || [];
-    $("myProducts").innerHTML = list.length ? list.map((p) => productForm({ ...p, images: p.images && p.images.length ? p.images : [p.image] }, "p" + p.id)).join("")
-      : `<p class="help">Nenhum produto cadastrado ainda.</p>`;
+    const tr = window.t || String;
+    const works = st.works.filter((w) => w.pilot || w.organizationId);
+    if (st.prodWork === undefined) st.prodWork = st.workId && works.some((w) => w.id === st.workId) ? st.workId : (works[0] || {}).id || "all";
+    $("prodProject").innerHTML = works.map((w) => `<option value="${esc(w.id)}">${esc(w.title)}</option>`).join("") +
+      `<option value="none">${esc(tr("Sem projeto"))}</option><option value="all">${esc(tr("Todos os projetos"))}</option>`;
+    $("prodProject").value = st.prodWork;
+    const all = (await api("/api/me/products")).data || [];
+    const wid = st.prodWork;
+    const list = wid === "all" ? all : wid === "none" ? all.filter((p) => !(p.projects || []).length) : all.filter((p) => (p.projects || []).includes(wid));
+    const real = wid !== "all" && wid !== "none";
+    const titleOf = (id) => (st.works.find((w) => w.id === id) || {}).title || id;
+    const others = real ? all.filter((p) => !(p.projects || []).includes(wid)) : [];
+    $("prodPull").innerHTML = `<option value="">${esc(others.length ? tr("— escolha o produto —") : tr("nenhum produto em outros projetos"))}</option>` +
+      others.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}${(p.projects || []).length ? ` · ${esc(p.projects.map(titleOf).join(", "))}` : ` · ${esc(tr("sem projeto"))}`}</option>`).join("");
+    $("prodPull").disabled = $("prodPullBtn").disabled = !real || !others.length;
+    $("myProducts").innerHTML = list.length ? list.map((p) => `<div class="proj-line">${esc(tr("Projetos"))}: ${(p.projects || []).length ? p.projects.map((x) => `<span class="chip">${esc(titleOf(x))}</span>`).join(" ") : `<span class="help">${esc(tr("nenhum"))}</span>`}${real ? ` <button type="button" class="ghost small danger" data-unlink="${esc(p.id)}">${esc(tr("Tirar deste projeto"))}</button>` : ""}</div>` + productForm({ ...p, images: p.images && p.images.length ? p.images : [p.image] }, "p" + p.id)).join("")
+      : `<p class="help">${esc(real ? tr("Nenhum produto neste projeto ainda. Cadastre acima ou puxe de outro projeto.") : tr("Nenhum produto aqui."))}</p>`;
+    $("myProducts").querySelectorAll("[data-unlink]").forEach((b) => (b.onclick = async () => {
+      const r = await api(`/api/products/${encodeURIComponent(b.dataset.unlink)}/projects`, { method: "POST", body: { workId: wid, linked: false } });
+      if (!r.ok) return toast(r.data.error || (r.data.errors || []).join(" ") || tr("Falha."), true);
+      toast(tr("Produto tirado deste projeto.")); loadMyProducts();
+    }));
     $("myProducts").querySelectorAll("form").forEach((f, i) => {
       const p = { ...list[i], images: list[i].images && list[i].images.length ? [...list[i].images] : [list[i].image] };
       bindProductForm(f, p, loadMyProducts);
     });
   }
+
+  $("prodProject").onchange = () => { st.prodWork = $("prodProject").value; loadMyProducts(); };
+  $("prodPullBtn").onclick = async () => {
+    const pid = $("prodPull").value, tr = window.t || String;
+    if (!pid) return toast(tr("Escolha o produto."), true);
+    const r = await api(`/api/products/${encodeURIComponent(pid)}/projects`, { method: "POST", body: { workId: st.prodWork } });
+    if (!r.ok) return toast(r.data.error || (r.data.errors || []).join(" ") || tr("Falha."), true);
+    toast(tr("Produto puxado para este projeto.")); loadMyProducts();
+  };
 
   // ================================================================ piloto: painel
   async function loadPilot() {
@@ -1742,7 +1809,7 @@
 
     const mode=$("aiOpsMode").value;
     const prodImg=(a)=>{const pr=(aiOps.products||[]).find(p=>p.id===a.productId);return pr?pr.image:((a.references||[])[0]||{}).uri||'';};
-    const liveIds=new Set((aiOps.products||[]).map(p=>p.id));
+    const liveIds=new Set((aiOps.products||[]).filter(p=>!aiOps.workId||!(p.projects||[]).length||(p.projects||[]).includes(aiOps.workId)).map(p=>p.id)); // deste projeto e os sem projeto
     const visibleAssets=assets.filter(a=>!a.productId||liveIds.has(a.productId));
     const checked=new Set([...$("aiOpsAssets").querySelectorAll('input:checked')].map(x=>x.value));
     $("aiOpsAssets").innerHTML=visibleAssets.length?visibleAssets.map(a=>`<label class="asset-chip"><input type="checkbox" value="${esc(a.id)}" ${checked.has(a.id)?'checked':''} ${mode==='DISCOVERY'?'disabled':''}/>${prodImg(a)?`<img src="${esc(prodImg(a))}" alt="" style="width:34px;height:34px;border-radius:6px;object-fit:cover"/>`:''}<span><b>${esc(a.name)}</b><small>${esc([a.brand,a.model].filter(Boolean).join(' · ')||'produto cadastrado')}</small></span></label>`).join(''):'<div class="empty-state">Cadastre os produtos na aba Produtos: eles aparecem aqui para a IA procurar no vídeo.</div>';
@@ -1919,7 +1986,7 @@
 
   async function refreshAi() {
     const w = curWork();
-    const show = !!(st.user && st.user.role === "producer" && w.pilot);
+    const show = !!(st.user && !isMod() && w.pilot); // a permissão de rodar a IA é conferida pela organização no servidor
     $("aiCard").hidden = !show;
     clearTimeout(ai.poll);
     if (!show) return;
@@ -1973,7 +2040,9 @@
       if (!(await saveTrack())) { $("aiStatus").textContent = ""; return; }
     }
     await api("/api/ai/assets/sync-products", { method: "POST", body: {} });
-    const assets = ((await api("/api/ai/assets")).data || []).filter((a) => a.productId);
+    // produtos deste projeto e os ainda sem projeto (os de outros projetos ficam de fora)
+    const okIds = new Set(((await api("/api/me/products")).data || []).filter((p) => !(p.projects || []).length || p.projects.includes(st.workId)).map((p) => p.id));
+    const assets = ((await api("/api/ai/assets")).data || []).filter((a) => a.productId && okIds.has(a.productId));
     const body = {
       analysisMode: assets.length ? "HYBRID" : "DISCOVERY", assetIds: assets.map((a) => a.id),
       categories: ["APPAREL", "WATCHES", "JEWELRY", "VEHICLES", "ELECTRONICS", "FURNITURE", "HOME_DECOR", "FOOD_BEVERAGE"],

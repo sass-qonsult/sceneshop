@@ -1,5 +1,141 @@
 /* Dicionário da interface: "texto em português": ["English", "español"]. Gerado a partir das telas; revise aqui. */
 globalThis.SceneShopI18nDict = {
+"Classe do operador": [
+"Operator class",
+"Clase del operador"
+],
+"Produtor": [
+"Producer",
+"Productor"
+],
+"Dono de conteúdo / estúdio": [
+"Content owner / studio",
+"Dueño de contenido / estudio"
+],
+"Canal / emissora": [
+"Channel / broadcaster",
+"Canal / emisora"
+],
+"Plataforma / streaming": [
+"Platform / streaming",
+"Plataforma / streaming"
+],
+"Agência": [
+"Agency",
+"Agencia"
+],
+"Varejista": [
+"Retailer",
+"Minorista"
+],
+"Outro": [
+"Other",
+"Otro"
+],
+"Criar conta": [
+"Create account",
+"Crear cuenta"
+],
+"Cria a conta e a organização na classe escolhida (senha com 8+ caracteres)": [
+"Creates the account and the organization in the chosen class (password with 8+ characters)",
+"Crea la cuenta y la organización en la clase elegida (contraseña de 8+ caracteres)"
+],
+"Classe do operador desta organização": [
+"Operator class of this organization",
+"Clase del operador de esta organización"
+],
+"Salvar classe": [
+"Save class",
+"Guardar clase"
+],
+"Classe salva. As trilhas novas e as que você salvar seguem a classe escolhida.": [
+"Class saved. New tracks and the ones you save follow the chosen class.",
+"Clase guardada. Las pistas nuevas y las que guarde siguen la clase elegida."
+],
+"Projeto": [
+"Project",
+"Proyecto"
+],
+"Puxar de outro projeto": [
+"Pull from another project",
+"Traer de otro proyecto"
+],
+"Puxar para este projeto": [
+"Pull into this project",
+"Traer a este proyecto"
+],
+"Cada projeto (obra) tem os seus produtos. Os produtos novos entram no projeto escolhido; um produto de outro projeto entra por \"Puxar de outro projeto\".": [
+"Each project (title) has its own products. New products go into the chosen project; a product from another project comes in through \"Pull from another project\".",
+"Cada proyecto (obra) tiene sus productos. Los productos nuevos entran en el proyecto elegido; un producto de otro proyecto entra con \"Traer de otro proyecto\"."
+],
+"Sem projeto": [
+"No project",
+"Sin proyecto"
+],
+"— escolha o produto —": [
+"— choose the product —",
+"— elija el producto —"
+],
+"nenhum produto em outros projetos": [
+"no products in other projects",
+"ningún producto en otros proyectos"
+],
+"sem projeto": [
+"no project",
+"sin proyecto"
+],
+"Projetos": [
+"Projects",
+"Proyectos"
+],
+"nenhum": [
+"none",
+"ninguno"
+],
+"Tirar deste projeto": [
+"Remove from this project",
+"Quitar de este proyecto"
+],
+"Nenhum produto neste projeto ainda. Cadastre acima ou puxe de outro projeto.": [
+"No products in this project yet. Add one above or pull one from another project.",
+"Ningún producto en este proyecto todavía. Regístrelo arriba o tráigalo de otro proyecto."
+],
+"Nenhum produto aqui.": [
+"No products here.",
+"Ningún producto aquí."
+],
+"Produto tirado deste projeto.": [
+"Product removed from this project.",
+"Producto quitado de este proyecto."
+],
+"Produto puxado para este projeto.": [
+"Product pulled into this project.",
+"Producto traído a este proyecto."
+],
+"outro projeto": [
+"another project",
+"otro proyecto"
+],
+"Deste projeto": [
+"This project",
+"De este proyecto"
+],
+"Excluir obra": [
+"Delete title",
+"Eliminar obra"
+],
+"Excluir a obra “{0}”? Ela sai do Studio, do player e do app, com todas as trilhas dela. Os produtos continuam na aba Produtos.": [
+"Delete the title “{0}”? It leaves the Studio, the player and the app, with all its tracks. Products stay in the Products tab.",
+"¿Eliminar la obra “{0}”? Sale del Studio, del reproductor y de la app, con todas sus pistas. Los productos quedan en la pestaña Productos."
+],
+"Obra excluída.": [
+"Title deleted.",
+"Obra eliminada."
+],
+"Falha.": [
+"Failed.",
+"Falló."
+],
 "{1} cenas · {2} produtos": [
 "{1} scenes · {2} products",
 "{1} escenas · {2} productos"

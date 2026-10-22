@@ -319,6 +319,28 @@ class PostgresContentRepository {
     return committed.result;
   }
 
+  async updateWork(work) {
+    const w = clone(work);
+    const committed = await this.store.atomicDomain(async (draft) => {
+      draft.userWorks = draft.userWorks || {};
+      draft.userWorks[w.id] = w;
+      return {
+        snapshot: draft,
+        topic: w.archivedAt ? 'content.work.archived' : 'content.work.updated', aggregateType: 'work', aggregateId: w.id,
+        outboxPayload: { workId: w.id, organizationId: w.organizationId || null, archived: !!w.archivedAt }, result: w,
+        write: async (client) => {
+          const r = await client.query(
+            `UPDATE sceneshop_works SET title=$2,payload=$3::jsonb,updated_at=now() WHERE id=$1 AND organization_id IS NOT DISTINCT FROM $4`,
+            [w.id, w.title, JSON.stringify(w), w.organizationId || null]
+          );
+          if (!r.rowCount) { const e = new Error('Obra não encontrada no PostgreSQL.'); e.code='CONTENT_NOT_FOUND'; throw e; }
+          return { updated: true };
+        },
+      };
+    });
+    return committed.result;
+  }
+
   async updateProduct(product) {
     const p = clone(product);
     const committed = await this.store.atomicDomain(async (draft) => {

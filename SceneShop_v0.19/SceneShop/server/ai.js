@@ -45,7 +45,11 @@ async function api(pathname, { method = "GET", body, headers = {}, raw } = {}) {
   let data; try { data = JSON.parse(text); } catch (e) { data = { raw: text }; }
   if (!res.ok) {
     const msg = (data.error && data.error.message) || text.slice(0, 200) || res.statusText;
-    const err = new Error(res.status === 400 && /API key/i.test(msg) ? "Chave do Gemini inválida." : `Gemini: ${msg}`);
+    const billing = (res.status === 402 || res.status === 429) && /prepay|credit|billing|quota|exhaust/i.test(msg);
+    const err = new Error(res.status === 400 && /API key/i.test(msg) ? "Chave do Gemini inválida."
+      : billing ? `Gemini recusou por créditos ou cota da conta Google (HTTP ${res.status}). Confira no Google AI Studio se os créditos foram colocados no MESMO projeto da chave configurada no servidor (GEMINI_API_KEY) e se não há limite de gastos; depois de adicionar créditos, o Google pode levar algum tempo para liberar. Mensagem do Google: ${msg}`
+      : `Gemini: ${msg}`);
+    err.billing = billing;
     err.status = res.status;
     throw err;
   }
@@ -361,12 +365,15 @@ function syncSelection(orgId, workId, jobs) {
 // Trilha que recebe os produtos da IA: a primeira das preferidas que ainda está ativa; senão a da
 // publicação comercial em vigor (a que o app mostra); senão a oficial ativa mais recente.
 async function liveTrackFor(orgId, workId, content, preferIds = []) {
+  // trilhas ativas desta organização na obra (oficiais primeiro; uma de "comunidade" da dona da obra
+  // vira oficial ao salvar). Nunca criar uma trilha nova se já existe uma para atualizar.
   const list = ((await Promise.resolve(content.listTracksByOrganizationAuthoritative(orgId, workId))) || [])
-    .filter((x) => x.type === "official" && x.status === "ativa");
+    .filter((x) => x.status === "ativa" && x.workId === workId)
+    .sort((a, b) => (b.type === "official") - (a.type === "official"));
   for (const id of preferIds) { const hit = list.find((x) => x.id === id); if (hit) return hit; }
   const tl = content.getPublishedTimeline ? await Promise.resolve(content.getPublishedTimeline(workId)).catch(() => null) : null;
   const liveId = tl && tl.manifest && tl.manifest.sourceTrackId;
-  return list.find((x) => x.id === liveId) || list.sort((a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))[0] || null;
+  return list.find((x) => x.id === liveId) || list.sort((a, b) => (b.type === "official") - (a.type === "official") || Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))[0] || null;
 }
 const sigOf = (scenes) => JSON.stringify((scenes || []).map((s) => [s.id, s.start, s.end, (s.products || []).map((p) => [p.id, p.source || ""])]));
 function recordSync(orgId, workId, out) {
@@ -678,7 +685,7 @@ function routes({ requireRole, actor, content }) {
     return w;
   };
 
-  r.get("/api/ai/status", requireRole("producer"), (req, res) => {
+  r.get("/api/ai/status", requireRole(), orgAccess.requireCapability("CONTENT_READ"), (req, res) => {
     res.json({ configured: !!getKey(), fromEnv: !!process.env.GEMINI_API_KEY, model: process.env.GEMINI_MODEL || modelCache || null });
   });
 
@@ -708,9 +715,12 @@ function routes({ requireRole, actor, content }) {
     const created=await Promise.resolve(aiPipeline.createJob(req.organization.id,w,{mode,assetIds,categories,scanDepth:body.scanDepth||"STANDARD",minimumConfidence:body.minimumConfidence,includeBackground:body.includeBackground,minimumScreenSeconds:body.minimumScreenSeconds,primaryProvider:"SCENESHOP_GEMINI",sceneSource,scenes,trackId:body.trackId||null},actor(req)));
     if(created.error||created.errors)return res.status(created.code||400).json(created);
     const assets=(await Promise.resolve(aiPipeline.listAssets(req.organization.id))).filter(a=>assetIds.includes(a.id));
-    const products = content
+    let products = content
       ? await Promise.resolve(content.listProductsByOrganizationAuthoritative(req.organization.id))
       : Object.values(store.state.userProducts || {}).filter((p) => p.organizationId === req.organization.id);
+    // catálogo da análise: os produtos deste projeto (obra) e os que ainda não estão em projeto nenhum;
+    // produtos de OUTROS projetos ficam de fora (entram se a produtora puxar para este projeto)
+    products = (await require("./projects").withProjects(req.organization.id, products)).filter((p) => !p.projects.length || p.projects.includes(w.id));
     const orgId=req.organization.id, who=actor(req), user=req.user;
     const autoApprove=!!body.autoApprove, minAuto=Math.max(0.3,Math.min(1,Number(body.autoApproveMin)||0.7));
     analyze({ work: w, products, assets, mode, categories, oneScene: sceneSource==="SINGLE", scenes, actor: who, organizationId:orgId, durableJobId:created.job.id })

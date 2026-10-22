@@ -88,6 +88,11 @@ class StateOrganizationRepository {
       .filter((m) => m.organizationId === orgId)
       .sort((a,b) => a.username.localeCompare(b.username));
   }
+  updateKind(orgId, kind) {
+    const org=this.get(orgId); if(!org)return{error:'Organização não encontrada.',code:404};
+    const k=normalizeKind(kind); if(!k)return{errors:['Tipo de organização inválido.']};
+    org.kind=k; org.updatedAt=Date.now(); this.save(); return{organization:publicOrg(org)};
+  }
   updateSettings(orgId, patch) {
     const org=this.get(orgId); if(!org)return{error:'Organização não encontrada.',code:404};
     org.settings={...(org.settings||{}),...(patch||{}),security:{...((org.settings||{}).security||{}),...(((patch||{}).security)||{})}}; org.updatedAt=Date.now(); this.save(); return{organization:publicOrg(org)};

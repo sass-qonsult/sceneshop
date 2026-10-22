@@ -138,7 +138,7 @@ async function importReport(organizationId, sellerId, csv, actor, deps) {
     if (ref && S().issuedOffers[ref] && S().issuedOffers[ref].sid === seller.id) {
       // relatório com só a data (sem hora): vale o momento do clique, se for no mesmo dia
       const off = S().issuedOffers[ref];
-      if (!/\d{1,2}:\d{2}/.test(String(pick(row, ["data", "date"]))) && at > off.iat - 36 * 3600e3 && at < off.exp + 36 * 3600e3) at = Math.min(Math.max(at, off.iat + 1000), off.exp);
+      if (!/\d{1,2}:\d{2}/.test(String(pick(row, ["data", "date"]))) && at > off.iat - 36 * 3600e3 && at < off.exp + 36 * 3600e3) at = Math.min(Math.max(at, off.iat + 1000), off.exp, Math.max(off.iat + 1000, store.now())); // nunca no futuro (relatório de hoje importado de manhã)
       const cancelled = /cancel|devolv|estorn|refund/.test(status);
       const r = await Promise.resolve(official.processOrder(seller, cancelled ? { orderId, status: "devolvido" } : { orderId, ref, unitPrice: value, quantity: 1, orderedAt: at, via: "relatorio_afiliado" }, deps));
       if (r && r.duplicate) out.duplicadas++; else if (r && r.ok) out.vendas++; else { out.recusadas++; if (r && r.error) out.erros.push(`${orderId}: ${r.error}`); }

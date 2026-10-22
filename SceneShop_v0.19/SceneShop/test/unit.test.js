@@ -62,8 +62,11 @@ test("cadastro: senha curta e usuário duplicado são recusados", () => {
   fresh();
   assert.ok(auth.signup({ username: "novo", password: "123" }).errors);
   assert.ok(auth.signup({ username: "ana", password: "12345678" }).errors);
-  const r = auth.signup({ username: "novo_autor", password: "12345678" });
+  // classe do operador: Produtor é o padrão; autor da comunidade escolhe outra classe
+  const r = auth.signup({ username: "novo_autor", password: "12345678", kind: "OTHER" });
   assert.equal(r.user.role, "author");
+  const p = auth.signup({ username: "nova_produtora", password: "12345678" });
+  assert.equal(p.user.role, "producer");
 });
 
 test("voto: um por aparelho, e só para quem está na sessão", () => {

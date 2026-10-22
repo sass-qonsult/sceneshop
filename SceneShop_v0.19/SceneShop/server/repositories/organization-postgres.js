@@ -35,6 +35,14 @@ class PostgresOrganizationRepository {
     } catch(err) { if(err&&err.code==='23505') return {errors:['Esse identificador de organização já existe.']}; throw err; }
   }
   async listMembers(orgId) { return this.store.readDomain(async(c)=>{ const q=await c.query('SELECT * FROM sceneshop_organization_members WHERE organization_id=$1 ORDER BY username',[orgId]); return q.rows.map(memberFromRow); }); }
+  async updateKind(orgId,kind) {
+    const k=normalizeKind(kind); if(!k)return{errors:['Tipo de organização inválido.']};
+    return this.store.writeDomain(async(c)=>{
+      const q=await c.query('UPDATE sceneshop_organizations SET kind=$2,updated_at=now() WHERE id=$1 RETURNING *',[orgId,k]);
+      if(!q.rowCount)return{error:'Organização não encontrada.',code:404};
+      return{organization:publicOrg(orgFromRow(q.rows[0]))};
+    });
+  }
   async updateSettings(orgId,patch) {
     return this.store.writeDomain(async(c)=>{
       const current=await c.query('SELECT settings FROM sceneshop_organizations WHERE id=$1 FOR UPDATE',[orgId]); if(!current.rowCount)return{error:'Organização não encontrada.',code:404};

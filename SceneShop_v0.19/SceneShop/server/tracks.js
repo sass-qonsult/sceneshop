@@ -247,7 +247,10 @@ async function rankedAuthoritative(workId) {
 // Id da trilha que está publicada para o app (Commerce Timeline em vigor).
 async function liveTrackId(workId) {
   const tl = await Promise.resolve(content.getPublishedTimeline(workId)).catch(() => null);
-  return (tl && tl.manifest && tl.manifest.sourceTrackId) || null;
+  if (tl && tl.manifest && tl.manifest.sourceTrackId) return tl.manifest.sourceTrackId;
+  // sem publicação comercial: a trilha que o player e o celular abrem (a primeira do ranking)
+  const rows = await rankedAuthoritative(workId);
+  return rows[0] ? rows[0].id : null;
 }
 
 async function pickAuthoritative(workId, trackId) {
@@ -355,6 +358,10 @@ async function saveAuthoritative(body, existing) {
   let work = body.organizationId
     ? await Promise.resolve(content.getWorkForOrganizationAuthoritative(body.workId, body.organizationId))
     : await Promise.resolve(content.getWorkAuthoritative(body.workId));
+  // a organização dona da obra faz a trilha oficial dela, seja qual for o tipo da organização
+  // (marca, agência, outro): sem isso a trilha virava "comunidade", não ia para o app pela
+  // Commerce Timeline e a IA criava uma trilha nova a cada sincronização
+  const ownsWork = !!(org && work); // achada pela organização: a obra é dela (antes da linha da comunidade abaixo)
   // Linha da comunidade: autores e workspaces que não são donos de conteúdo podem publicar
   // uma trilha "Comunidade" sobre qualquer obra existente (como legendas). Organizações oficiais
   // continuam isoladas nas próprias obras.
@@ -364,13 +371,14 @@ async function saveAuthoritative(body, existing) {
   if (!author) return { errors: ["Autor inválido."] };
   const errors = await validateAuthoritative(body, work);
   if (errors.length) return { errors };
-  const trackType = org ? (officialOrgKinds.has(org.kind) ? "official" : "community") : (author.type === "producer" ? "official" : "community");
+  const trackType = org ? (officialOrgKinds.has(org.kind) || ownsWork ? "official" : "community") : (author.type === "producer" ? "official" : "community");
   const t = existing ? JSON.parse(JSON.stringify(existing)) : {
     id: `t-${author.id}-${Date.now().toString(36)}`, workId: work.id, authorId: author.id, organizationId: body.organizationId || null,
     type: trackType,
     status: "ativa", votesBase: { up: 0, down: 0 }, createdAt: store.now(),
   };
   if (body.organizationId) t.organizationId = body.organizationId;
+  if (existing && t.type === "community" && ownsWork) t.type = "official"; // trilha antiga da dona da obra passa a oficial
   t.title = String(body.title || "Minha trilha").slice(0, 60);
   t.offset = Number(body.offset) || 0;
   t.scenes = body.scenes.map((s, i) => ({
@@ -382,6 +390,11 @@ async function saveAuthoritative(body, existing) {
   }));
   t.updatedAt = store.now();
   const saved = await content.saveTrackAuthoritative(t, existing ? "content.track.updated" : "content.track.created");
+  // os produtos usados na trilha passam a ser do projeto (obra) dela
+  if (ownsWork) {
+    const ids = [...new Set(t.scenes.flatMap((s) => s.products.map((p) => p.id)))];
+    await require("./projects").linkProducts(body.organizationId, work.id, ids).catch((e) => console.error("[projetos]", e.message));
+  }
   let publication = null;
   if (saved.type === "official" && saved.status === "ativa") {
     publication = await Promise.resolve(content.publishTrackAsCommerceTrack(saved.id, saved.authorId || "system", saved.organizationId || null));

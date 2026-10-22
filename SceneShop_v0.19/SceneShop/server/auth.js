@@ -128,7 +128,9 @@ function login(username, password, ip) {
   return isPromise(found) ? found.then(finish) : finish(found);
 }
 
-function signup({ username, password, name }, ip) {
+function signup({ username, password, name, kind }, ip) {
+  // classe do operador: produtor (padrão), dono de conteúdo, canal ou plataforma entram como produtora
+  const producer = ["PRODUCER", "CONTENT_OWNER", "CHANNEL", "PLATFORM"].includes(String(kind || "PRODUCER").toUpperCase());
   const u = String(username || "").trim().toLowerCase();
   const errors = [];
   if (!/^[a-z0-9_]{3,24}$/.test(u)) errors.push("Usuário: 3 a 24 letras minúsculas, números ou _.");
@@ -138,8 +140,8 @@ function signup({ username, password, name }, ip) {
   const exists = identity.existsUsernameAuthoritative(u);
   const continueSignup = (taken) => {
     if (taken) return { errors: ["Esse usuário já existe."] };
-    const account = { username: u, pass: hashPassword(password), role: "author", authorId: u, tokenVersion: 1, createdAt: store.now() };
-    const author = { id: u, name: String(name || u).slice(0, 40), type: "community", kyc: "pendente", document: null };
+    const account = { username: u, pass: hashPassword(password), role: producer ? "producer" : "author", authorId: u, tokenVersion: 1, createdAt: store.now() };
+    const author = { id: u, name: String(name || u).slice(0, 40), type: producer ? "producer" : "community", kyc: "pendente", document: null };
     const session = sessionDescriptor(account, ip);
     const created = identity.createIdentityAuthoritative({ account, author, session });
     const finish = (r) => {

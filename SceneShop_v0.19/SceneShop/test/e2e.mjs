@@ -75,6 +75,7 @@ await st.click("#loginForm [data-mode=signup]");
 await st.waitForTimeout(300);
 check((await st.textContent("#loginMsg")).includes("8 caracteres"), "Cadastro recusa senha curta");
 await st.fill("#loginPass", "senhaforte123");
+await st.selectOption("#loginKind", "OTHER"); // autor da comunidade (a classe padrão é Produtor)
 await st.click("#loginForm [data-mode=signup]");
 await st.waitForSelector("#sceneList li");
 await st.waitForTimeout(400);
