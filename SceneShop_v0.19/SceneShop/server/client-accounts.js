@@ -205,9 +205,13 @@ function report(organizationId, { from = null, to = null, works = [], productNam
   const W = (id) => { if (!byWork.has(id)) byWork.set(id, emptyRow({ workId: id, title: (workTitle.get(id) || {}).title || id, archived: !!(workTitle.get(id) || {}).archived })); return byWork.get(id); };
   const P = (id) => { if (!byProduct.has(id)) byProduct.set(id, emptyRow({ productId: id, name: (productName && productName(id)) || ((catalog.getProduct(id) || {}).name) || id })); return byProduct.get(id); };
   const belongs = (workId) => workId && workOrganization(workId) === organizationId;
+  // rcprep.17: cascata cliente → título → produto → pedidos (conciliação)
+  const byWP = new Map();
+  const WP = (workId, productId) => { const k = `${workId}|${productId}`; if (!byWP.has(k)) byWP.set(k, { ...emptyRow({ workId, productId, name: (productName && productName(productId)) || ((catalog.getProduct(productId) || {}).name) || productId }), orderList: [] }); return byWP.get(k); };
+  const storeName = (s) => { const id = s.sellerId || s.store; const sl = id && (S().sellers || {})[id]; return (sl && sl.name) || id || "—"; };
 
   const addClick = (workId, productId, qualified, at) => {
-    const rows = [total, W(workId), ...(productId ? [P(productId)] : [])];
+    const rows = [total, W(workId), ...(productId ? [P(productId), WP(workId, productId)] : [])];
     const terms = qualified ? termsFor({ workId, productId, at }) : null;
     for (const r of rows) { r.clicks++; if (qualified) { r.qualifiedClicks++; if (terms && terms.cpcFee) r.cpcFees += terms.cpcFee; } }
   };
@@ -224,9 +228,14 @@ function report(organizationId, { from = null, to = null, works = [], productNam
   for (const s of S().sales || []) {
     if (!inPeriod(s.at, from, to)) continue;
     const workId = workOfSale(s); if (!belongs(workId)) continue;
-    const rows = [total, W(workId), ...(s.productId ? [P(s.productId)] : [])];
-    if (s.reversed) { rows.forEach((r) => r.refunds++); continue; }
+    const rows = [total, W(workId), ...(s.productId ? [P(s.productId), WP(workId, s.productId)] : [])];
     const f = s.financials || {};
+    if (s.productId) {
+      const now = store.now();
+      const status = s.reversed ? "estornado" : s.paidAt ? "pago" : (f.releaseAt && now < f.releaseAt) ? "custodia" : "liberado";
+      WP(workId, s.productId).orderList.push({ saleId: s.id, at: s.at, store: storeName(s), orderId: s.orderId || null, value: round(s.value), commission: round(f.commission), clientShare: round(f.ownerShare), status, attribution: s.attribution || null });
+    }
+    if (s.reversed) { rows.forEach((r) => r.refunds++); continue; }
     const terms = termsFor({ workId, productId: s.productId, at: s.at });
     for (const r of rows) {
       r.orders++;
@@ -252,7 +261,11 @@ function report(organizationId, { from = null, to = null, works = [], productNam
     organizationId, from, to, currency: (contract && contract.currency) || "BRL",
     contract: contract ? { version: contract.version, status: contract.status, contractRef: contract.contractRef, activeNow: active(contract, store.now()) } : null,
     totals: total,
-    byWork: [...byWork.values()].map(finalize).sort((a, b) => b.gmv - a.gmv || b.clicks - a.clicks || a.title.localeCompare(b.title)),
+    byWork: [...byWork.values()].map(finalize).map((w) => ({
+      ...w,
+      products: [...byWP.values()].filter((x) => x.workId === w.workId).map((x) => { const { orderList, ...row } = x; return { ...finalize(row), sales: orderList.sort((a, b) => b.at - a.at).slice(0, 200) }; })
+        .sort((a, b) => b.gmv - a.gmv || b.clicks - a.clicks),
+    })).sort((a, b) => b.gmv - a.gmv || b.clicks - a.clicks || a.title.localeCompare(b.title)),
     byProduct: [...byProduct.values()].map(finalize).sort((a, b) => b.gmv - a.gmv || b.clicks - a.clicks),
   };
 }
@@ -264,8 +277,19 @@ function toCsv(rep, orgName) {
   const line = (level, id, name, r) => CSV_COLS.map(([k]) => esc(k === "level" ? level : k === "id" ? id : k === "name" ? name : r[k])).join(";");
   const out = [CSV_COLS.map(([, h]) => h).join(";")];
   out.push(line("cliente", rep.organizationId, orgName || rep.organizationId, rep.totals));
-  rep.byWork.forEach((w) => out.push(line("titulo", w.workId, w.title, w)));
-  rep.byProduct.forEach((p) => out.push(line("produto", p.productId, p.name, p)));
+  rep.byWork.forEach((w) => {
+    out.push(line("titulo", w.workId, w.title, w));
+    (w.products || []).forEach((p) => out.push(line("titulo > produto", `${w.workId}/${p.productId}`, `${w.title} > ${p.name}`, p)));
+  });
+  rep.byProduct.forEach((p) => out.push(line("produto (todos os titulos)", p.productId, p.name, p)));
+  // pedidos para conciliação
+  const orders = [];
+  rep.byWork.forEach((w) => (w.products || []).forEach((p) => (p.sales || []).forEach((o) => orders.push({ w, p, o }))));
+  if (orders.length) {
+    out.push("");
+    out.push(["Pedidos", "Data", "Título", "Produto", "Loja", "Pedido na loja", "Valor", "Comissão", "Parte do cliente", "Situação"].join(";"));
+    orders.sort((a, b) => b.o.at - a.o.at).forEach(({ w, p, o }) => out.push(["pedido", new Date(o.at).toISOString().slice(0, 10), w.title, p.name, o.store, o.orderId || o.saleId, o.value, o.commission, o.clientShare, o.status].map(esc).join(";")));
+  }
   return "﻿" + out.join("\n") + "\n";
 }
 

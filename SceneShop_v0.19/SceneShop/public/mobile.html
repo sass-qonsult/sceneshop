@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#ffffff" />
+  <meta name="theme-color" content="#000000" />
   <meta name="application-name" content="SceneShop" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>SceneShop — Mobile</title>
   <link rel="stylesheet" href="/css/mobile.css" />
   <link rel="stylesheet" href="/css/app-shell.css" />
@@ -17,10 +17,10 @@
   <script src="/js/i18n-dict.js"></script>
   <script src="/js/i18n.js"></script>
 </head>
-<body data-surface="MOBILE" class="theme-light">
+<body data-surface="MOBILE" class="theme-dark">
   <header class="top">
     <button type="button" class="brand brand-btn" id="homeBtn" aria-label="Início">
-      <img class="brand-logo" src="/media/brand/sceneshop-lockup-black.svg" alt="SceneShop" />
+      <img class="brand-logo" src="/media/brand/sceneshop-lockup-white.svg" alt="SceneShop" />
       <span id="brandName" class="partner-name" hidden>SceneShop</span>
     </button>
     <div class="status" id="status"><span class="dot"></span><span id="statusText">Conectando…</span></div>
@@ -82,7 +82,7 @@
   <!-- Início: botão grande para sincronizar (estilo "toque para reconhecer"), código, QR code, link e histórico -->
   <div id="join" class="join home" hidden>
     <div class="home-top">
-      <img class="home-logo" src="/media/brand/sceneshop-lockup-black.svg" alt="SceneShop" />
+      <img class="home-logo" src="/media/brand/sceneshop-lockup-white.svg" alt="SceneShop" />
       <span class="home-lang" data-lang-slot></span>
       <button type="button" class="icon-btn" id="homeMenuBtn" aria-label="Menu">
         <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
@@ -100,7 +100,7 @@
 
     <button type="button" id="syncNow" class="sync-now big-sync" aria-label="Sincronizar com o que estou assistindo">
       <span class="ring"></span><span class="ring r2"></span><span class="ring r3"></span>
-      <span class="big-core"><img src="/media/brand/sceneshop-mark-black.svg" alt="" /></span>
+      <span class="big-core"><img src="/media/brand/sceneshop-mark-white.svg" alt="" /></span>
       <span class="sr-only">Sincronizar com o que estou assistindo</span>
     </button>
     <div id="syncState" class="sync-state" aria-live="polite"></div>

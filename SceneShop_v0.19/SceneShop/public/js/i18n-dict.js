@@ -7219,5 +7219,65 @@ globalThis.SceneShopI18nDict = {
 "Carteira não suportada.": [
 "Wallet not supported.",
 "Billetera no compatible."
+],
+"Nenhum produto nesta cena.": [
+"No products in this scene.",
+"Ningún producto en esta escena."
+],
+"O celular segue o vídeo e mostra os produtos assim que eles aparecerem.": [
+"The phone keeps following the video and shows products as soon as they appear.",
+"El celular sigue el video y muestra los productos en cuanto aparezcan."
+],
+"Cliente / canal › título › produto › pedidos": [
+"Client / channel › title › product › orders",
+"Cliente / canal › título › producto › pedidos"
+],
+"Nível": [
+"Level",
+"Nivel"
+],
+"Títulos / produtos": [
+"Titles / products",
+"Títulos / productos"
+],
+"Título › produto › pedidos": [
+"Title › product › orders",
+"Título › producto › pedidos"
+],
+"Nenhum pedido no período.": [
+"No orders in this period.",
+"Ningún pedido en el período."
+],
+"Valor": [
+"Value",
+"Valor"
+],
+"em custódia": [
+"in custody",
+"en custodia"
+],
+"estornado": [
+"reversed",
+"revertido"
+],
+"1 produto": [
+"1 product",
+"1 producto"
+],
+"Contrato v{0}": [
+"Contract v{0}",
+"Contrato v{0}"
+],
+"Toque na seta de um cliente para abrir os títulos dele; em cada título, os produtos; em cada produto, os pedidos para conciliação. Cada cliente (estúdio, canal, plataforma, marca) é uma organização com os próprios títulos e produtos. Os números são separados por cliente, título e produto; o contrato define comissão, parte do cliente e taxas, com exceções por título e por produto.": [
+"Tap a client's arrow to open its titles; in each title, its products; in each product, the orders for reconciliation. Each client (studio, channel, platform, brand) is an organization with its own titles and products. Figures are split by client, title and product; the contract sets commission, client share and fees, with exceptions per title and per product.",
+"Toca la flecha de un cliente para abrir sus títulos; en cada título, los productos; en cada producto, los pedidos para conciliación. Cada cliente (estudio, canal, plataforma, marca) es una organización con sus propios títulos y productos. Los números se separan por cliente, título y producto; el contrato define comisión, parte del cliente y tarifas, con excepciones por título y por producto."
+],
+"A câmera foi bloqueada. Permita a câmera para o SceneShop nas configurações do celular, ou digite o código da TV.": [
+"The camera is blocked. Allow the camera for SceneShop in the phone settings, or type the TV code.",
+"La cámara está bloqueada. Permite la cámara para SceneShop en los ajustes del celular, o escribe el código de la TV."
+],
+"Não foi possível abrir a câmera. Digite o código da TV.": [
+"Couldn't open the camera. Type the TV code.",
+"No se pudo abrir la cámara. Escribe el código de la TV."
 ]
 };

@@ -1697,6 +1697,36 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
 
+  // ---------------------------------------------------------------- cascata (rcprep.17): cliente/canal → título → produto → pedidos
+  st.treeOpen = st.treeOpen || new Set();
+  const ORDER_STATUS = { pago: "pago", custodia: "em custódia", liberado: "liberado", estornado: "estornado" };
+  const caret = (key, has) => has ? `<button type="button" class="tree-caret${st.treeOpen.has(key) ? " is-open" : ""}" data-tree="${esc(key)}" aria-expanded="${st.treeOpen.has(key)}" aria-label="Abrir">\u25B8</button>` : '<span class="tree-caret-sp"></span>';
+  function ordersTable(orders, cols) {
+    if (!orders.length) return `<tr class="tree-l3"><td colspan="${cols}" class="help">Nenhum pedido no período.</td></tr>`;
+    return `<tr class="tree-l3"><td colspan="${cols}"><table class="ledger orders-sub"><thead><tr><th>Data</th><th>Loja</th><th>Pedido</th><th class="num">Valor</th><th class="num">Comissão</th><th class="num">Parte do cliente</th><th>Situação</th></tr></thead><tbody>${orders.map((o) => `<tr><td>${new Date(o.at).toLocaleDateString("pt-BR")}</td><td>${esc(o.store)}</td><td data-no-i18n>${esc(o.orderId || o.saleId)}</td><td class="num">${brl(o.value)}</td><td class="num">${brl(o.commission)}</td><td class="num">${brl(o.clientShare)}</td><td><span class="ord-${esc(o.status)}">${esc(ORDER_STATUS[o.status] || o.status)}</span></td></tr>`).join("")}</tbody></table></td></tr>`;
+  }
+  // linhas dos títulos de um relatório (nível base = level), com produtos e pedidos
+  function workTreeRows(rep, prefix, level, cells) {
+    return rep.byWork.map((w) => {
+      const kw = `${prefix}/w:${w.workId}`, prods = w.products || [];
+      let html = `<tr class="tree-l${level}"><td><span class="tree-name" style="--lvl:${level}">${caret(kw, prods.length)}<span>${esc(w.title)}${w.archived ? ' <span class="pill-off">(excluído)</span>' : ""}</span></span></td>${cells(w, "Título")}</tr>`;
+      if (st.treeOpen.has(kw)) for (const p of prods) {
+        const kp = `${kw}/p:${p.productId}`;
+        html += `<tr class="tree-l${level + 1}"><td><span class="tree-name" style="--lvl:${level + 1}">${caret(kp, true)}<span>${esc(p.name)}</span></span></td>${cells(p, "Produto")}</tr>`;
+        if (st.treeOpen.has(kp)) html += ordersTable(p.sales || [], cells.cols);
+      }
+      return html;
+    }).join("");
+  }
+  function wireTree(host, rerender, onOpen) {
+    host.querySelectorAll("[data-tree]").forEach((b) => (b.onclick = async (e) => {
+      e.stopPropagation();
+      const k = b.dataset.tree;
+      if (st.treeOpen.has(k)) st.treeOpen.delete(k); else { st.treeOpen.add(k); if (onOpen) await onOpen(k); }
+      rerender();
+    }));
+  }
+
   // visão do cliente (aba Desempenho): a própria conta, separada por título
   async function loadAccountReport() {
     const r = await api(`/api/me/account-report${periodQs("acctPeriod")}`);
@@ -1711,7 +1741,10 @@
       ...(Object.keys(c.works || {}).length ? [T("condições próprias em {0} título(s)", Object.keys(c.works).length)] : []),
     ].join(" · ") : T("Sem contrato específico: valem as condições gerais do SceneShop.");
     $("acctTiles").innerHTML = reportTiles(rep.totals, rep.currency, "parte da conta");
-    $("acctWorks").innerHTML = rep.byWork.map((w) => `<tr><td>${esc(w.title)}${w.archived ? ' <span class="pill-off">(excluído)</span>' : ""}</td><td class="num">${w.clicks}</td><td class="num">${w.orders}</td><td class="num">${w.conversion}%</td><td class="num">${brl(w.gmv)}</td><td class="num">${brl(w.commission)}</td><td class="num">${brl(w.clientShare)}</td><td class="num">${brl(w.fees)}</td></tr>`).join("") || `<tr><td colspan="8" class="help">Nenhum título ainda.</td></tr>`;
+    const acctCells = (r) => `<td class="num">${r.clicks}</td><td class="num">${r.orders}</td><td class="num">${r.conversion}%</td><td class="num">${brl(r.gmv)}</td><td class="num">${brl(r.commission)}</td><td class="num">${brl(r.clientShare)}</td><td class="num">${brl(r.fees)}</td>`;
+    acctCells.cols = 8;
+    const draw = () => { $("acctWorks").innerHTML = workTreeRows(rep, "me", 1, acctCells) || `<tr><td colspan="8" class="help">Nenhum título ainda.</td></tr>`; wireTree($("acctWorks"), draw); };
+    draw();
     $("acctCsv").onclick = (e) => { e.preventDefault(); downloadCsv(`/api/me/account-report.csv${periodQs("acctPeriod")}`, "sceneshop-relatorio.csv"); };
   }
   $("acctPeriod").onchange = loadAccountReport;
@@ -1725,8 +1758,29 @@
       ["Clientes", t.clients, "organizações", "hold"], ["Cliques", t.clicks, "em todos os títulos", "kyc"], ["Pedidos", t.orders, "atribuídos", "free"],
       ["Vendas", brl(t.gmv), `comissão ${brl(t.commission)}`, "paid"], ["Receita SceneShop", brl(t.sceneshopRevenue), `clientes ${brl(t.clientShare)}`, "frozen"],
     ].map(([l, v, sub, c]) => `<div class="tile ${c}"><div class="lbl">${l}</div><div class="val">${v}</div><div class="sub">${sub}</div></div>`).join("");
-    $("cliList").innerHTML = r.data.clients.map((c) => `<tr data-client="${esc(c.id)}" class="${c.id === st.clientId ? "is-sel" : ""}"><td><b>${esc(c.name)}</b></td><td>${esc(KIND_LABEL[c.kind] || c.kind || "")}</td><td class="num">${c.works}</td><td class="num">${c.totals.clicks}</td><td class="num">${c.totals.orders}</td><td class="num">${brl(c.totals.gmv)}</td><td class="num">${brl(c.totals.commission)}</td><td class="num">${brl(c.totals.clientShare)}</td><td class="num">${brl(c.totals.sceneshopRevenue)}</td><td>${c.contract ? `<span class="${c.contract.status === "active" ? "pill-ok" : "pill-off"}">${esc(c.contract.contractRef || "v" + c.contract.version)}</span>` : '<span class="pill-off">sem contrato</span>'}</td></tr>`).join("") || `<tr><td colspan="10" class="help">Nenhum cliente.</td></tr>`;
-    $("cliList").querySelectorAll("[data-client]").forEach((tr) => (tr.onclick = () => { st.clientId = tr.dataset.client; loadClients(); }));
+    st.clientReports = {};
+    const cliCells = (x, kind) => `<td>${esc(kind)}</td><td class="num">${kind === "Título" ? (x.products || []).length : ""}</td><td class="num">${x.clicks}</td><td class="num">${x.orders}</td><td class="num">${brl(x.gmv)}</td><td class="num">${brl(x.commission)}</td><td class="num">${brl(x.clientShare)}</td><td class="num">${brl(x.sceneshopRevenue)}</td><td></td>`;
+    cliCells.cols = 10;
+    const drawClients = () => {
+      $("cliList").innerHTML = r.data.clients.map((c) => {
+        const kc = `c:${c.id}`;
+        let html = `<tr class="tree-l0${c.id === st.clientId ? " is-sel" : ""}"><td><span class="tree-name" style="--lvl:0">${caret(kc, true)}<b>${esc(c.name)}</b></span></td><td>${esc(KIND_LABEL[c.kind] || c.kind || "")}</td><td class="num">${c.works}</td><td class="num">${c.totals.clicks}</td><td class="num">${c.totals.orders}</td><td class="num">${brl(c.totals.gmv)}</td><td class="num">${brl(c.totals.commission)}</td><td class="num">${brl(c.totals.clientShare)}</td><td class="num">${brl(c.totals.sceneshopRevenue)}</td><td><button type="button" class="ghost small" data-client="${esc(c.id)}">${c.contract ? esc(c.contract.contractRef || "Contrato v" + c.contract.version) : "Contrato"}</button></td></tr>`;
+        if (st.treeOpen.has(kc)) {
+          const cr = st.clientReports[c.id];
+          html += cr ? (workTreeRows(cr, kc, 1, cliCells) || `<tr class="tree-l1"><td colspan="10" class="help">Este cliente ainda não tem títulos.</td></tr>`) : `<tr class="tree-l1"><td colspan="10" class="help">Carregando…</td></tr>`;
+        }
+        return html;
+      }).join("") || `<tr><td colspan="10" class="help">Nenhum cliente.</td></tr>`;
+      $("cliList").querySelectorAll("button[data-client]").forEach((b) => (b.onclick = (e) => { e.stopPropagation(); st.clientId = b.dataset.client; drawClients(); loadClient(st.clientId).then(() => $("cliDetail").scrollIntoView({ behavior: "smooth", block: "start" })); }));
+      wireTree($("cliList"), drawClients, async (k) => {
+        const m = /^c:([^/]+)$/.exec(k); if (!m || st.clientReports[m[1]]) return;
+        const d = await api(`/api/admin/clients/${encodeURIComponent(m[1])}${periodQs("cliPeriod")}`, { noOrganization: true });
+        if (d.ok) st.clientReports[m[1]] = d.data.report;
+      });
+    };
+    // reabre os clientes que estavam abertos
+    for (const k of st.treeOpen) { const m = /^c:([^/]+)$/.exec(k); if (m) { const d = await api(`/api/admin/clients/${encodeURIComponent(m[1])}${periodQs("cliPeriod")}`, { noOrganization: true }); if (d.ok) st.clientReports[m[1]] = d.data.report; } }
+    drawClients();
     if (st.clientId) loadClient(st.clientId);
   }
   $("cliPeriod").onchange = loadClients;

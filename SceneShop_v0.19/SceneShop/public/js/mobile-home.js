@@ -142,7 +142,10 @@
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
       } catch (e) {
-        return stop(new Error("Não foi possível abrir a câmera. Permita o acesso à câmera ou digite o código da TV."));
+        const denied = e && /NotAllowed|Permission|Security/i.test(e.name || e.message || "");
+        return stop(new Error(denied
+          ? "A câmera foi bloqueada. Permita a câmera para o SceneShop nas configurações do celular, ou digite o código da TV."
+          : "Não foi possível abrir a câmera. Digite o código da TV."));
       }
       if (stopped) { stream.getTracks().forEach((t) => t.stop()); return; }
       video.srcObject = stream;

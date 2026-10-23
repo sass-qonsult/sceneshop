@@ -40,12 +40,13 @@ m.on("dialog", (d) => d.accept());
 // ---------------------------------------------------------------- início
 await m.goto(`${BASE}/mobile`);
 await m.waitForSelector("#join:not([hidden])");
-check(await m.evaluate(() => /sceneshop-lockup-black\.svg$/.test(document.querySelector(".home-logo").getAttribute("src"))), "início mostra a marca SceneShop em preto");
+check(await m.evaluate(() => /sceneshop-lockup-white\.svg$/.test(document.querySelector(".home-logo").getAttribute("src"))), "início com fundo preto e a marca SceneShop em branco (cores invertidas)");
 const big = await m.locator("#syncNow").boundingBox();
 check(big && big.width >= 200 && big.height >= 200, `botão grande de sincronizar no centro (${Math.round(big.width)}px)`);
 check(await m.locator(".home-options .opt").count() === 3 && /Código/.test(await m.locator("#optCode").innerText()) && /QR code/.test(await m.locator("#optQr").innerText()) && /Link/.test(await m.locator("#optLink").innerText()),
   "abaixo do botão: Código, QR code e Link");
 check(await m.locator(".app-rail").isHidden(), "os botões que ficavam soltos no topo (Web/Desktop/Mobile, instalar, compartilhar…) não aparecem mais na tela");
+check(await m.evaluate(() => getComputedStyle(document.querySelector("#join")).backgroundColor) === "rgb(0, 0, 0)", "fundo preto no início");
 await shot(m, "home");
 await m.click("#optCode");
 check(await m.locator("#joinForm").isVisible(), "Código abre o campo para digitar o código da TV");

@@ -5,15 +5,24 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.View
+import android.view.ViewGroup
+import android.view.WindowInsets
+import android.view.WindowInsetsController
+import android.widget.FrameLayout
 import android.webkit.PermissionRequest
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.webkit.WebSettingsCompat
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import androidx.webkit.WebViewFeature
 import org.json.JSONObject
 
@@ -40,6 +49,7 @@ class MainActivity : Activity() {
     webView.settings.domStorageEnabled = true
     webView.settings.allowFileAccess = false
     webView.settings.allowContentAccess = false
+    webView.settings.mediaPlaybackRequiresUserGesture = false // vídeo da câmera (leitor de QR pela página)
     // Carteiras (Google Pay e cartões salvos na Carteira do Google) pelo Payment Request: o cartão fica na
     // carteira e a página recebe só o token do gateway. Requer WebView 137+ e Google Play services 25.18.30+.
     if (WebViewFeature.isFeatureSupported(WebViewFeature.PAYMENT_REQUEST)) {
@@ -83,9 +93,54 @@ class MainActivity : Activity() {
     SyncForegroundService.onStopRequested = { emitNativeEvent("SYNC_STOP_REQUESTED", JSONObject()) }
     nativeBridge = SceneShopNativeBridge(this, webView)
     webView.addJavascriptInterface(nativeBridge, "SceneShopNative")
-    setContentView(webView)
+    // rcprep.17: o app ocupa só a área livre da tela. No Android 15 (targetSdk 35) a janela vai de ponta a
+    // ponta e a barra de status/navegação ficava por cima do conteúdo; o contêiner recebe como margem
+    // interna o tamanho das barras do sistema, do recorte da câmera e do teclado.
+    webView.setBackgroundColor(Color.BLACK)
+    val root = FrameLayout(this)
+    root.setBackgroundColor(Color.BLACK)
+    root.addView(webView, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+    if (Build.VERSION.SDK_INT >= 30) {
+      // o app desenha a área toda e se afasta sozinho das barras (igual em Android 11 a 15+)
+      window.setDecorFitsSystemWindows(false)
+      root.setOnApplyWindowInsetsListener { view, insets -> applySystemInsets(view, insets) }
+    }
+    setContentView(root)
+    darkSystemBars()
     webView.loadUrl(resolveSceneShopUrl(intent?.data))
     consumeShareIntent(intent)
+  }
+
+  @android.annotation.TargetApi(30)
+  private fun applySystemInsets(view: View, insets: WindowInsets): WindowInsets {
+    val bars = insets.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout() or WindowInsets.Type.ime())
+    view.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+    return WindowInsets.CONSUMED
+  }
+
+  // barras do sistema pretas com ícones claros (combina com o fundo preto do app)
+  @Suppress("DEPRECATION")
+  private fun darkSystemBars() {
+    if (Build.VERSION.SDK_INT < 35) { window.statusBarColor = Color.BLACK; window.navigationBarColor = Color.BLACK }
+    if (Build.VERSION.SDK_INT >= 30) {
+      window.insetsController?.setSystemBarsAppearance(0, WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS or WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
+    } else {
+      window.decorView.systemUiVisibility = window.decorView.systemUiVisibility and View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR.inv()
+    }
+  }
+
+  // rcprep.18: leitor de QR code nativo (Google code scanner): abre a câmera numa tela do Google Play services,
+  // sem pedir a permissão de câmera ao app e sem depender do WebView; devolve só o texto lido.
+  fun scanQr(requestId: String) {
+    try {
+      val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).enableAutoZoom().build()
+      GmsBarcodeScanning.getClient(this, options).startScan()
+        .addOnSuccessListener { code -> nativeBridge.completeRequest(requestId, true, JSONObject().put("text", code.rawValue ?: ""), null) }
+        .addOnCanceledListener { nativeBridge.completeRequest(requestId, false, null, "QR_CANCELLED") }
+        .addOnFailureListener { error -> nativeBridge.completeRequest(requestId, false, null, "QR_UNAVAILABLE: " + (error.message ?: "")) }
+    } catch (error: Exception) {
+      nativeBridge.completeRequest(requestId, false, null, "QR_UNAVAILABLE: " + (error.message ?: ""))
+    }
   }
 
   private fun androidPermissionFor(resource: String): String =

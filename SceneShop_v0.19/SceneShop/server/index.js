@@ -815,7 +815,7 @@ io.on("connection", (socket) => {
 });
 
 app.get("/api/live", (req, res) => {
-  res.json({ ok: true, service: "sceneshop", version: packageVersion, release: releaseRuntime });
+  res.json({ ok: true, service: "sceneshop", version: packageVersion, build: require("./build-info").BUILD, release: releaseRuntime });
 });
 
 app.get("/api/ops/status", requireRole(MODS), wrap(async (req, res) => {
@@ -851,6 +851,7 @@ app.get("/api/health", wrap(async (req, res) => {
   res.status(ok ? 200 : 503).json({
     ok,
     version: packageVersion,
+    build: require("./build-info").BUILD,
     release: releaseRuntime,
     demo: config.DEMO,
     data,

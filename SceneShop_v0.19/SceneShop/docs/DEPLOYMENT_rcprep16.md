@@ -13,7 +13,7 @@ How to bring a server to rcprep.16. It includes rcprep.13–15, so a server on r
 
 ## 2. Server
 1. Update the code (patch or bundle) and run `docker compose build app && docker compose up -d app`.
-2. Check: `/api/health` is OK. Opening `/mobile` on a phone shows the new home screen with the black logo. Studio → Performance shows **Account report**.
+2. Check: `/api/health` is OK. Opening `/mobile` on a phone shows the new home screen (black background, white logo). Studio → Performance shows **Account report**.
 3. To use the **Clients** tab, sign in with a platform admin (`node tools/criar-admin.js --usuario <login>`) or the moderator account.
 
 ## 3. Android APK (versionCode 7)

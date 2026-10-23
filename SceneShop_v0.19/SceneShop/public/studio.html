@@ -374,7 +374,7 @@
         <p class="help">Cliques, pedidos e comissão de todos os títulos desta conta, separados por título e por produto, nas condições do contrato com o SceneShop.</p>
         <div id="acctContract" class="help" data-no-i18n></div>
         <div class="tiles" id="acctTiles"></div>
-        <div class="table-wrap"><table class="ledger"><thead><tr><th>Título</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Conversão</th><th class="num">Vendas</th><th class="num">Comissão</th><th class="num">Parte da conta</th><th class="num">Taxas</th></tr></thead><tbody id="acctWorks"></tbody></table></div>
+        <div class="table-wrap"><table class="ledger tree"><thead><tr><th>Título › produto › pedidos</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Conversão</th><th class="num">Vendas</th><th class="num">Comissão</th><th class="num">Parte da conta</th><th class="num">Taxas</th></tr></thead><tbody id="acctWorks"></tbody></table></div>
       </div>
       <div class="card">
         <h3>Todos os projetos</h3>
@@ -415,9 +415,9 @@
             <button class="small" id="cliRefresh">Atualizar</button>
           </div>
         </div>
-        <p class="help">Cada cliente (estúdio, canal, plataforma, marca) é uma organização com os próprios títulos e produtos. Os números são separados por cliente, título e produto; o contrato define comissão, parte do cliente e taxas, com exceções por título e por produto.</p>
+        <p class="help">Toque na seta de um cliente para abrir os títulos dele; em cada título, os produtos; em cada produto, os pedidos para conciliação. Cada cliente (estúdio, canal, plataforma, marca) é uma organização com os próprios títulos e produtos. Os números são separados por cliente, título e produto; o contrato define comissão, parte do cliente e taxas, com exceções por título e por produto.</p>
         <div class="tiles" id="cliTotals"></div>
-        <div class="table-wrap"><table class="ledger"><thead><tr><th>Cliente</th><th>Classe</th><th class="num">Títulos</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Vendas</th><th class="num">Comissão</th><th class="num">Parte do cliente</th><th class="num">Receita SceneShop</th><th>Contrato</th></tr></thead><tbody id="cliList"></tbody></table></div>
+        <div class="table-wrap"><table class="ledger tree"><thead><tr><th>Cliente / canal › título › produto › pedidos</th><th>Nível</th><th class="num">Títulos / produtos</th><th class="num">Cliques</th><th class="num">Pedidos</th><th class="num">Vendas</th><th class="num">Comissão</th><th class="num">Parte do cliente</th><th class="num">Receita SceneShop</th><th>Contrato</th></tr></thead><tbody id="cliList"></tbody></table></div>
       </div>
       <div id="cliDetail" hidden>
         <div class="card">

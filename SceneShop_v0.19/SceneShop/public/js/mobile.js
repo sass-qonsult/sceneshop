@@ -87,7 +87,7 @@
     if (!raw || !Array.isArray(raw.scenes) || !raw.scenes.length) {
       return { workId: state.work.id, policy: { visibility: 'PAST_AND_CURRENT', thumbnailsEnabled: true, missedItemsEnabled: true, allowSceneSeek: false }, scenes: sourceScenes.map((s) => ({ ...s, sceneId: s.id, thumbnail: s.thumb })) };
     }
-    return { ...raw, scenes: raw.scenes.map((sc, i) => {
+    const commerce = raw.scenes.map((sc, i) => {
       const legacy = sourceScenes.find((s) => s.id === sc.sceneId) || sourceScenes.find((s) => Number(sc.start) >= Number(s.start) && Number(sc.start) < Number(s.end)) || null;
       return {
         ...sc, id: sc.sceneId || `commerce-${i+1}`, sceneId: sc.sceneId || `commerce-${i+1}`,
@@ -97,7 +97,13 @@
           return rich ? { ...rich, productId: cp.productId || rich.id || null, placementId: cp.placementId, assetId: cp.assetId || null, policy: cp.policy || {} } : { id: cp.productId || cp.assetId, productId: cp.productId || null, name: cp.name || 'Produto', brand: cp.brand || '', category: cp.category || '', image: '/media/products/placeholder.svg', offers: [], placementId: cp.placementId, assetId: cp.assetId || null, policy: cp.policy || {} };
         }),
       };
-    }) };
+    });
+    // rcprep.17: as cenas SEM produtos também aparecem, para o celular acompanhar o vídeo sem saltos;
+    // a Commerce Timeline só publica as cenas com produtos, então as demais vêm da trilha.
+    const covered = (s) => commerce.some((c) => c.sceneId === s.id || (Number(s.start) < Number(c.end) && Number(s.end) > Number(c.start)));
+    const plain = sourceScenes.filter((s) => !covered(s)).map((s) => ({ ...s, sceneId: s.id, thumb: s.thumb || null, products: [] }));
+    const scenes = [...commerce, ...plain].sort((x, y) => Number(x.start || 0) - Number(y.start || 0));
+    return { ...raw, scenes };
   }
   const timelineScenes = () => state.timeline && state.timeline.scenes || state.work && state.work.scenes || [];
   const activeSceneAt = (t) => timelineScenes().find((s) => t >= Number(s.start||0) && t < Number(s.end||0)) || null;
@@ -132,10 +138,10 @@
       const isLive = sid === state.liveSceneId;
       const currentShown=shownScene();
       const isSel = currentShown && sid === (currentShown.sceneId||currentShown.id);
-      b.className = "scene" + (isLive ? " is-live" : "") + (isSel ? " is-sel" : "");
+      b.className = "scene" + (isLive ? " is-live" : "") + (isSel ? " is-sel" : "") + ((s.products||[]).length ? "" : " is-empty");
       b.innerHTML = `<div class="thumb">${s.thumb?`<img src="${s.thumb}" alt=""/>`:'<span class="thumb-fallback">SHOP</span>'}${isLive && !state.historyMode ? '<span class="live">AO VIVO</span>' : ""}</div>
                      <div class="label">${i + 1}. ${esc(s.title)}</div>
-                     <div class="count">${(s.products||[]).length} produtos · ${fmt(Number(s.start||0))}</div>`;
+                     <div class="count">${(s.products||[]).length === 1 ? "1 produto" : `${(s.products||[]).length} produtos`} · ${fmt(Number(s.start||0))}</div>`;
       b.onclick = () => {
         state.viewSceneId = sid === state.liveSceneId ? null : sid;
         state.tab = "scene";
@@ -266,7 +272,8 @@
       } else {
         const sid=s.sceneId||s.id;
         list.innerHTML = `<div class="list-head">${esc(s.title)} ${sid === state.liveSceneId ? '<span class="live">AO VIVO</span>' : ""}</div>` +
-          (s.products||[]).map((p) => productCard(p, "", sid)).join("");
+          ((s.products||[]).length ? (s.products||[]).map((p) => productCard(p, "", sid)).join("")
+            : `<div class="empty scene-empty">Nenhum produto nesta cena.<br/><span>O celular segue o vídeo e mostra os produtos assim que eles aparecerem.</span></div>`);
       }
     }
     list.querySelectorAll("[data-save]").forEach((b) => (b.onclick = () => toggleSave(b.dataset.save)));
@@ -611,7 +618,8 @@
 
   function onSceneChange(id) {
     state.liveSceneId = id;
-    if (navigator.vibrate && !state.viewSceneId) navigator.vibrate(30);
+    const sc = timelineScenes().find((x) => (x.sceneId || x.id) === id);
+    if (navigator.vibrate && !state.viewSceneId && sc && (sc.products || []).length) navigator.vibrate(30);
     if (state.viewSceneId) { renderScenes(); return; } // usuário está olhando outra cena: não atrapalha
     render();
   }
@@ -628,7 +636,7 @@
       const live = act && act.workId === e.workId;
       const seen = e.duration ? tr("visto até {0}", fmt(Math.min(e.position || 0, e.duration))) : "";
       return `<button type="button" class="history-item" data-history="${esc(e.workId)}">
-        <span class="h-thumb">${e.thumb ? `<img src="${esc(e.thumb)}" alt=""/>` : '<img class="h-mark" src="/media/brand/sceneshop-mark-black.svg" alt=""/>'}</span>
+        <span class="h-thumb">${e.thumb ? `<img src="${esc(e.thumb)}" alt=""/>` : '<img class="h-mark" src="/media/brand/sceneshop-mark-white.svg" alt=""/>'}</span>
         <span class="h-body"><b data-no-i18n>${esc(e.title || "Título")}</b><small data-no-i18n>${esc([e.productCount ? tr("{0} produtos", e.productCount) : "", seen, ago(e.lastAt)].filter(Boolean).join(" · "))}</small></span>
         ${live ? '<span class="h-live">AO VIVO</span>' : ""}
       </button>`;
@@ -680,6 +688,20 @@
     $("optCode").onclick = () => toggleOption("code");
     $("optLink").onclick = () => toggleOption("link");
     $("optQr").onclick = async () => {
+      // APK Android: leitor nativo do Google (não depende da câmera dentro do WebView); senão, a câmera pela página
+      if (window.SceneShopNative && window.SceneShopAppBridge) {
+        try {
+          const r = await window.SceneShopAppBridge.request("SCAN_QR", {}, 180000);
+          const code = Home.codeFrom(r && r.text);
+          if (!code) { $("syncState").textContent = "Esse QR code não é de uma tela SceneShop."; return; }
+          if (navigator.vibrate) navigator.vibrate(40);
+          $("syncState").textContent = `Código ${code} lido. Conectando…`;
+          return go(`/s/${code}`);
+        } catch (e) {
+          if (/QR_CANCELLED/.test(String(e && e.message))) return;
+          // leitor nativo indisponível (app antigo ou sem Google Play services): usa a câmera pela página
+        }
+      }
       try {
         const out = await Home.scanQr({ view: $("qrView"), video: $("qrVideo"), message: $("qrMsg") });
         if (navigator.vibrate) navigator.vibrate(40);

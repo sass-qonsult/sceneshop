@@ -221,12 +221,24 @@ await st.locator("#demoAccounts button", { hasText: "Produtora" }).click();
 await st.waitForSelector(".tabs button[data-tab=ofertas]:not([hidden])");
 await st.click(".tabs button[data-tab=ofertas]");
 await st.waitForSelector("#offersBody tr[data-id=jaqueta-couro]");
-await st.fill("#offersBody tr[data-id=jaqueta-couro] [data-f=price]", "459.90");
-await st.click("#offersBody tr[data-id=jaqueta-couro] [data-save]");
+// a tabela pode ser redesenhada enquanto carrega (servidor ocupado): espera a rede assentar e confere o PUT
+await st.waitForLoadState("networkidle");
+for (let attempt = 0; attempt < 3; attempt++) {
+  await st.fill("#offersBody tr[data-id=jaqueta-couro] [data-f=price]", "459.90");
+  const [resp] = await Promise.all([
+    st.waitForResponse((r) => r.url().includes("/api/official-offers/jaqueta-couro") && r.request().method() === "PUT", { timeout: 10000 }).catch(() => null),
+    st.click("#offersBody tr[data-id=jaqueta-couro] [data-save]"),
+  ]);
+  const sent = resp ? JSON.parse(resp.request().postData() || "{}") : {};
+  if (resp && resp.ok() && Number(String(sent.price).replace(",", ".")) === 459.9) break;
+  await st.waitForTimeout(500);
+}
 await st.waitForTimeout(500);
 await st.screenshot({ path: `${OUT}/22-ofertas-oficiais.png`, fullPage: true });
 check((await st.textContent("#sellersList")).includes("usados"), "Produtora vê o estoque de cupons do varejista");
-const w2 = await (await fetch(`${BASE}/api/works/demo-01`)).json();
+// o salvamento é assíncrono: espera até 5 s pelo novo preço (evita falha por tempo com o servidor carregado)
+let w2 = null;
+for (let i = 0; i < 20; i++) { w2 = await (await fetch(`${BASE}/api/works/demo-01`)).json(); if (w2.scenes[0].products[0].offers[0].price === 459.9) break; await new Promise((r) => setTimeout(r, 250)); }
 check(w2.scenes[0].products[0].offers[0].price === 459.9, "Novo preço garantido vale para os próximos cliques");
 await st.click(".tabs button[data-tab=ganhos]");
 // a tabela carrega de forma assíncrona: espera o conteúdo, não só a linha provisória

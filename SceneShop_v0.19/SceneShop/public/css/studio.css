@@ -406,3 +406,19 @@ input[data-money] { text-align: right; font-variant-numeric: tabular-nums; }
 .pill-ok { color: #3ddc97; font-weight: 700; }
 .pill-off { color: var(--muted); }
 .contract-form textarea { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; font: inherit; }
+
+/* rcprep.17 — cascata cliente/canal › título › produto › pedidos */
+.ledger.tree .tree-name { display: inline-flex; align-items: center; gap: 6px; padding-left: calc(var(--lvl, 0) * 22px); }
+.tree-caret { width: 22px; height: 22px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; line-height: 22px; padding: 0; transition: transform .15s; flex: none; }
+.tree-caret:hover { background: rgba(124,92,255,.14); color: var(--text); }
+.tree-caret.is-open { transform: rotate(90deg); color: var(--text); }
+.tree-caret-sp { display: inline-block; width: 22px; flex: none; }
+.ledger.tree tr.tree-l0 td { font-weight: 600; }
+.ledger.tree tr.tree-l1 td { background: rgba(124,92,255,.04); }
+.ledger.tree tr.tree-l2 td { background: rgba(124,92,255,.08); font-size: 13px; }
+.ledger.tree tr.tree-l3 > td { background: rgba(124,92,255,.11); padding: 6px 10px 10px 76px; }
+.orders-sub { font-size: 12px; margin: 0; }
+.orders-sub th, .orders-sub td { padding: 4px 8px; }
+.ord-pago, .ord-liberado { color: #3ddc97; }
+.ord-custodia { color: #f5b83d; }
+.ord-estornado { color: #ff6b81; }

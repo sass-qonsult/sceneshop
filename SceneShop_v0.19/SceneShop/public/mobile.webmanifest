@@ -6,8 +6,8 @@
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#0e0e16",
-  "theme_color": "#0e0e16",
+  "background_color": "#000000",
+  "theme_color": "#000000",
   "description": "SceneShop mobile Companion synchronized with audiovisual content.",
   "icons": [
     {"src":"/media/app/sceneshop-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},

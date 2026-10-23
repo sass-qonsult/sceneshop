@@ -9,7 +9,7 @@ val releaseSigningReady = listOf(releaseKeystoreFile, releaseStorePassword, rele
 android {
   namespace = "io.sceneshop.mobile"
   compileSdk = 35
-  defaultConfig { applicationId = "io.sceneshop.mobile"; minSdk = 26; targetSdk = 35; versionCode = 7; versionName = "0.19.0-rc.1" }
+  defaultConfig { applicationId = "io.sceneshop.mobile"; minSdk = 26; targetSdk = 35; versionCode = 9; versionName = "0.19.0-rc.1" }
   signingConfigs {
     if (releaseSigningReady) create("production") {
       storeFile = file(releaseKeystoreFile!!)
@@ -26,4 +26,8 @@ android.defaultConfig.buildConfigField("String", "SCENESHOP_APP_URL", "\"${Syste
 android.buildFeatures.buildConfig = true
 
 // rcprep.16: Payment Request no WebView (Google Pay / cartões da Carteira do Google dentro do app)
-dependencies { implementation("androidx.webkit:webkit:1.14.0") }
+dependencies {
+  implementation("androidx.webkit:webkit:1.14.0")
+  // rcprep.18: leitor de QR code do Google Play services (sem permissão de câmera no app)
+  implementation("com.google.android.gms:play-services-code-scanner:16.1.0")
+}
